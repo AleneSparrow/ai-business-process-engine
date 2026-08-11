@@ -1,0 +1,21 @@
+"""Customer-process states."""
+
+from enum import StrEnum
+
+
+class ProcessState(StrEnum):
+    NEW_LEAD = "NEW_LEAD"
+    CONTACTED = "CONTACTED"
+    QUALIFYING = "QUALIFYING"
+    QUALIFIED = "QUALIFIED"
+    BOOKED = "BOOKED"
+    QUOTED = "QUOTED"
+    FOLLOW_UP = "FOLLOW_UP"
+    WON = "WON"
+    PAID = "PAID"
+    COMPLETED = "COMPLETED"
+    REVIEW_REQUESTED = "REVIEW_REQUESTED"
+    REACTIVATION = "REACTIVATION"
+    NEEDS_HUMAN = "NEEDS_HUMAN"
+    LOST = "LOST"
+    CANCELLED = "CANCELLED"

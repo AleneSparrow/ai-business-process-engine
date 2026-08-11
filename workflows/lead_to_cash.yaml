@@ -1,0 +1,25 @@
+name: lead_to_cash
+version: 1
+description: Reusable customer journey from a new lead through reactivation.
+initial_state: NEW_LEAD
+states:
+  NEW_LEAD: [CONTACTED, NEEDS_HUMAN, LOST]
+  CONTACTED: [QUALIFYING, NEEDS_HUMAN, LOST]
+  QUALIFYING: [QUALIFIED, NEEDS_HUMAN, LOST]
+  QUALIFIED: [BOOKED, QUOTED, NEEDS_HUMAN, LOST]
+  BOOKED: [FOLLOW_UP, CANCELLED, NEEDS_HUMAN]
+  QUOTED: [FOLLOW_UP, LOST, NEEDS_HUMAN]
+  FOLLOW_UP: [WON, LOST, NEEDS_HUMAN]
+  WON: [PAID, CANCELLED, NEEDS_HUMAN]
+  PAID: [COMPLETED, NEEDS_HUMAN]
+  COMPLETED: [REVIEW_REQUESTED, NEEDS_HUMAN]
+  REVIEW_REQUESTED: [REACTIVATION, NEEDS_HUMAN]
+  REACTIVATION: [CONTACTED, LOST, NEEDS_HUMAN]
+  # An identified human may approve only the pending target stored by the engine.
+  NEEDS_HUMAN: []
+  LOST: [REACTIVATION]
+  CANCELLED: [REACTIVATION]
+decision_policy:
+  types: [RULE, AI, HUMAN]
+  low_confidence: NEEDS_HUMAN
+  high_risk: NEEDS_HUMAN

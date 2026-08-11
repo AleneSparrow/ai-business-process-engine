@@ -1,0 +1,79 @@
+{
+  "schema_version": "1.0",
+  "business": {
+    "id": "acme-home-services",
+    "name": "Acme Home Services",
+    "industry": "home_services",
+    "description": "Residential plumbing and maintenance",
+    "timezone": "America/Chicago",
+    "currency": "USD"
+  },
+  "services": [
+    {
+      "id": "diagnostic-visit",
+      "name": "Diagnostic visit",
+      "description": "On-site diagnosis",
+      "duration_minutes": 60,
+      "pricing": {"model": "fixed", "amount": 129, "tax_included": false},
+      "service_area_ids": ["metro"]
+    }
+  ],
+  "service_areas": [
+    {"id": "metro", "type": "postal_codes", "values": ["60601", "60602"]}
+  ],
+  "business_hours": {
+    "monday": [{"opens": "08:00", "closes": "17:00"}],
+    "tuesday": [{"opens": "08:00", "closes": "17:00"}],
+    "wednesday": [{"opens": "08:00", "closes": "17:00"}],
+    "thursday": [{"opens": "08:00", "closes": "17:00"}],
+    "friday": [{"opens": "08:00", "closes": "17:00"}]
+  },
+  "customer_information": {
+    "required_fields": ["name", "phone", "service_address", "service_id"],
+    "optional_fields": ["email", "preferred_time", "notes"]
+  },
+  "qualification": {
+    "rules": [
+      {"field": "service_area_id", "operator": "in", "value": ["metro"], "outcome": "qualified"}
+    ],
+    "default_outcome": "needs_human"
+  },
+  "booking": {
+    "minimum_notice_minutes": 120,
+    "maximum_advance_days": 60,
+    "requires_confirmation": true,
+    "cancellation_notice_hours": 24
+  },
+  "sales": {
+    "quote_expiry_days": 14,
+    "follow_up": {"delays_hours": [24, 72, 168], "maximum_attempts": 3}
+  },
+  "payment": {
+    "timing": "after_service",
+    "accepted_methods": ["card", "bank_transfer"],
+    "deposit": {"required": false, "percentage": 0},
+    "human_approval_above": 5000
+  },
+  "communication": {
+    "channels": ["sms", "email"],
+    "default_channel": "sms",
+    "tone": "friendly, concise, and professional",
+    "quiet_hours": {"starts": "20:00", "ends": "08:00"}
+  },
+  "ai_permissions": {
+    "allowed": ["classify_intent", "extract_customer_details", "draft_message", "recommend_next_step"],
+    "forbidden": ["issue_refund", "change_price", "capture_payment", "make_legal_commitment"],
+    "minimum_confidence": 0.8
+  },
+  "human_escalation": {
+    "triggers": ["low_confidence", "customer_request", "complaint", "high_value", "policy_exception"],
+    "queue": "operations",
+    "response_target_minutes": 30
+  },
+  "integrations": {
+    "crm": {"provider": null, "connection_reference": null},
+    "calendar": {"provider": null, "connection_reference": null},
+    "payments": {"provider": null, "connection_reference": null},
+    "messaging": {"provider": null, "connection_reference": null}
+  }
+}

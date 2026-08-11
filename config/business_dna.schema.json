@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/business-dna-1.0.json",
+  "title": "Business DNA",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "business", "services", "service_areas", "business_hours", "customer_information", "qualification", "booking", "sales", "payment", "communication", "ai_permissions", "human_escalation", "integrations"],
+  "$defs": {
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "operator", "value", "outcome"],
+      "properties": {
+        "field": {"type": "string", "minLength": 1},
+        "operator": {"enum": ["equals", "not_equals", "in", "not_in", "greater_than", "less_than", "exists"]},
+        "value": {},
+        "outcome": {"type": "string", "minLength": 1}
+      }
+    },
+    "integration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "connection_reference"],
+      "properties": {
+        "provider": {"type": ["string", "null"], "minLength": 1},
+        "connection_reference": {"type": ["string", "null"], "minLength": 1, "description": "Opaque secret-manager or connection ID; never a credential."}
+      }
+    },
+    "hours": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["opens", "closes"],
+        "properties": {"opens": {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"}, "closes": {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"}}
+      }
+    }
+  },
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "business": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "name", "industry", "description", "timezone", "currency"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1}, "name": {"type": "string", "minLength": 1},
+        "industry": {"type": "string", "minLength": 1}, "description": {"type": "string"}, "timezone": {"type": "string", "minLength": 1},
+        "currency": {"type": "string", "pattern": "^[A-Z]{3}$"}
+      }
+    },
+    "services": {
+      "type": "array", "minItems": 1,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["id", "name", "description", "duration_minutes", "pricing", "service_area_ids"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1}, "name": {"type": "string", "minLength": 1}, "description": {"type": "string"},
+          "duration_minutes": {"type": "integer", "minimum": 1}, "service_area_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "pricing": {
+            "type": "object", "additionalProperties": false, "required": ["model", "tax_included"],
+            "properties": {"model": {"enum": ["fixed", "starting_at", "hourly", "custom_quote"]}, "amount": {"type": "number", "minimum": 0}, "tax_included": {"type": "boolean"}},
+            "allOf": [{"if": {"properties": {"model": {"enum": ["fixed", "starting_at", "hourly"]}}}, "then": {"required": ["amount"]}}]
+          }
+        }
+      }
+    },
+    "service_areas": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["id", "type", "values"], "properties": {"id": {"type": "string", "minLength": 1}, "type": {"enum": ["postal_codes", "cities", "regions", "radius", "remote"]}, "values": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": ["string", "number"]}}}}},
+    "business_hours": {"type": "object", "minProperties": 1, "additionalProperties": false, "properties": {"monday": {"$ref": "#/$defs/hours"}, "tuesday": {"$ref": "#/$defs/hours"}, "wednesday": {"$ref": "#/$defs/hours"}, "thursday": {"$ref": "#/$defs/hours"}, "friday": {"$ref": "#/$defs/hours"}, "saturday": {"$ref": "#/$defs/hours"}, "sunday": {"$ref": "#/$defs/hours"}}},
+    "customer_information": {"type": "object", "additionalProperties": false, "required": ["required_fields", "optional_fields"], "properties": {"required_fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}, "optional_fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}}},
+    "qualification": {"type": "object", "additionalProperties": false, "required": ["rules", "default_outcome"], "properties": {"rules": {"type": "array", "items": {"$ref": "#/$defs/rule"}}, "default_outcome": {"type": "string"}}},
+    "booking": {"type": "object", "additionalProperties": false, "required": ["minimum_notice_minutes", "maximum_advance_days", "requires_confirmation", "cancellation_notice_hours"], "properties": {"minimum_notice_minutes": {"type": "integer", "minimum": 0}, "maximum_advance_days": {"type": "integer", "minimum": 1}, "requires_confirmation": {"type": "boolean"}, "cancellation_notice_hours": {"type": "integer", "minimum": 0}}},
+    "sales": {"type": "object", "additionalProperties": false, "required": ["quote_expiry_days", "follow_up"], "properties": {"quote_expiry_days": {"type": "integer", "minimum": 1}, "follow_up": {"type": "object", "additionalProperties": false, "required": ["delays_hours", "maximum_attempts"], "properties": {"delays_hours": {"type": "array", "items": {"type": "integer", "minimum": 1}}, "maximum_attempts": {"type": "integer", "minimum": 0}}}}},
+    "payment": {"type": "object", "additionalProperties": false, "required": ["timing", "accepted_methods", "deposit", "human_approval_above"], "properties": {"timing": {"enum": ["before_booking", "before_service", "after_service", "invoice"]}, "accepted_methods": {"type": "array", "items": {"type": "string"}}, "deposit": {"type": "object", "additionalProperties": false, "required": ["required", "percentage"], "properties": {"required": {"type": "boolean"}, "percentage": {"type": "number", "minimum": 0, "maximum": 100}}}, "human_approval_above": {"type": "number", "minimum": 0}}},
+    "communication": {"type": "object", "additionalProperties": false, "required": ["channels", "default_channel", "tone", "quiet_hours"], "properties": {"channels": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["email", "sms", "phone", "webchat", "messaging_app"]}}, "default_channel": {"enum": ["email", "sms", "phone", "webchat", "messaging_app"]}, "tone": {"type": "string", "minLength": 1}, "quiet_hours": {"type": "object", "additionalProperties": false, "required": ["starts", "ends"], "properties": {"starts": {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"}, "ends": {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"}}}}},
+    "ai_permissions": {"type": "object", "additionalProperties": false, "required": ["allowed", "forbidden", "minimum_confidence"], "properties": {"allowed": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "forbidden": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "minimum_confidence": {"type": "number", "minimum": 0, "maximum": 1}}},
+    "human_escalation": {"type": "object", "additionalProperties": false, "required": ["triggers", "queue", "response_target_minutes"], "properties": {"triggers": {"type": "array", "items": {"type": "string"}}, "queue": {"type": "string"}, "response_target_minutes": {"type": "integer", "minimum": 1}}},
+    "integrations": {"type": "object", "additionalProperties": {"$ref": "#/$defs/integration"}, "propertyNames": {"pattern": "^[a-z][a-z0-9_]*$", "not": {"pattern": "(secret|password|token|api_?key|credential)"}}}
+  }
+}
