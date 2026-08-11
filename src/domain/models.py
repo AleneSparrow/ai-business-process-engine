@@ -43,14 +43,15 @@ class DecisionType(StrEnum):
 @dataclass(frozen=True, slots=True)
 class Lead:
     lead_id: str
-    name: str
+    name: str | None = None
     email: str | None = None
     phone: str | None = None
     attributes: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         _require_text(self.lead_id, "lead_id")
-        _require_text(self.name, "name")
+        if self.name is not None:
+            _require_text(self.name, "name")
         object.__setattr__(self, "attributes", _freeze(self.attributes))
 
 
@@ -184,3 +185,8 @@ class ProcessCase:
     def _apply_transition(self, target: ProcessState) -> None:
         """Apply a transition already authorized by the process engine."""
         self._current_state = target
+
+    def update_lead(self, lead: Lead) -> None:
+        if lead.lead_id != self.lead.lead_id:
+            raise ValueError("updated lead must preserve lead_id")
+        self.lead = lead

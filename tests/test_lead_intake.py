@@ -1,0 +1,248 @@
+import json
+from copy import deepcopy
+from dataclasses import replace
+from datetime import datetime, timezone
+from pathlib import Path
+
+import pytest
+
+from src.domain.events import EventType
+from src.domain.qualification import IncomingMessage, IntentResult, Urgency
+from src.domain.states import ProcessState
+from src.engine.intent_extractor import DeterministicIntentExtractor
+from src.engine.lead_intake import LeadIntakeService
+from src.engine.question_generator import DeterministicQuestionGenerator
+
+
+ROOT = Path(__file__).parents[1]
+NOW = datetime(2026, 8, 11, 8, 0, tzinfo=timezone.utc)
+
+
+def business_dna() -> dict:
+    with (ROOT / "config" / "business_dna.example.json").open(encoding="utf-8") as file:
+        return json.load(file)
+
+
+def message(
+    external_message_id: str,
+    *,
+    name: str | None = "Ada",
+    phone: str | None = "+1 312 555 0100",
+    email: str | None = None,
+    case_id: str | None = None,
+) -> IncomingMessage:
+    return IncomingMessage(
+        business_id="acme-home-services",
+        channel="sms",
+        external_message_id=external_message_id,
+        customer_name=name,
+        phone=phone,
+        email=email,
+        raw_text="I need help",
+        timestamp=NOW,
+        case_id=case_id,
+    )
+
+
+def service_with(results: dict[str, IntentResult], dna: dict | None = None) -> LeadIntakeService:
+    return LeadIntakeService(
+        dna or business_dna(),
+        DeterministicIntentExtractor(results),
+        DeterministicQuestionGenerator(),
+    )
+
+
+def valid_intent(**changes: object) -> IntentResult:
+    values = {
+        "service_requested": "diagnostic-visit",
+        "urgency": Urgency.NORMAL,
+        "customer_location": "60601",
+        "confidence": 0.95,
+    }
+    values.update(changes)
+    return IntentResult(**values)  # type: ignore[arg-type]
+
+
+def test_valid_service_area_and_information_becomes_qualified() -> None:
+    intake = service_with({"msg-a": valid_intent()})
+
+    result = intake.receive(message("msg-a"))
+
+    assert result.current_state is ProcessState.QUALIFIED
+    assert result.qualification.qualified
+    assert result.qualification.booking_allowed
+    assert result.response is None
+    case = intake.get_case(result.case_id)
+    changes = [event.payload["to"] for event in case.event_history if event.event_type is EventType.STATE_CHANGED]
+    assert changes == ["CONTACTED", "QUALIFYING", "QUALIFIED"]
+
+
+def test_missing_phone_remains_qualifying_and_generates_configured_question() -> None:
+    intake = service_with({"msg-b": valid_intent()})
+
+    result = intake.receive(message("msg-b", phone=None))
+
+    assert result.current_state is ProcessState.QUALIFYING
+    assert result.qualification.missing_fields == ("phone",)
+    assert result.response is not None
+    assert result.response.message_text == "What is the best phone number to reach you?"
+    assert result.response.reason == "missing_information"
+
+
+def test_unsupported_service_is_lost() -> None:
+    intake = service_with({"msg-c": valid_intent(service_requested="roof_replacement")})
+
+    result = intake.receive(message("msg-c"))
+
+    assert result.current_state is ProcessState.LOST
+    assert "not offered" in result.qualification.reasons[0]
+    assert result.response is not None
+    assert result.response.reason == "not_qualified"
+
+
+def test_outside_enforced_service_area_is_lost() -> None:
+    intake = service_with({"msg-d": valid_intent(customer_location="99999")})
+
+    result = intake.receive(message("msg-d"))
+
+    assert result.current_state is ProcessState.LOST
+    assert result.qualification.reasons == ("Customer is outside the configured service area",)
+
+
+def test_low_confidence_intent_requires_human() -> None:
+    intake = service_with({"msg-e": valid_intent(confidence=0.2)})
+
+    result = intake.receive(message("msg-e"))
+
+    assert result.current_state is ProcessState.NEEDS_HUMAN
+    assert result.qualification.requires_human
+    assert result.response is not None and result.response.requires_human
+    assert intake.get_case(result.case_id).pending_transition is ProcessState.QUALIFIED
+
+
+def test_duplicate_external_message_is_idempotent_without_new_case_or_events() -> None:
+    intake = service_with({"msg-f": valid_intent()})
+    first = intake.receive(message("msg-f"))
+    case = intake.get_case(first.case_id)
+    event_count = len(case.event_history)
+
+    duplicate = intake.receive(message("msg-f", phone="+1 (312) 555-0100"))
+
+    assert duplicate.duplicate
+    assert duplicate.case_id == first.case_id
+    assert len(intake.cases) == 1
+    assert len(case.event_history) == event_count
+
+
+def test_duplicate_id_with_different_content_is_rejected() -> None:
+    intake = service_with({"collision": valid_intent()})
+    original = message("collision")
+    intake.receive(original)
+    with pytest.raises(ValueError, match="reused with different"):
+        intake.receive(replace(original, raw_text="Different payload"))
+
+
+def test_service_specific_question_must_be_answered_before_qualification() -> None:
+    dna = deepcopy(business_dna())
+    dna["services"][0]["qualification_questions"] = [{
+        "id": "property_type",
+        "prompt": "Is this a residential or commercial property?",
+        "required": True,
+        "disqualifying_answers": [],
+    }]
+    intake = service_with({
+        "msg-g": valid_intent(),
+        "msg-g2": IntentResult(
+            confidence=0.95,
+            qualification_answers={"property_type": "residential"},
+        ),
+    }, dna)
+
+    result = intake.receive(message("msg-g"))
+
+    assert result.current_state is ProcessState.QUALIFYING
+    assert result.qualification.unanswered_questions == (
+        "Is this a residential or commercial property?",
+    )
+    assert result.response is not None
+    assert result.response.message_text == "Is this a residential or commercial property?"
+
+    answered = intake.receive(message("msg-g2", case_id=result.case_id))
+    assert answered.current_state is ProcessState.QUALIFIED
+
+
+def test_existing_lead_adds_information_and_same_case_progresses() -> None:
+    intake = service_with({
+        "msg-h1": valid_intent(),
+        "msg-h2": IntentResult(confidence=0.95),
+    })
+    first = intake.receive(message("msg-h1", phone=None))
+
+    second = intake.receive(message("msg-h2", phone="+1 312 555 0100", case_id=first.case_id))
+
+    assert first.current_state is ProcessState.QUALIFYING
+    assert second.current_state is ProcessState.QUALIFIED
+    assert not second.case_created
+    assert second.case_id == first.case_id
+    assert second.lead_id == first.lead_id
+    assert len(intake.cases) == 1
+    assert intake.get_case(first.case_id).lead.phone == "+13125550100"
+
+
+def test_existing_lead_is_found_by_normalized_phone() -> None:
+    intake = service_with({
+        "msg-i1": valid_intent(customer_location=None),
+        "msg-i2": valid_intent(),
+    })
+    first = intake.receive(message("msg-i1", phone="+1 (312) 555-0100"))
+    second = intake.receive(message("msg-i2", phone="+1 312 555 0100"))
+    assert second.case_id == first.case_id
+    assert len(intake.cases) == 1
+
+
+def test_input_scope_and_timestamp_are_validated() -> None:
+    intake = service_with({})
+    with pytest.raises(ValueError, match="timezone-aware"):
+        IncomingMessage("acme-home-services", "sms", "x", "hello", datetime.now())
+    with pytest.raises(ValueError, match="channel is not enabled"):
+        intake.receive(IncomingMessage("acme-home-services", "fax", "x", "hello", NOW))
+    with pytest.raises(ValueError, match="does not match"):
+        intake.receive(IncomingMessage("other-business", "sms", "x", "hello", NOW))
+    with pytest.raises(ValueError, match="email is not valid"):
+        intake.receive(message("bad-email", email="not-an-email"))
+    with pytest.raises(ValueError, match="between 7 and 15"):
+        intake.receive(message("bad-phone", phone="123"))
+
+
+def test_booking_policy_is_reflected_in_qualified_result() -> None:
+    dna = deepcopy(business_dna())
+    dna["booking"]["enabled"] = False
+    result = service_with({"no-booking": valid_intent()}, dna).receive(message("no-booking"))
+    assert result.qualification.qualified
+    assert not result.qualification.booking_allowed
+
+
+def test_semantically_unsafe_business_dna_is_rejected_at_startup() -> None:
+    missing_prompt = deepcopy(business_dna())
+    del missing_prompt["customer_information"]["field_questions"]["phone"]
+    with pytest.raises(ValueError, match="no configured questions"):
+        service_with({}, missing_prompt)
+
+    ambiguous = deepcopy(business_dna())
+    second_service = deepcopy(ambiguous["services"][0])
+    second_service["id"] = "second-service"
+    ambiguous["services"].append(second_service)
+    with pytest.raises(ValueError, match="ambiguous"):
+        service_with({}, ambiguous)
+
+
+class FailingExtractor:
+    def extract(self, message: IncomingMessage, business_dna: dict) -> IntentResult:
+        raise RuntimeError("provider failed")
+
+
+def test_extraction_failure_does_not_leave_an_orphan_case() -> None:
+    intake = LeadIntakeService(business_dna(), FailingExtractor(), DeterministicQuestionGenerator())
+    with pytest.raises(RuntimeError, match="provider failed"):
+        intake.receive(message("failed"))
+    assert intake.cases == ()

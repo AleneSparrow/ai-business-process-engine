@@ -15,7 +15,10 @@
       "description": "On-site diagnosis",
       "duration_minutes": 60,
       "pricing": {"model": "fixed", "amount": 129, "tax_included": false},
-      "service_area_ids": ["metro"]
+      "service_area_ids": ["metro"],
+      "intake_keywords": ["diagnostic", "diagnosis", "plumbing visit"],
+      "booking_allowed": true,
+      "qualification_questions": []
     }
   ],
   "service_areas": [
@@ -30,15 +33,24 @@
   },
   "customer_information": {
     "required_fields": ["name", "phone", "service_address", "service_id"],
-    "optional_fields": ["email", "preferred_time", "notes"]
+    "optional_fields": ["email", "preferred_time", "notes"],
+    "field_questions": {
+      "name": "What name should we use for the request?",
+      "phone": "What is the best phone number to reach you?",
+      "service_address": "What is the service ZIP code?",
+      "service_id": "Which service do you need?"
+    }
   },
   "qualification": {
     "rules": [
       {"field": "service_area_id", "operator": "in", "value": ["metro"], "outcome": "qualified"}
     ],
-    "default_outcome": "needs_human"
+    "default_outcome": "needs_human",
+    "enforce_service_area": true,
+    "lost_message": "Sorry, this request is outside the services or area we currently support."
   },
   "booking": {
+    "enabled": true,
     "minimum_notice_minutes": 120,
     "maximum_advance_days": 60,
     "requires_confirmation": true,
@@ -68,7 +80,8 @@
   "human_escalation": {
     "triggers": ["low_confidence", "customer_request", "complaint", "high_value", "policy_exception"],
     "queue": "operations",
-    "response_target_minutes": 30
+    "response_target_minutes": 30,
+    "customer_message": "A team member needs to review your request and will follow up shortly."
   },
   "integrations": {
     "crm": {"provider": null, "connection_reference": null},

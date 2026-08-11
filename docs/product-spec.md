@@ -18,6 +18,8 @@ The first workflow covers:
 
 At applicable points a case can become lost, cancelled, or require a human. The foundation currently runs in memory and uses deterministic decisions, including a deterministic placeholder at the future AI boundary.
 
+Milestone 2 makes the intake and qualification segment executable. Incoming channel messages create or reuse a tenant-scoped lead and case, produce deterministic intent, detect missing fields and service-specific answers, evaluate service and geographic fit, generate configured questions, and reach `QUALIFIED`, `LOST`, `QUALIFYING`, or `NEEDS_HUMAN`. Responses are returned as structured values and are not delivered externally.
+
 ## Principles
 
 - Business rules and state validity are deterministic.

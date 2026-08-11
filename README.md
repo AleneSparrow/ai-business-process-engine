@@ -14,6 +14,8 @@ The MVP provides:
 - a decision router for rule, AI-placeholder, and human decisions;
 - a reusable Lead-to-Cash workflow definition;
 - a generic, validated Business DNA example and JSON Schema;
+- executable Lead Intake and Qualification driven by Business DNA;
+- provider-neutral intent extraction and customer-question generation boundaries;
 - tests for transitions, rejection, audit history, escalation, idempotency, and end-to-end progression.
 
 No database, API, UI, authentication, third-party integration, payment processing, or real LLM call is included yet.
@@ -35,6 +37,7 @@ src/domain/   Domain types and state-transition rules
 src/engine/   Decision routing and process orchestration
 tests/        Executable behavior specifications
 workflows/    Reusable workflow definitions
+examples/     Local executable workflow demonstrations
 ```
 
 ## Run the tests
@@ -48,6 +51,20 @@ python -m pip install -r requirements.txt
 pytest
 ```
 
+## Lead Intake and Qualification
+
+Milestone 2 executes the first real workflow:
+
+`Incoming message -> Lead/case lookup -> Intent extraction -> Missing-information detection -> Qualification -> State transition -> Customer response`
+
+The intake service scopes message idempotency by business, channel, and external message ID. Existing cases can be continued using an explicit case ID or a normalized phone/email match. Business DNA defines service aliases, required fields and their prompts, service areas, service-specific questions, confidence thresholds, booking eligibility, and escalation policy. No message is sent; the service returns a structured `CustomerResponse` for a future delivery adapter.
+
+Run the local demonstration:
+
+```bash
+python examples/lead_qualification_demo.py
+```
+
 ## Next milestone
 
-Add persistence behind repository interfaces, load and validate tenant Business DNA and workflow definitions at runtime, and introduce an action-executor boundary with an outbox. That creates a safe base for APIs, tenant isolation, real integrations, and an LLM provider in later milestones.
+Add persistence behind repository interfaces and make case updates, audit events, and idempotency claims atomic. Then introduce an action-executor boundary with an outbox. That creates a safe base for APIs, tenant isolation, real integrations, and an LLM provider in later milestones.

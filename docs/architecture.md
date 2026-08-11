@@ -11,7 +11,7 @@ Business DNA is tenant-owned configuration describing facts and policies: identi
 ## Processing cycle
 
 1. **Event (trigger):** an immutable `ProcessEvent` announces something that happened and carries a unique idempotency ID.
-2. **Context:** the engine reads the case state, tenant identity, lead details, event payload, and (in a later milestone) validated Business DNA.
+2. **Context:** the engine reads the case state, tenant identity, lead details, event payload, and validated Business DNA supplied to the intake service.
 3. **Decision:** `DecisionRouter` routes a `RULE`, `AI`, or `HUMAN` request. Rule decisions are deterministic. The AI provider is currently a deterministic placeholder. Human decisions explicitly pause automation.
 4. **Action:** an `Action` describes a side effect separately from reasoning. This milestone models actions but does not execute integrations.
 5. **Result:** `ActionResult` records whether an eventual executor succeeded and any returned data. A result can become the next trigger.
@@ -31,6 +31,14 @@ This preserves the conceptual loop:
 Each case tracks processed trigger IDs independently from user metadata. Re-delivery appends `DUPLICATE_IGNORED` but neither re-decides nor changes state. Invalid transitions append `TRANSITION_REJECTED`, mark the trigger processed, and raise `InvalidTransition`, allowing an API or worker to report failure without silently corrupting state. Generated audit records carry the incoming trigger ID as their `causation_id`; event payloads and exposed history are immutable.
 
 For production, processed IDs and audit events must be committed atomically with case state, and actions should use an outbox plus their own idempotency keys.
+
+## Executable lead intake
+
+`LeadIntakeService` accepts a validated `IncomingMessage`, checks its tenant and enabled channel, and claims an idempotency key scoped to `(business_id, channel, external_message_id)`. It resolves an active case by explicit case ID or normalized phone/email, records intake and extracted intent, merges new facts with prior lead context, and asks `QualificationService` for a structured outcome. State changes still pass through `ProcessEngine`; qualification code cannot mutate process state.
+
+`IntentExtractor` and `QuestionGenerator` are protocols. Their deterministic implementations support tests and local operation without network access. Questions come from Business DNA field prompts and service-specific qualification prompts. The returned `CustomerResponse` is a value object, not a sent message.
+
+The included indexes and idempotency claims are in memory and process-local. A production repository must enforce uniqueness and atomicity across workers. Explicit case IDs are preferred for follow-up messages; phone/email matching is tenant-scoped, and conflicting identities are rejected rather than silently merging customers.
 
 ## Tenant isolation and persistence
 
