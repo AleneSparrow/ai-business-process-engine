@@ -30,7 +30,7 @@ This preserves the conceptual loop:
 
 Each case tracks processed trigger IDs independently from user metadata. Re-delivery appends `DUPLICATE_IGNORED` but neither re-decides nor changes state. Invalid transitions append `TRANSITION_REJECTED`, mark the trigger processed, and raise `InvalidTransition`, allowing an API or worker to report failure without silently corrupting state. Generated audit records carry the incoming trigger ID as their `causation_id`; event payloads and exposed history are immutable.
 
-For production, processed IDs and audit events must be committed atomically with case state, and actions should use an outbox plus their own idempotency keys.
+Persistent intake commits processed-message results, audit events, and case state atomically. Future side-effecting actions should use an outbox plus their own idempotency keys.
 
 ## Executable lead intake
 
@@ -57,6 +57,16 @@ Persistent intake is one database transaction:
 
 Any exception rolls back the entire Unit of Work. A stored message claim is never intentionally committed without its case and result.
 
+## HTTP boundary
+
+FastAPI owns transport validation and exposes `/health`, `/ready`, and versioned routes under `/api/v1`. `POST /api/v1/businesses/{business_id}/messages` constructs an `IncomingMessage` with the path tenant ID and delegates directly to `PersistentLeadIntakeService`; it does not introduce another idempotency layer. `GET /api/v1/businesses/{business_id}` returns safe business metadata without Business DNA or integration configuration.
+
+Application startup requires `DATABASE_URL`, verifies connectivity, creates one SQLAlchemy engine, and stores immutable dependency wiring on the FastAPI application. Each repository operation still runs in a fresh Unit of Work whose session closes on success or failure. Readiness opens a short-lived connection and never mutates schema; Alembic remains the only runtime schema authority.
+
+Middleware accepts a constrained `X-Request-ID` or generates one, enforces a request-size ceiling when `Content-Length` is available, returns the correlation ID, and logs only safe routing metadata. Route logs include tenant ID and resulting state but never raw messages, contact details, credentials, or tokens. Validation and known domain conflicts use explicit public responses; unexpected errors return a correlation-bearing 500 without internal exception or database details.
+
+The tenant path value is used for every repository lookup and for the domain `IncomingMessage`. An explicit case ID is queried together with that tenant ID, so another tenant's case is indistinguishable from a missing case. Authentication is intentionally absent in Milestone 4 and must be added before exposing the service to untrusted clients.
+
 ## Database idempotency and concurrency
 
 The `processed_messages` primary key is `(business_id, channel, external_message_id)`. A SHA-256 fingerprint covers normalized identity details and the original message content. On PostgreSQL, the repository first takes a transaction-scoped advisory lock derived from the full message identity. Contenders for the same identity therefore wait across processes until the current transaction commits, rolls back, or loses its connection. The database then uses `INSERT ... ON CONFLICT DO NOTHING RETURNING` to identify the claim owner while the composite primary key remains the authoritative uniqueness check. An identical fingerprint returns the completed stored result; a different fingerprint raises `IdempotencyCollisionError`. Because the lock is transaction-scoped and the claim is written in the intake transaction, failure releases the lock and rolls back an incomplete claim rather than permanently blocking retries. A committed claim without a result is treated as an invariant violation, not as normal in-progress processing.
@@ -69,12 +79,12 @@ Business DNA uses `(business_id, version)` as its primary key. Adding a version 
 
 ## Migrations and configuration
 
-`DATABASE_URL` is required and read from the environment. Alembic owns production schema changes; the initial migration creates all tenant tables, composite constraints, partial unique indexes, and audit indexes. The local Compose file starts PostgreSQL only and stores its data in a named volume. Credentials in `.env.example` are local-development placeholders and no secrets are stored in Business DNA.
+`DATABASE_URL` is required and read from the environment. Alembic owns production schema changes; the initial migration creates all tenant tables, composite constraints, partial unique indexes, and audit indexes. Docker Compose starts PostgreSQL and the API, waits for database health, and applies migrations before Uvicorn starts. Credentials in `.env.example` are local-development placeholders and no secrets are stored in Business DNA.
 
 ## Tenant isolation and persistence
 
-`business_id` is mandatory on every case and repository method, establishing the current storage boundary. Future APIs must still enforce authorization before calling these repositories. Correlation IDs, actor identities, retention rules, and redaction policy remain future audit-hardening work.
+`business_id` is mandatory on every case, repository method, and tenant API route, establishing the current storage boundary. Future authentication must authorize the caller for that tenant before repository access. Actor identities, retention rules, and redaction policy remain future audit-hardening work.
 
 ## Dependency direction
 
-The domain package has no framework dependencies. The engine depends on domain abstractions. The persistence adapter and future API, AI, and integration adapters depend inward on these packages, keeping vendors and transport details outside core policy.
+The domain package has no framework dependencies. The engine depends on domain abstractions. The persistence and API adapters, plus future AI and integration adapters, depend inward on these packages, keeping vendors and transport details outside core policy.

@@ -1,6 +1,6 @@
 """Repository abstractions and SQLAlchemy persistence adapters."""
 
-from .errors import IdempotencyCollisionError, StaleCaseError
+from .errors import IdempotencyCollisionError, MessageScopeError, StaleCaseError
 from .sqlalchemy_uow import SQLAlchemyUnitOfWork
 from .lead_intake import PersistentLeadIntakeService
 from .repositories import (
@@ -19,6 +19,7 @@ __all__ = [
     "BusinessRepository",
     "IdempotencyRepository",
     "LeadRepository",
+    "MessageScopeError",
     "PersistentLeadIntakeService",
     "ProcessCaseRepository",
     "ProcessEventRepository",

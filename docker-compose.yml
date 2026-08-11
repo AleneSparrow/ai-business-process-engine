@@ -15,5 +15,18 @@ services:
       timeout: 5s
       retries: 10
 
+  app:
+    build:
+      context: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ai_process_engine}:${POSTGRES_PASSWORD:-local_development_only}@postgres:5432/${POSTGRES_DB:-ai_process_engine}
+      APP_ENV: ${APP_ENV:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres_data:

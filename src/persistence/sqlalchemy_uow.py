@@ -16,7 +16,13 @@ from .sqlalchemy_repositories import (
 
 
 def create_database_engine(database_url: str, *, echo: bool = False) -> Engine:
-    engine = create_engine(database_url, echo=echo, future=True, pool_pre_ping=True)
+    engine = create_engine(
+        database_url,
+        echo=echo,
+        future=True,
+        hide_parameters=True,
+        pool_pre_ping=True,
+    )
     if engine.dialect.name == "sqlite":
         @event.listens_for(engine, "connect")
         def _enable_sqlite_foreign_keys(dbapi_connection: object, connection_record: object) -> None:

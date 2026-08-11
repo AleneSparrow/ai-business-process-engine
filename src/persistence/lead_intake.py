@@ -22,7 +22,7 @@ from src.engine.process_engine import ProcessEngine
 from src.engine.qualification_service import QualificationService
 from src.engine.question_generator import QuestionGenerator
 
-from .errors import IdempotencyInProgressError
+from .errors import IdempotencyInProgressError, MessageScopeError
 from .repositories import ClaimStatus, UnitOfWork, UnitOfWorkFactory
 
 
@@ -68,7 +68,10 @@ class PersistentLeadIntakeService:
                 self.qualification_service,
                 self.process_engine,
             )
-            workflow._validate_message_scope(message)
+            try:
+                workflow._validate_message_scope(message)
+            except ValueError as exc:
+                raise MessageScopeError("message violates tenant intake scope") from exc
 
             case, case_created, lead_created = self._resolve_case(uow, workflow, message)
             if case.current_state not in workflow.ACTIVE_STATES:

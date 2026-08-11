@@ -67,3 +67,14 @@ def test_database_settings_require_environment_configuration(monkeypatch: pytest
         Settings.from_environment()
     monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://example.invalid/test")
     assert Settings.from_environment().database_url.endswith("/test")
+
+
+def test_development_seed_refuses_production_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from examples.seed_example_business import main
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://example.invalid/production")
+    monkeypatch.setenv("APP_ENV", "production")
+    with pytest.raises(RuntimeError, match="development seed requires"):
+        main()

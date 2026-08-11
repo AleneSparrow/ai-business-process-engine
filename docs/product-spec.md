@@ -22,6 +22,8 @@ Milestone 2 makes the intake and qualification segment executable. Incoming chan
 
 Milestone 3 persists tenants, versioned Business DNA, leads, cases, audit events, and processed-message results through repository abstractions and PostgreSQL-compatible SQLAlchemy adapters. Persistent intake is atomic, message claims are protected by database uniqueness, tenant ownership is enforced in queries and composite foreign keys, and stale case writers are rejected with optimistic concurrency.
 
+Milestone 4 exposes that persisted workflow through a versioned FastAPI service. The HTTP boundary validates incoming messages, resolves tenants from the path, preserves database idempotency and transaction semantics, returns structured qualification outcomes, propagates correlation IDs, and maps known failures to safe HTTP responses. Authentication is intentionally not part of this milestone.
+
 ## Principles
 
 - Business rules and state validity are deterministic.
@@ -34,7 +36,7 @@ Milestone 3 persists tenants, versioned Business DNA, leads, cases, audit events
 
 ## Not in this milestone
 
-Persistence is implemented. Future milestones defer the HTTP API, authentication, external integrations, queues, production deployment, billing, real payment processing, user interfaces, and LLM calls.
+Persistence and the lead-intake HTTP API are implemented. Future milestones defer authentication and authorization, external integrations, queues, production deployment, billing, real payment processing, user interfaces, and LLM calls.
 
 ## Acceptance criteria
 
@@ -42,4 +44,5 @@ Persistence is implemented. Future milestones defer the HTTP API, authentication
 - Invalid state changes fail explicitly and are recorded.
 - AI risk or insufficient confidence escalates to `NEEDS_HUMAN`.
 - Replayed event IDs do not repeat a state change.
+- Tenant-scoped HTTP intake preserves replay, collision, escalation, and concurrency behavior.
 - The Lead-to-Cash happy path and its quote branch pass automated tests.

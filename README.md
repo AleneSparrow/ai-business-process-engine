@@ -19,9 +19,10 @@ The MVP provides:
 - SQLAlchemy repositories with tenant-scoped persistence and optimistic concurrency;
 - database-backed, concurrency-safe incoming-message idempotency;
 - versioned Business DNA and reproducible Alembic migrations;
+- a versioned FastAPI boundary with validated tenant routes and safe error responses;
 - tests for transitions, rejection, audit history, escalation, idempotency, and end-to-end progression.
 
-Milestone 3 includes PostgreSQL persistence, Alembic migrations, Docker Compose for local PostgreSQL, tenant-isolated storage, durable audit history, and concurrency-safe idempotency. APIs, UI, authentication, third-party integrations, payment processing, and real LLM calls are not included yet.
+Milestone 4 exposes the persisted intake workflow over HTTP with health/readiness checks, request correlation IDs, structured logging, OpenAPI documentation, and Docker Compose startup. Authentication, UI, third-party integrations, payment processing, and real LLM calls are not included yet.
 
 ## Architecture
 
@@ -37,6 +38,7 @@ Each step follows:
 config/       Business DNA example and schema
 docs/         Product and architecture documentation
 migrations/   Reproducible Alembic database migrations
+src/api/      FastAPI application, contracts, dependencies, and routes
 src/domain/   Domain types and state-transition rules
 src/engine/   Decision routing and process orchestration
 src/persistence/ Repository protocols and SQLAlchemy adapters
@@ -70,18 +72,34 @@ Run the local demonstration:
 python examples/lead_qualification_demo.py
 ```
 
-## Local PostgreSQL and migrations
+## Local PostgreSQL, migrations, and API
 
-Copy the environment template and start PostgreSQL. The Compose file contains PostgreSQL only; the application still runs directly on the host.
+Copy the environment template, start PostgreSQL, migrate the database, and explicitly seed the non-production example tenant:
 
 ```bash
 cp .env.example .env
 docker compose up -d postgres
-export DATABASE_URL='postgresql+psycopg://ai_process_engine:local_development_only@localhost:5432/ai_process_engine'
+export DATABASE_URL='postgresql+psycopg://ai_process_engine:local_development_only@localhost:5433/ai_process_engine'
+export APP_ENV=development
 alembic upgrade head
+python examples/seed_example_business.py
+uvicorn src.api.app:app --reload
 ```
 
-Create new schema revisions with `alembic revision --autogenerate -m "description"`, inspect the generated operations, and apply them with `alembic upgrade head`. Production schema creation must use Alembic, not `Base.metadata.create_all()`.
+The API is available at `http://localhost:8000`, Swagger UI at `http://localhost:8000/docs`, liveness at `/health`, and database readiness at `/ready`. `DATABASE_URL` is mandatory; runtime startup never falls back to an in-memory database. Create schema revisions with `alembic revision --autogenerate -m "description"`, inspect them, and apply them with `alembic upgrade head`. Production schema creation must use Alembic, not `Base.metadata.create_all()`.
+
+To run PostgreSQL and the API together, use `docker compose up --build`. The app waits for healthy PostgreSQL and runs `alembic upgrade head` before Uvicorn. Seed explicitly with `docker compose exec app python examples/seed_example_business.py`. The seed helper is idempotent and refuses to run unless `APP_ENV` is explicitly `development` or `local`. `POSTGRES_PORT` and `APP_PORT` control host ports; container-to-container database traffic always uses port 5432.
+
+Submit a message after seeding:
+
+```bash
+curl -X POST http://localhost:8000/api/v1/businesses/acme-home-services/messages \
+  -H 'Content-Type: application/json' \
+  -H 'X-Request-ID: manual-check-1' \
+  -d '{"channel":"sms","external_message_id":"manual-1","message":"I need a diagnostic visit in 60601","timestamp":"2026-08-11T08:00:00Z","customer_name":"Ada","phone":"+13125550100"}'
+```
+
+The response includes `business_id`, stable case and lead IDs, `current_state`, a replay indicator, any customer question, `requires_human`, and a qualification summary. Reusing the same message identity and content returns the stored result; changing its fingerprint returns HTTP 409.
 
 Fast tests use isolated file-backed SQLite databases through the same PostgreSQL-compatible repository code. PostgreSQL concurrency tests require a dedicated migrated test database:
 
@@ -100,4 +118,4 @@ Every tenant-owned repository lookup requires `business_id`, and composite forei
 
 ## Next milestone
 
-Introduce an action-executor boundary with an outbox, then add application-facing APIs and authentication around the existing tenant-scoped repositories. Real integrations and an LLM provider remain later milestones.
+Add authentication and authorization around the tenant routes, then introduce an action-executor boundary with an outbox. Real integrations and an LLM provider remain later milestones.
