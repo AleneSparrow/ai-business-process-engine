@@ -12,6 +12,7 @@ from .qualification import (
     QualificationResult,
     Urgency,
 )
+from .tenancy import Business, BusinessDNAVersion
 
 __all__ = [
     "Action",
@@ -29,4 +30,6 @@ __all__ = [
     "MissingInformationResult",
     "QualificationResult",
     "Urgency",
+    "Business",
+    "BusinessDNAVersion",
 ]

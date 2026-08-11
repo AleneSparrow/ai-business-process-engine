@@ -2,7 +2,7 @@
 
 ## Runtime model
 
-The engine represents each customer journey as a `ProcessCase`, scoped by `business_id`. A case owns its lead, current state, timestamps, metadata, and append-only event history. The current implementation is deliberately in memory; these boundaries are intended to survive replacement by persistence and external adapters.
+The engine represents each customer journey as a `ProcessCase`, scoped by `business_id`. A case owns its lead, current state, timestamps, metadata, optimistic version, and append-only event history. Repository protocols isolate the domain and engine from SQLAlchemy; synchronous SQLAlchemy adapters persist the model to PostgreSQL-compatible SQL.
 
 ## Business DNA
 
@@ -38,12 +38,43 @@ For production, processed IDs and audit events must be committed atomically with
 
 `IntentExtractor` and `QuestionGenerator` are protocols. Their deterministic implementations support tests and local operation without network access. Questions come from Business DNA field prompts and service-specific qualification prompts. The returned `CustomerResponse` is a value object, not a sent message.
 
-The included indexes and idempotency claims are in memory and process-local. A production repository must enforce uniqueness and atomicity across workers. Explicit case IDs are preferred for follow-up messages; phone/email matching is tenant-scoped, and conflicting identities are rejected rather than silently merging customers.
+`LeadIntakeService` remains the lightweight in-memory implementation for fast domain tests and the local demo. `PersistentLeadIntakeService` executes the equivalent orchestration through a Unit of Work. Explicit case IDs are preferred for follow-up messages; phone/email matching is tenant-scoped, and conflicting identities are rejected rather than silently merging customers.
+
+## Repository and transaction boundary
+
+Repository protocols cover businesses, Business DNA, leads, cases, events, and idempotency records. SQLAlchemy implementations require `business_id` on every tenant-owned read or update. Composite tenant foreign keys ensure a process case can reference only a lead from the same business and an event can reference only a case from the same business.
+
+Persistent intake is one database transaction:
+
+1. load the tenant and active Business DNA;
+2. claim the incoming message identity;
+3. load or construct the tenant lead and case;
+4. extract and qualify without external side effects;
+5. execute state transitions through `ProcessEngine`;
+6. save the lead/case and append new audit events;
+7. attach the serialized logical result to the message claim;
+8. commit everything together.
+
+Any exception rolls back the entire Unit of Work. A stored message claim is never intentionally committed without its case and result.
+
+## Database idempotency and concurrency
+
+The `processed_messages` primary key is `(business_id, channel, external_message_id)`. A SHA-256 fingerprint covers normalized identity details and the original message content. On PostgreSQL, the repository first takes a transaction-scoped advisory lock derived from the full message identity. Contenders for the same identity therefore wait across processes until the current transaction commits, rolls back, or loses its connection. The database then uses `INSERT ... ON CONFLICT DO NOTHING RETURNING` to identify the claim owner while the composite primary key remains the authoritative uniqueness check. An identical fingerprint returns the completed stored result; a different fingerprint raises `IdempotencyCollisionError`. Because the lock is transaction-scoped and the claim is written in the intake transaction, failure releases the lock and rolls back an incomplete claim rather than permanently blocking retries. A committed claim without a result is treated as an invariant violation, not as normal in-progress processing.
+
+Cases use optimistic concurrency. Each update includes the version that was loaded and atomically increments it. A zero-row update means another worker won; `StaleCaseError` aborts the losing transaction, so its state and candidate events never become visible. This protects distinct concurrent messages as well as direct competing transitions.
+
+## Business DNA history
+
+Business DNA uses `(business_id, version)` as its primary key. Adding a version locks the tenant business row, deactivates the prior version, allocates the next integer version, and activates the new record in one transaction. A partial unique index permits only one active version per tenant while retaining all prior versions.
+
+## Migrations and configuration
+
+`DATABASE_URL` is required and read from the environment. Alembic owns production schema changes; the initial migration creates all tenant tables, composite constraints, partial unique indexes, and audit indexes. The local Compose file starts PostgreSQL only and stores its data in a named volume. Credentials in `.env.example` are local-development placeholders and no secrets are stored in Business DNA.
 
 ## Tenant isolation and persistence
 
-`business_id` is mandatory on every case, establishing the tenant boundary. Future repositories and APIs must require it in every lookup and enforce isolation at both authorization and storage layers. Append-only audit storage, correlation IDs, actor identities, retention rules, and redaction policy should accompany persistence.
+`business_id` is mandatory on every case and repository method, establishing the current storage boundary. Future APIs must still enforce authorization before calling these repositories. Correlation IDs, actor identities, retention rules, and redaction policy remain future audit-hardening work.
 
 ## Dependency direction
 
-The domain package has no framework dependencies. The engine depends on domain abstractions. Future API, persistence, AI, and integration adapters should depend inward on these packages, keeping vendors and transport details outside core policy.
+The domain package has no framework dependencies. The engine depends on domain abstractions. The persistence adapter and future API, AI, and integration adapters depend inward on these packages, keeping vendors and transport details outside core policy.

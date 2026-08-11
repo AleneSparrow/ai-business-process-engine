@@ -123,6 +123,7 @@ class ProcessCase:
     created_at: datetime
     updated_at: datetime
     metadata: dict[str, Any]
+    version: int
     _event_history: list[ProcessEvent] = field(default_factory=list, init=False, repr=False)
     _processed_event_ids: set[str] = field(default_factory=set, init=False, repr=False)
     _pending_transition: ProcessState | None = field(default=None, init=False, repr=False)
@@ -136,6 +137,9 @@ class ProcessCase:
         created_at: datetime | None = None,
         updated_at: datetime | None = None,
         metadata: Mapping[str, Any] | None = None,
+        version: int = 0,
+        pending_transition: ProcessState | None = None,
+        event_history: tuple[ProcessEvent, ...] = (),
     ) -> None:
         self.case_id = case_id
         self.business_id = business_id
@@ -144,15 +148,20 @@ class ProcessCase:
         self.created_at = created_at or utc_now()
         self.updated_at = updated_at or self.created_at
         self.metadata = dict(metadata or {})
-        self._event_history = []
+        self.version = version
+        self._event_history = list(event_history)
         self._processed_event_ids = set()
-        self._pending_transition = None
+        self._pending_transition = pending_transition
         _require_text(self.case_id, "case_id")
         _require_text(self.business_id, "business_id")
         _require_aware(self.created_at, "created_at")
         _require_aware(self.updated_at, "updated_at")
         if self.updated_at < self.created_at:
             raise ValueError("updated_at must not precede created_at")
+        if self.version < 0:
+            raise ValueError("version must not be negative")
+        if self._pending_transition is not None and self._current_state is not ProcessState.NEEDS_HUMAN:
+            raise ValueError("pending_transition is only valid for NEEDS_HUMAN cases")
 
     @property
     def event_history(self) -> tuple[ProcessEvent, ...]:
@@ -190,3 +199,8 @@ class ProcessCase:
         if lead.lead_id != self.lead.lead_id:
             raise ValueError("updated lead must preserve lead_id")
         self.lead = lead
+
+    def mark_persisted(self, version: int) -> None:
+        if version <= self.version:
+            raise ValueError("persisted version must advance")
+        self.version = version

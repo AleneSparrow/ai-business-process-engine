@@ -6,6 +6,7 @@ import pytest
 import yaml
 from jsonschema import Draft202012Validator, ValidationError
 
+from src.config import Settings
 from src.domain.state_machine import TRANSITIONS
 from src.domain.states import ProcessState
 
@@ -58,3 +59,11 @@ def test_yaml_workflow_exactly_matches_python_state_machine() -> None:
     }
     assert workflow["initial_state"] == ProcessState.NEW_LEAD.value
     assert yaml_transitions == TRANSITIONS
+
+
+def test_database_settings_require_environment_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    with pytest.raises(RuntimeError, match="DATABASE_URL"):
+        Settings.from_environment()
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://example.invalid/test")
+    assert Settings.from_environment().database_url.endswith("/test")

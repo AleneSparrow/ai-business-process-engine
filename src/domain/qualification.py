@@ -46,6 +46,15 @@ class IncomingMessage:
             if value is not None:
                 _require_text(value, name)
         _require_aware(self.timestamp, "timestamp")
+        limits = {
+            "business_id": (self.business_id, 128),
+            "channel": (self.channel, 64),
+            "external_message_id": (self.external_message_id, 255),
+            "case_id": (self.case_id, 128),
+        }
+        for field_name, (value, maximum) in limits.items():
+            if value is not None and len(value) > maximum:
+                raise ValueError(f"{field_name} must not exceed {maximum} characters")
 
 
 @dataclass(frozen=True, slots=True)
