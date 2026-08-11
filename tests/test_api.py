@@ -97,6 +97,7 @@ def test_health_and_readiness(api_environment) -> None:
         "status": "ready",
         "dependencies": {"database": "ok", "ai_configuration": "ok"},
     }
+    assert logging.getLogger("uvicorn.access").disabled is True
 
 
 def test_application_startup_requires_database_url(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -266,6 +267,18 @@ def test_request_body_limit_rejects_oversized_message(api_environment) -> None:
     response = client.post(
         "/api/v1/businesses/tenant-a/messages",
         json=message_payload("oversized", message="x" * 70_000),
+    )
+
+    assert response.status_code == 413
+    assert response.json()["error"]["code"] == "request_too_large"
+
+
+def test_request_body_limit_rejects_oversized_chunked_body(api_environment) -> None:
+    client, _ = api_environment
+    response = client.post(
+        "/api/v1/businesses/acme-home-services/lead-intake",
+        content=iter((b'{"message":"', b"x" * 70_000, b'"}')),
+        headers={"Content-Type": "application/json"},
     )
 
     assert response.status_code == 413

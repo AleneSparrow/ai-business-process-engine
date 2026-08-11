@@ -3,8 +3,10 @@
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
@@ -18,8 +20,10 @@ from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork, create_database
 from .dependencies import ApplicationContainer
 from .errors import install_error_handlers
 from .middleware import RequestContextMiddleware
+from .cors import ConfiguredCORSMiddleware
+from .rate_limit import InMemorySlidingWindowRateLimiter
 from .observability import configure_logging, log_event
-from .routes import businesses, health, lead_intake
+from .routes import businesses, health, lead_intake, public_conversations
 
 
 def create_app(
@@ -66,6 +70,10 @@ def create_app(
             customer_response_generator=configured_response_generator,
             ai_provider_name=ai_runtime.provider_name,
             ai_model_name=ai_runtime.model_name,
+            public_chat_rate_limiter=InMemorySlidingWindowRateLimiter(
+                runtime_settings.public_chat_rate_limit_requests,
+                runtime_settings.public_chat_rate_limit_window_seconds,
+            ),
         )
         log_event(
             logging.INFO,
@@ -84,21 +92,28 @@ def create_app(
     application = FastAPI(
         title="AI Business Process Engine API",
         description=(
-            "Tenant-scoped HTTP API for durable lead intake and qualification. "
+            "Tenant-scoped HTTP API for durable lead intake, qualification, and website conversations. "
             "Understanding and response wording use the explicitly configured AI provider; "
             "business decisions remain deterministic and policy-bound."
         ),
-        version="0.5.0",
+        version="0.6.0",
         lifespan=lifespan,
     )
     application.add_middleware(
         RequestContextMiddleware,
         max_request_body_bytes=(settings.max_request_body_bytes if settings else 65_536),
     )
+    application.add_middleware(ConfiguredCORSMiddleware)
     install_error_handlers(application)
     application.include_router(health.router)
     application.include_router(businesses.router)
     application.include_router(lead_intake.router)
+    application.include_router(public_conversations.router)
+    application.mount(
+        "/widget",
+        StaticFiles(directory=Path(__file__).parents[2] / "web" / "widget", html=True),
+        name="widget",
+    )
     return application
 
 

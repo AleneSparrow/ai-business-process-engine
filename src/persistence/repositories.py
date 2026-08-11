@@ -6,6 +6,7 @@ from enum import StrEnum
 from typing import Any, Mapping, Protocol
 
 from src.domain.models import Lead, ProcessCase, ProcessEvent
+from src.domain.conversations import Conversation, ConversationMessage
 from src.domain.tenancy import Business, BusinessDNAVersion
 
 
@@ -37,6 +38,12 @@ class BusinessDNARepository(Protocol):
 
 
 class LeadRepository(Protocol):
+    def lock_identity(
+        self,
+        business_id: str,
+        identity_type: str,
+        normalized_value: str,
+    ) -> None: ...
     def add(self, business_id: str, lead: Lead, created_at: datetime) -> None: ...
     def save(self, business_id: str, lead: Lead, updated_at: datetime) -> None: ...
     def get(self, business_id: str, lead_id: str) -> Lead | None: ...
@@ -80,6 +87,25 @@ class IdempotencyRepository(Protocol):
     def get(self, business_id: str, channel: str, external_message_id: str) -> IdempotencyRecord | None: ...
 
 
+class ConversationRepository(Protocol):
+    def lock_token_identity(self, business_id: str, token_hash: str) -> None: ...
+    def add(self, conversation: Conversation) -> None: ...
+    def get(self, business_id: str, conversation_id: str, *, for_update: bool = False) -> Conversation | None: ...
+    def get_by_token_hash(self, business_id: str, token_hash: str, *, for_update: bool = False) -> Conversation | None: ...
+    def save(self, conversation: Conversation, expected_version: int) -> None: ...
+
+
+class ConversationMessageRepository(Protocol):
+    def add(self, message: ConversationMessage) -> None: ...
+    def get_by_external_id(
+        self, business_id: str, conversation_id: str, external_message_id: str
+    ) -> ConversationMessage | None: ...
+    def list_for_conversation(
+        self, business_id: str, conversation_id: str, *, limit: int | None = None
+    ) -> tuple[ConversationMessage, ...]: ...
+    def next_sequence(self, business_id: str, conversation_id: str) -> int: ...
+
+
 class UnitOfWork(Protocol):
     businesses: BusinessRepository
     business_dna: BusinessDNARepository
@@ -87,6 +113,8 @@ class UnitOfWork(Protocol):
     cases: ProcessCaseRepository
     events: ProcessEventRepository
     idempotency: IdempotencyRepository
+    conversations: ConversationRepository
+    conversation_messages: ConversationMessageRepository
 
     def __enter__(self) -> "UnitOfWork": ...
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None: ...

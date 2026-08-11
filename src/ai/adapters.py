@@ -11,6 +11,7 @@ from src.domain.qualification import (
     MissingInformationResult,
     Urgency,
 )
+from src.domain.conversations import MessageRole
 
 from .errors import AIConfigurationError, AIInvalidOutputError
 from .models import (
@@ -83,7 +84,6 @@ class AIIntentExtractor:
     def extract(self, message: IncomingMessage, business_dna: Mapping[str, object]) -> IntentResult:
         _require_permissions(business_dna, "classify_intent", "extract_customer_details")
         services_context: list[dict[str, object]] = []
-        allowed_question_ids: set[str] = set()
         services = business_dna.get("services", [])
         if isinstance(services, list):
             for service in services:
@@ -97,7 +97,6 @@ class AIIntentExtractor:
                     prompt = question.get("prompt")
                     if isinstance(question_id, str) and isinstance(prompt, str):
                         questions.append({"id": question_id, "prompt": prompt})
-                        allowed_question_ids.add(question_id)
                 services_context.append({
                     "id": service.get("id"),
                     "name": service.get("name"),
@@ -110,6 +109,7 @@ class AIIntentExtractor:
                 "human_escalation_triggers": business_dna.get("human_escalation", {}).get(
                     "triggers", []
                 ) if isinstance(business_dna.get("human_escalation"), Mapping) else [],
+                "conversation": self._conversation_context(message),
             },
             customer_message=message.raw_text,
         )
@@ -124,9 +124,37 @@ class AIIntentExtractor:
         try:
             result = self.provider.generate(request)
             output = result.output
-            service_requested = self._resolve_service(output, services_context, message.raw_text)
-            customer_location = self._evidenced(output.customer_location, message.raw_text, "location")
-            preferred_time = self._evidenced(output.preferred_time, message.raw_text, "preferred time")
+            known_facts = (
+                message.conversation_context.known_facts
+                if message.conversation_context is not None
+                else {}
+            )
+            service_requested = self._resolve_service(
+                output,
+                services_context,
+                message.raw_text,
+                known_facts.get("service_requested"),
+            )
+            customer_location = self._evidenced(
+                output.customer_location,
+                message.raw_text,
+                "location",
+                known_facts.get("customer_location"),
+            )
+            preferred_time = self._evidenced(
+                output.preferred_time,
+                message.raw_text,
+                "preferred time",
+                known_facts.get("preferred_time"),
+            )
+            effective_service = service_requested or known_facts.get("service_requested")
+            allowed_question_ids = {
+                str(question["id"])
+                for service in services_context
+                if service.get("id") == effective_service
+                for question in service.get("qualification_questions", [])
+                if isinstance(question, Mapping) and isinstance(question.get("id"), str)
+            }
             answers: dict[str, str] = {}
             for answer in output.qualification_answers:
                 if answer.question_id not in allowed_question_ids or answer.question_id in answers:
@@ -147,6 +175,9 @@ class AIIntentExtractor:
                 ),
                 qualification_answers=answers,
                 ai_metadata=_audit(result.metadata, confidence=output.confidence),
+                customer_name=self._evidenced(output.customer_name, message.raw_text, "name"),
+                phone=self._evidenced(output.phone, message.raw_text, "phone"),
+                email=self._evidenced(output.email, message.raw_text, "email"),
             )
         except AIInvalidOutputError as exc:
             metadata = exc.metadata
@@ -176,6 +207,7 @@ class AIIntentExtractor:
         output: IntentOutput,
         services: list[dict[str, object]],
         customer_message: str,
+        known_service: object = None,
     ) -> str | None:
         if output.unsupported_service:
             name = AIIntentExtractor._clean(output.unsupported_service_name)
@@ -206,7 +238,10 @@ class AIIntentExtractor:
         if len(unique_ids) != 1:
             raise AIInvalidOutputError("AI returned a service outside the supplied catalog")
         customer_text = customer_message.casefold()
-        if not any(_contains_term(customer_text, term) for _, terms in matches for term in terms):
+        known_matches = isinstance(known_service, str) and known_service == matches[0][0]
+        if not known_matches and not any(
+            _contains_term(customer_text, term) for _, terms in matches for term in terms
+        ):
             raise AIInvalidOutputError("AI returned a supported service without customer evidence")
         return matches[0][0]
 
@@ -227,11 +262,45 @@ class AIIntentExtractor:
         return redacted
 
     @staticmethod
-    def _evidenced(value: str | None, customer_message: str, field_name: str) -> str | None:
+    def _evidenced(
+        value: str | None,
+        customer_message: str,
+        field_name: str,
+        known_value: object = None,
+    ) -> str | None:
         cleaned = AIIntentExtractor._clean(value)
-        if cleaned is not None and not _contains_term(customer_message, cleaned):
+        is_known = isinstance(known_value, str) and known_value.strip().casefold() == (
+            cleaned.casefold() if cleaned is not None else ""
+        )
+        if cleaned is not None and not is_known and not _contains_term(customer_message, cleaned):
             raise AIInvalidOutputError(f"AI returned {field_name} without customer evidence")
         return cleaned
+
+    @staticmethod
+    def _conversation_context(message: IncomingMessage) -> Mapping[str, object]:
+        context = message.conversation_context
+        if context is None:
+            return {}
+        return {
+            "recent_messages": [
+                {"role": item.role.value, "text": AIIntentExtractor._plain_value(item.text)}
+                for item in context.recent_messages
+                if item.role in {MessageRole.CUSTOMER, MessageRole.ASSISTANT}
+            ],
+            "known_facts": AIIntentExtractor._plain_value(context.known_facts),
+            "unresolved_items": list(context.unresolved_items),
+            "current_state": context.current_state,
+        }
+
+    @staticmethod
+    def _plain_value(value: Any) -> Any:
+        if isinstance(value, Mapping):
+            return {str(key): AIIntentExtractor._plain_value(item) for key, item in value.items()}
+        if isinstance(value, tuple | list):
+            return [AIIntentExtractor._plain_value(item) for item in value]
+        if isinstance(value, str):
+            return _PHONE.sub("[contact redacted]", _EMAIL.sub("[contact redacted]", value))
+        return value
 
     @staticmethod
     def _configured_trigger_matches(

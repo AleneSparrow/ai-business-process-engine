@@ -30,29 +30,53 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         )
         request.state.request_id = request_id
         started = monotonic()
+        container = getattr(request.app.state, "container", None)
+        configured_limit = getattr(
+            getattr(container, "settings", None),
+            "max_request_body_bytes",
+            self.max_request_body_bytes,
+        )
 
         content_length = request.headers.get("Content-Length")
         if content_length is not None:
             try:
-                too_large = int(content_length) > self.max_request_body_bytes
+                declared_length = int(content_length)
+                too_large = declared_length < 0 or declared_length > configured_limit
             except ValueError:
                 too_large = True
             if too_large:
-                response = JSONResponse(
-                    status_code=413,
-                    content={
-                        "error": {
-                            "code": "request_too_large",
-                            "message": "Request body exceeds the allowed size",
-                            "request_id": request_id,
-                        }
-                    },
-                )
-                response.headers["X-Request-ID"] = request_id
-                self._log_completion(request, response.status_code, started)
-                return response
+                return self._too_large_response(request, request_id, started)
+
+        received = 0
+        chunks: list[bytes] = []
+        async for chunk in request.stream():
+            received += len(chunk)
+            if received > configured_limit:
+                return self._too_large_response(request, request_id, started)
+            chunks.append(chunk)
+        request._body = b"".join(chunks)  # noqa: SLF001 - replay bounded body downstream
 
         response = await call_next(request)
+        response.headers["X-Request-ID"] = request_id
+        self._log_completion(request, response.status_code, started)
+        return response
+
+    def _too_large_response(
+        self,
+        request: Request,
+        request_id: str,
+        started: float,
+    ) -> JSONResponse:
+        response = JSONResponse(
+            status_code=413,
+            content={
+                "error": {
+                    "code": "request_too_large",
+                    "message": "Request body exceeds the allowed size",
+                    "request_id": request_id,
+                }
+            },
+        )
         response.headers["X-Request-ID"] = request_id
         self._log_completion(request, response.status_code, started)
         return response
@@ -60,7 +84,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
     @staticmethod
     def _log_completion(request: Request, status_code: int, started: float) -> None:
         route = request.scope.get("route")
-        endpoint = getattr(route, "path", request.url.path)
+        endpoint = getattr(route, "path", "unmatched")
         log_event(
             logging.INFO,
             "http_request_completed",
@@ -69,6 +93,8 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             endpoint=endpoint,
             method=request.method,
             status_code=status_code,
+            message_direction=getattr(request.state, "message_direction", None),
             resulting_state=getattr(request.state, "resulting_state", None),
+            conversation_id=getattr(request.state, "conversation_id", None),
             duration_ms=round((monotonic() - started) * 1000, 2),
         )

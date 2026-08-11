@@ -30,6 +30,9 @@ class IntentOutput(StrictAIModel):
     customer_location: str | None = Field(max_length=500)
     preferred_time: str | None = Field(max_length=500)
     notes: str | None = Field(max_length=500)
+    customer_name: str | None = Field(max_length=255)
+    phone: str | None = Field(max_length=64)
+    email: str | None = Field(max_length=320)
     confidence: float = Field(ge=0.0, le=1.0)
     requires_human: bool
     qualification_answers: list[QualificationAnswerOutput] = Field(max_length=50)

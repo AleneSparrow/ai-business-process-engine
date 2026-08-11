@@ -3,12 +3,21 @@
 from datetime import datetime
 from typing import Annotated, Any
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from src.domain.qualification import LeadIntakeResult
 from src.domain.states import ProcessState
 from src.domain.tenancy import Business
 from src.engine.lead_intake import LeadIntakeService
+from src.domain.conversations import ConversationStatus, MessageDirection, MessageRole
+from src.persistence.conversation_service import PublicConversation
 
 
 class ApiModel(BaseModel):
@@ -157,6 +166,89 @@ class ErrorDetail(ApiModel):
 
 class ErrorResponse(ApiModel):
     error: ErrorDetail
+
+
+class PublicConversationCreateRequest(ApiModel):
+    message: Annotated[str | None, Field(min_length=1, max_length=10_000)] = None
+    external_message_id: Annotated[str | None, Field(min_length=1, max_length=255)] = None
+    conversation_token: Annotated[
+        str | None,
+        Field(min_length=43, max_length=43, pattern=r"^[A-Za-z0-9_-]{43}$"),
+    ] = None
+
+    @model_validator(mode="after")
+    def require_complete_first_message(self) -> "PublicConversationCreateRequest":
+        if (self.message is None) != (self.external_message_id is None):
+            raise ValueError("message and external_message_id must be supplied together")
+        return self
+
+    @field_validator("external_message_id")
+    @classmethod
+    def validate_external_message_id(cls, value: str | None) -> str | None:
+        if value is not None and any(
+            character.isspace() or ord(character) < 32 or ord(character) == 127
+            for character in value
+        ):
+            raise ValueError("external_message_id must not contain whitespace or control characters")
+        return value
+
+
+class PublicConversationMessageRequest(ApiModel):
+    message: Annotated[str, Field(min_length=1, max_length=10_000)]
+    external_message_id: Annotated[str, Field(min_length=1, max_length=255)]
+
+    @field_validator("external_message_id")
+    @classmethod
+    def validate_external_message_id(cls, value: str) -> str:
+        if any(
+            character.isspace() or ord(character) < 32 or ord(character) == 127
+            for character in value
+        ):
+            raise ValueError("external_message_id must not contain whitespace or control characters")
+        return value
+
+
+class PublicConversationMessageSchema(ApiModel):
+    direction: MessageDirection
+    role: MessageRole
+    text: str
+    created_at: datetime
+
+
+class PublicConversationResponse(ApiModel):
+    conversation_token: str
+    status: ConversationStatus
+    current_state: ProcessState | None
+    requires_human: bool
+    duplicate: bool
+    messages: tuple[PublicConversationMessageSchema, ...]
+
+    @classmethod
+    def from_domain(cls, conversation: PublicConversation) -> "PublicConversationResponse":
+        return cls(
+            conversation_token=conversation.conversation_token,
+            status=conversation.status,
+            current_state=conversation.current_state,
+            requires_human=conversation.requires_human,
+            duplicate=conversation.duplicate,
+            messages=tuple(
+                PublicConversationMessageSchema(
+                    direction=message.direction,
+                    role=message.role,
+                    text=message.text,
+                    created_at=message.created_at,
+                )
+                for message in conversation.messages
+            ),
+        )
+
+
+class PublicChatConfigResponse(ApiModel):
+    enabled: bool
+    business_name: str
+    chat_title: str
+    welcome_message: str
+    language: str
 
 
 def validation_issues(errors: list[dict[str, Any]]) -> list[dict[str, Any]]:

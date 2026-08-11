@@ -21,6 +21,11 @@ from src.ai.provider import RetryingAIProvider
 from src.api.app import create_app
 from src.config import Settings
 from src.domain.events import EventType
+from src.domain.conversations import (
+    ConversationContext,
+    ConversationContextMessage,
+    MessageRole,
+)
 from src.domain.qualification import IncomingMessage
 from src.domain.states import ProcessState
 from src.domain.tenancy import Business
@@ -54,6 +59,9 @@ def intent_output(**changes: object) -> dict[str, object]:
         "customer_location": "60601",
         "preferred_time": None,
         "notes": "Customer needs a diagnostic visit.",
+        "customer_name": None,
+        "phone": None,
+        "email": None,
         "confidence": 0.95,
         "requires_human": False,
         "qualification_answers": [],
@@ -107,6 +115,45 @@ def test_structured_intent_resolves_alias_and_minimizes_personal_data() -> None:
     assert message.email not in prompt
     assert message.business_id not in prompt
     assert "pricing" not in prompt
+
+
+def test_multi_turn_ai_context_is_bounded_redacted_and_uses_validated_facts() -> None:
+    provider = FakeAIProvider([intent_output(preferred_time="tomorrow afternoon")])
+    context = ConversationContext(
+        recent_messages=(
+            ConversationContextMessage(
+                MessageRole.CUSTOMER,
+                "Call me at +1 312 555 0100 or ada@example.com",
+            ),
+            ConversationContextMessage(MessageRole.ASSISTANT, "What time works?"),
+        ),
+        known_facts={
+            "service_requested": "diagnostic-visit",
+            "customer_location": "60601",
+            "qualification_answers": {"detail": "ada@example.com"},
+        },
+        unresolved_items=("field:preferred_time",),
+        current_state="QUALIFYING",
+    )
+    message = IncomingMessage(
+        "acme-home-services",
+        "sms",
+        "context-message",
+        "tomorrow afternoon",
+        NOW,
+        conversation_context=context,
+    )
+
+    result = AIIntentExtractor(provider).extract(message, dna())
+
+    assert result.service_requested == "diagnostic-visit"
+    assert result.customer_location == "60601"
+    assert result.preferred_time == "tomorrow afternoon"
+    prompt = provider.requests[0].user_prompt
+    assert "+1 312 555 0100" not in prompt
+    assert "ada@example.com" not in prompt
+    assert "[contact redacted]" in prompt
+    assert "field:preferred_time" in prompt
 
 
 def test_business_dna_ai_permissions_are_enforced_before_provider_call() -> None:

@@ -90,6 +90,27 @@ def test_openai_settings_require_credentials_without_exposing_key_in_repr(
     assert marker not in repr(settings)
 
 
+def test_production_rejects_wildcard_cors_and_parses_public_chat_limits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://example.invalid/test")
+    monkeypatch.setenv("AI_PROVIDER", "deterministic")
+    monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "*")
+    with pytest.raises(RuntimeError, match="wildcard CORS"):
+        Settings.from_environment()
+
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000, https://site.example")
+    monkeypatch.setenv("PUBLIC_CHAT_RATE_LIMIT_REQUESTS", "7")
+    settings = Settings.from_environment()
+    assert settings.cors_allowed_origins == (
+        "http://localhost:3000",
+        "https://site.example",
+    )
+    assert settings.public_chat_rate_limit_requests == 7
+
+
 def test_development_seed_refuses_production_environment(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

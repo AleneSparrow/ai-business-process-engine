@@ -6,6 +6,7 @@ from enum import StrEnum
 from typing import Any, Mapping
 
 from .models import _freeze, _require_aware, _require_text
+from .conversations import ConversationContext
 from .states import ProcessState
 
 
@@ -28,6 +29,7 @@ class IncomingMessage:
     phone: str | None = None
     email: str | None = None
     case_id: str | None = None
+    conversation_context: ConversationContext | None = None
 
     def __post_init__(self) -> None:
         for value, name in (
@@ -68,6 +70,9 @@ class IntentResult:
     requires_human: bool = False
     qualification_answers: Mapping[str, Any] = field(default_factory=dict)
     ai_metadata: Mapping[str, Any] = field(default_factory=dict)
+    customer_name: str | None = None
+    phone: str | None = None
+    email: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.urgency, Urgency):
@@ -79,6 +84,9 @@ class IntentResult:
             (self.customer_location, "customer_location"),
             (self.preferred_time, "preferred_time"),
             (self.notes, "notes"),
+            (self.customer_name, "customer_name"),
+            (self.phone, "phone"),
+            (self.email, "email"),
         ):
             if value is not None:
                 _require_text(value, name)

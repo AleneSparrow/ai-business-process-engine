@@ -9,6 +9,8 @@ from fastapi.responses import JSONResponse
 
 from src.ai.errors import AIInvalidOutputError, AIProviderError
 from src.persistence.errors import (
+    ConversationTokenError,
+    ConversationTokenExpiredError,
     IdempotencyCollisionError,
     IdempotencyInProgressError,
     MessageScopeError,
@@ -72,7 +74,7 @@ def _log_error(
         "http_request_error",
         request_id=_request_id(request),
         business_id=getattr(request.state, "business_id", None),
-        endpoint=request.url.path,
+        endpoint=getattr(request.scope.get("route"), "path", "unmatched"),
         status_code=status_code,
         error_code=code,
         error_type=error_type,
@@ -110,6 +112,22 @@ def install_error_handlers(app: FastAPI) -> None:
             code,
             "The message identity was already used for different content",
         )
+
+    @app.exception_handler(ConversationTokenExpiredError)
+    async def conversation_expired_handler(
+        request: Request, exc: ConversationTokenExpiredError
+    ) -> JSONResponse:
+        code = "conversation_expired"
+        _log_error(request, code, 410, type(exc).__name__)
+        return _response(request, 410, code, "The conversation session has expired")
+
+    @app.exception_handler(ConversationTokenError)
+    async def conversation_token_handler(
+        request: Request, exc: ConversationTokenError
+    ) -> JSONResponse:
+        code = "conversation_not_found"
+        _log_error(request, code, 404, type(exc).__name__)
+        return _response(request, 404, code, "Conversation was not found")
 
     @app.exception_handler(StaleCaseError)
     async def stale_case_handler(request: Request, exc: StaleCaseError) -> JSONResponse:

@@ -10,6 +10,13 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from src.domain.models import Lead, ProcessCase, ProcessEvent, utc_now
+from src.domain.conversations import (
+    Conversation,
+    ConversationMessage,
+    ConversationStatus,
+    MessageDirection,
+    MessageRole,
+)
 from src.domain.states import ProcessState
 from src.domain.tenancy import Business, BusinessDNAVersion
 
@@ -18,6 +25,8 @@ from .repositories import ClaimStatus, IdempotencyRecord
 from .sqlalchemy_models import (
     BusinessDNARow,
     BusinessRow,
+    ConversationMessageRow,
+    ConversationRow,
     LeadRow,
     ProcessCaseRow,
     ProcessedMessageRow,
@@ -116,6 +125,25 @@ class SQLAlchemyBusinessDNARepository:
 class SQLAlchemyLeadRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
+
+    def lock_identity(
+        self,
+        business_id: str,
+        identity_type: str,
+        normalized_value: str,
+    ) -> None:
+        """Serialize tenant identity claims across PostgreSQL workers."""
+
+        if identity_type not in {"email", "phone"}:
+            raise ValueError("unsupported lead identity type")
+        if self.session.bind is None or self.session.bind.dialect.name != "postgresql":
+            return
+        identity = "\x1f".join(
+            ("lead-identity", business_id, identity_type, normalized_value)
+        )
+        digest = hashlib.sha256(identity.encode("utf-8")).digest()
+        lock_key = int.from_bytes(digest[:8], byteorder="big", signed=True)
+        self.session.execute(select(func.pg_advisory_xact_lock(lock_key)))
 
     def add(self, business_id: str, lead: Lead, created_at: datetime) -> None:
         self.session.add(LeadRow(
@@ -394,4 +422,195 @@ class SQLAlchemyIdempotencyRepository:
             row.case_id,
             row.result,
             _aware(row.created_at),
+        )
+
+
+class SQLAlchemyConversationRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def lock_token_identity(self, business_id: str, token_hash: str) -> None:
+        if self.session.get_bind().dialect.name != "postgresql":
+            return
+        identity = f"conversation-token\x1f{business_id}\x1f{token_hash}"
+        digest = hashlib.sha256(identity.encode("utf-8")).digest()
+        lock_key = int.from_bytes(digest[:8], byteorder="big", signed=True)
+        self.session.execute(select(func.pg_advisory_xact_lock(lock_key)))
+
+    def add(self, conversation: Conversation) -> None:
+        self.session.add(ConversationRow(
+            id=conversation.conversation_id,
+            business_id=conversation.business_id,
+            token_hash=conversation.token_hash,
+            channel=conversation.channel,
+            lead_id=conversation.lead_id,
+            case_id=conversation.case_id,
+            external_session_id=conversation.external_session_id,
+            status=conversation.status.value,
+            created_at=conversation.created_at,
+            updated_at=conversation.updated_at,
+            last_activity_at=conversation.last_activity_at,
+            token_expires_at=conversation.token_expires_at,
+            token_revoked_at=conversation.token_revoked_at,
+            metadata_json=_json_value(conversation.metadata),
+            version=conversation.version,
+        ))
+
+    def get(
+        self,
+        business_id: str,
+        conversation_id: str,
+        *,
+        for_update: bool = False,
+    ) -> Conversation | None:
+        statement = select(ConversationRow).where(
+            ConversationRow.business_id == business_id,
+            ConversationRow.id == conversation_id,
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        row = self.session.scalar(statement)
+        return self._to_domain(row) if row is not None else None
+
+    def get_by_token_hash(
+        self,
+        business_id: str,
+        token_hash: str,
+        *,
+        for_update: bool = False,
+    ) -> Conversation | None:
+        statement = select(ConversationRow).where(
+            ConversationRow.business_id == business_id,
+            ConversationRow.token_hash == token_hash,
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        row = self.session.scalar(statement)
+        return self._to_domain(row) if row is not None else None
+
+    def save(self, conversation: Conversation, expected_version: int) -> None:
+        new_version = expected_version + 1
+        result = self.session.execute(
+            update(ConversationRow)
+            .where(
+                ConversationRow.business_id == conversation.business_id,
+                ConversationRow.id == conversation.conversation_id,
+                ConversationRow.version == expected_version,
+            )
+            .values(
+                lead_id=conversation.lead_id,
+                case_id=conversation.case_id,
+                status=conversation.status.value,
+                updated_at=conversation.updated_at,
+                last_activity_at=conversation.last_activity_at,
+                token_expires_at=conversation.token_expires_at,
+                token_revoked_at=conversation.token_revoked_at,
+                metadata_json=_json_value(conversation.metadata),
+                version=new_version,
+            )
+        )
+        if result.rowcount != 1:
+            raise StaleCaseError(f"conversation version conflict: {conversation.conversation_id}")
+        conversation.mark_persisted(new_version)
+
+    @staticmethod
+    def _to_domain(row: ConversationRow) -> Conversation:
+        return Conversation(
+            conversation_id=row.id,
+            business_id=row.business_id,
+            token_hash=row.token_hash,
+            channel=row.channel,
+            status=ConversationStatus(row.status),
+            created_at=_aware(row.created_at),
+            updated_at=_aware(row.updated_at),
+            last_activity_at=_aware(row.last_activity_at),
+            token_expires_at=_aware(row.token_expires_at),
+            lead_id=row.lead_id,
+            case_id=row.case_id,
+            external_session_id=row.external_session_id,
+            token_revoked_at=_aware(row.token_revoked_at) if row.token_revoked_at else None,
+            metadata=row.metadata_json,
+            version=row.version,
+        )
+
+
+class SQLAlchemyConversationMessageRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def add(self, message: ConversationMessage) -> None:
+        self.session.add(ConversationMessageRow(
+            id=message.message_id,
+            business_id=message.business_id,
+            conversation_id=message.conversation_id,
+            sequence_number=message.sequence_number,
+            direction=message.direction.value,
+            role=message.role.value,
+            text=message.text,
+            created_at=message.created_at,
+            external_message_id=message.external_message_id,
+            content_fingerprint=message.content_fingerprint,
+            correlation_id=message.correlation_id,
+            metadata_json=_json_value(message.metadata),
+        ))
+
+    def get_by_external_id(
+        self,
+        business_id: str,
+        conversation_id: str,
+        external_message_id: str,
+    ) -> ConversationMessage | None:
+        row = self.session.scalar(select(ConversationMessageRow).where(
+            ConversationMessageRow.business_id == business_id,
+            ConversationMessageRow.conversation_id == conversation_id,
+            ConversationMessageRow.external_message_id == external_message_id,
+        ))
+        return self._to_domain(row) if row is not None else None
+
+    def list_for_conversation(
+        self,
+        business_id: str,
+        conversation_id: str,
+        *,
+        limit: int | None = None,
+    ) -> tuple[ConversationMessage, ...]:
+        statement = (
+            select(ConversationMessageRow)
+            .where(
+                ConversationMessageRow.business_id == business_id,
+                ConversationMessageRow.conversation_id == conversation_id,
+            )
+            .order_by(ConversationMessageRow.sequence_number.desc())
+        )
+        if limit is not None:
+            if limit < 1:
+                return ()
+            statement = statement.limit(limit)
+        rows = tuple(self.session.scalars(statement))
+        return tuple(self._to_domain(row) for row in reversed(rows))
+
+    def next_sequence(self, business_id: str, conversation_id: str) -> int:
+        latest = self.session.scalar(
+            select(func.max(ConversationMessageRow.sequence_number)).where(
+                ConversationMessageRow.business_id == business_id,
+                ConversationMessageRow.conversation_id == conversation_id,
+            )
+        )
+        return int(latest or 0) + 1
+
+    @staticmethod
+    def _to_domain(row: ConversationMessageRow) -> ConversationMessage:
+        return ConversationMessage(
+            message_id=row.id,
+            business_id=row.business_id,
+            conversation_id=row.conversation_id,
+            sequence_number=row.sequence_number,
+            direction=MessageDirection(row.direction),
+            role=MessageRole(row.role),
+            text=row.text,
+            created_at=_aware(row.created_at),
+            external_message_id=row.external_message_id,
+            content_fingerprint=row.content_fingerprint,
+            correlation_id=row.correlation_id,
+            metadata=row.metadata_json,
         )

@@ -50,87 +50,136 @@ class PersistentLeadIntakeService:
         self.process_engine = process_engine or ProcessEngine()
 
     def receive(self, message: IncomingMessage) -> LeadIntakeResult:
-        fingerprint = self.fingerprint(message)
-        channel = message.channel.casefold()
         with self.unit_of_work_factory() as uow:
-            if uow.businesses.get(message.business_id) is None:
-                raise KeyError(f"unknown business_id: {message.business_id}")
-            claim_status, claim = uow.idempotency.claim(
-                message.business_id, channel, message.external_message_id, fingerprint
-            )
-            if claim_status is ClaimStatus.COMPLETED:
-                if claim.result is None or claim.case_id is None:
-                    raise IdempotencyInProgressError("completed message has no persisted result")
-                case = uow.cases.get(message.business_id, claim.case_id)
-                if case is None:
-                    raise RuntimeError("idempotency result references a missing tenant case")
-                return self._deserialize_result(claim.result, duplicate=True)
-
-            dna_version = uow.business_dna.get_active(message.business_id)
-            if dna_version is None:
-                raise RuntimeError(f"business has no active Business DNA: {message.business_id}")
-            workflow = LeadIntakeService(
-                self._plain_json(dna_version.configuration),
-                self.intent_extractor,
-                self.question_generator,
-                self.qualification_service,
-                self.process_engine,
-                self.customer_response_generator,
-            )
-            try:
-                workflow._validate_message_scope(message)
-            except ValueError as exc:
-                raise MessageScopeError("message violates tenant intake scope") from exc
-
-            case, case_created, lead_created = self._resolve_case(uow, workflow, message)
-            if case.current_state not in workflow.ACTIVE_STATES:
-                raise ValueError(f"case {case.case_id} is not active for lead qualification")
-            workflow._assert_identity_consistency(case, message)
-
-            extracted = self.intent_extractor.extract(message, workflow.business_dna)
-            intent = workflow._merge_intent(case.lead, extracted)
-            updated_lead = workflow._updated_lead(case.lead, message, intent)
-            qualification = self.qualification_service.evaluate(updated_lead, intent, workflow.business_dna)
-            if case.current_state is ProcessState.NEEDS_HUMAN:
-                qualification = workflow._already_escalated_result(intent, qualification.service_id)
-            response = workflow._create_response(case, message, qualification)
-
-            existing_event_count = len(case.event_history)
-            expected_version = case.version
-            case.update_lead(updated_lead)
-            self._record_business_events(case, message, intent, qualification, dna_version.version)
-            workflow._progress_case(case, message, qualification)
-            if response is not None:
-                self._record_response(case, message, response)
-
-            if lead_created:
-                uow.leads.add(message.business_id, updated_lead, case.created_at)
-            else:
-                uow.leads.save(message.business_id, updated_lead, case.updated_at)
-            if case_created:
-                uow.cases.add(case)
-            else:
-                uow.cases.save(case, expected_version)
-            new_events = case.event_history[existing_event_count:]
-            uow.events.add_many(message.business_id, case.case_id, new_events)
-
-            result = LeadIntakeResult(
-                case.case_id,
-                updated_lead.lead_id,
-                case.current_state,
-                qualification,
-                response,
-                case_created,
-            )
-            uow.idempotency.complete(
-                message.business_id,
-                channel,
-                message.external_message_id,
-                case.case_id,
-                self._serialize_result(result),
-            )
+            result = self.receive_in_unit_of_work(uow, message)
             uow.commit()
             return result
+
+    def receive_in_unit_of_work(
+        self,
+        uow: UnitOfWork,
+        message: IncomingMessage,
+    ) -> LeadIntakeResult:
+        """Process intake in an already-active transaction without committing it."""
+        fingerprint = self.fingerprint(message)
+        channel = message.channel.casefold()
+        if uow.businesses.get(message.business_id) is None:
+            raise KeyError(f"unknown business_id: {message.business_id}")
+        claim_status, claim = uow.idempotency.claim(
+            message.business_id, channel, message.external_message_id, fingerprint
+        )
+        if claim_status is ClaimStatus.COMPLETED:
+            if claim.result is None or claim.case_id is None:
+                raise IdempotencyInProgressError("completed message has no persisted result")
+            case = uow.cases.get(message.business_id, claim.case_id)
+            if case is None:
+                raise RuntimeError("idempotency result references a missing tenant case")
+            return self._deserialize_result(claim.result, duplicate=True)
+
+        dna_version = uow.business_dna.get_active(message.business_id)
+        if dna_version is None:
+            raise RuntimeError(f"business has no active Business DNA: {message.business_id}")
+        workflow = LeadIntakeService(
+            self._plain_json(dna_version.configuration),
+            self.intent_extractor,
+            self.question_generator,
+            self.qualification_service,
+            self.process_engine,
+            self.customer_response_generator,
+        )
+        try:
+            workflow._validate_message_scope(message)
+        except ValueError as exc:
+            raise MessageScopeError("message violates tenant intake scope") from exc
+
+        case, case_created, lead_created = self._resolve_case(uow, workflow, message)
+        if case.current_state not in workflow.ACTIVE_STATES:
+            raise ValueError(f"case {case.case_id} is not active for lead qualification")
+        workflow._assert_identity_consistency(case, message)
+
+        extracted = self.intent_extractor.extract(message, workflow.business_dna)
+        intent = workflow._merge_intent(case.lead, extracted)
+        updated_lead = workflow._updated_lead(case.lead, message, intent)
+        self._lock_identities(
+            uow,
+            message.business_id,
+            updated_lead.phone,
+            updated_lead.email,
+        )
+        identity_conflicts = self._identity_conflicts(
+            uow,
+            message.business_id,
+            case.lead.lead_id,
+            updated_lead,
+        )
+        if identity_conflicts:
+            updated_lead = Lead(
+                lead_id=updated_lead.lead_id,
+                name=updated_lead.name,
+                phone=None if "phone" in identity_conflicts else updated_lead.phone,
+                email=None if "email" in identity_conflicts else updated_lead.email,
+                attributes=updated_lead.attributes,
+            )
+            preliminary = self.qualification_service.evaluate(
+                updated_lead, intent, workflow.business_dna
+            )
+            qualification = QualificationResult(
+                qualified=False,
+                reasons=(
+                    "Provided contact identity is already associated with another lead; "
+                    "human review is required",
+                ),
+                missing_fields=(),
+                unanswered_questions=(),
+                confidence=intent.confidence,
+                recommended_next_state=ProcessState.NEEDS_HUMAN,
+                requires_human=True,
+                booking_allowed=False,
+                service_id=preliminary.service_id,
+            )
+        else:
+            qualification = self.qualification_service.evaluate(
+                updated_lead, intent, workflow.business_dna
+            )
+        if case.current_state is ProcessState.NEEDS_HUMAN:
+            qualification = workflow._already_escalated_result(intent, qualification.service_id)
+        response = workflow._create_response(case, message, qualification)
+
+        existing_event_count = len(case.event_history)
+        expected_version = case.version
+        case.update_lead(updated_lead)
+        self._record_business_events(case, message, intent, qualification, dna_version.version)
+        workflow._progress_case(case, message, qualification)
+        if response is not None:
+            self._record_response(case, message, response)
+
+        if lead_created:
+            uow.leads.add(message.business_id, updated_lead, case.created_at)
+        else:
+            uow.leads.save(message.business_id, updated_lead, case.updated_at)
+        if case_created:
+            uow.cases.add(case)
+        else:
+            uow.cases.save(case, expected_version)
+        new_events = case.event_history[existing_event_count:]
+        uow.events.add_many(message.business_id, case.case_id, new_events)
+
+        result = LeadIntakeResult(
+            case.case_id,
+            updated_lead.lead_id,
+            case.current_state,
+            qualification,
+            response,
+            case_created,
+        )
+        uow.idempotency.complete(
+            message.business_id,
+            channel,
+            message.external_message_id,
+            case.case_id,
+            self._serialize_result(result),
+        )
+        return result
 
     @staticmethod
     def fingerprint(message: IncomingMessage) -> str:
@@ -169,7 +218,14 @@ class PersistentLeadIntakeService:
 
         phone = workflow._normalize_phone(message.phone)
         email = workflow._normalize_email(message.email)
-        lead = uow.leads.find_by_identity(message.business_id, phone, email)
+        try:
+            lead = uow.leads.find_by_identity(message.business_id, phone, email)
+        except ValueError:
+            # Conflicting supplied identifiers must not be auto-merged. Create a
+            # quarantined case; the post-extraction identity check escalates it.
+            lead = None
+            phone = None
+            email = None
         lead_created = lead is None
         if lead is None:
             lead = Lead(str(uuid4()), message.customer_name, email, phone)
@@ -178,6 +234,38 @@ class PersistentLeadIntakeService:
         if case is None:
             case = ProcessCase(str(uuid4()), message.business_id, lead)
         return case, case_created, lead_created
+
+    @staticmethod
+    def _lock_identities(
+        uow: UnitOfWork,
+        business_id: str,
+        phone: str | None,
+        email: str | None,
+    ) -> None:
+        identities = sorted(
+            (identity_type, value)
+            for identity_type, value in (("phone", phone), ("email", email))
+            if value
+        )
+        for identity_type, value in identities:
+            uow.leads.lock_identity(business_id, identity_type, value)
+
+    @staticmethod
+    def _identity_conflicts(
+        uow: UnitOfWork,
+        business_id: str,
+        current_lead_id: str,
+        proposed_lead: Lead,
+    ) -> frozenset[str]:
+        conflicts: set[str] = set()
+        for identity_type, phone, email in (
+            ("phone", proposed_lead.phone, None),
+            ("email", None, proposed_lead.email),
+        ):
+            owner = uow.leads.find_by_identity(business_id, phone, email)
+            if owner is not None and owner.lead_id != current_lead_id:
+                conflicts.add(identity_type)
+        return frozenset(conflicts)
 
     @staticmethod
     def _record_business_events(

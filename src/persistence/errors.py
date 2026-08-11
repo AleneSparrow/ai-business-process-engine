@@ -19,3 +19,11 @@ class MessageScopeError(PersistenceError):
 
 class StaleCaseError(PersistenceError):
     """A case changed after it was loaded and cannot be overwritten safely."""
+
+
+class ConversationTokenError(PersistenceError):
+    """An anonymous conversation token is invalid for the requested tenant."""
+
+
+class ConversationTokenExpiredError(ConversationTokenError):
+    """An anonymous conversation token has expired or been revoked."""

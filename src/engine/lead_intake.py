@@ -327,9 +327,9 @@ class LeadIntakeService:
         })
         return Lead(
             lead_id=lead.lead_id,
-            name=message.customer_name or lead.name,
-            phone=LeadIntakeService._normalize_phone(message.phone) or lead.phone,
-            email=LeadIntakeService._normalize_email(message.email) or lead.email,
+            name=lead.name or message.customer_name or intent.customer_name,
+            phone=lead.phone or LeadIntakeService._normalize_phone(message.phone or intent.phone),
+            email=lead.email or LeadIntakeService._normalize_email(message.email or intent.email),
             attributes=attributes,
         )
 
@@ -337,21 +337,48 @@ class LeadIntakeService:
     def _merge_intent(lead: Lead, current: IntentResult) -> IntentResult:
         previous = lead.attributes
         answers = dict(previous.get("qualification_answers", {}))
-        answers.update(current.qualification_answers)
+        conflict = False
+        for question_id, answer in current.qualification_answers.items():
+            existing = answers.get(question_id)
+            if existing is not None and str(existing).strip().casefold() != str(answer).strip().casefold():
+                conflict = True
+                continue
+            answers[question_id] = answer
         previous_urgency = previous.get("urgency")
         urgency = current.urgency
         if urgency is Urgency.UNKNOWN and isinstance(previous_urgency, str):
             urgency = Urgency(previous_urgency)
+
+        def preserve_strong_fact(current_value: str | None, key: str) -> str | None:
+            nonlocal conflict
+            existing = previous.get(key)
+            if not isinstance(existing, str) or not existing.strip():
+                return current_value
+            if current_value is not None and existing.strip().casefold() != current_value.strip().casefold():
+                conflict = True
+            return existing
+
+        for current_value, existing_value, normalizer in (
+            (current.phone, lead.phone, LeadIntakeService._normalize_phone),
+            (current.email, lead.email, LeadIntakeService._normalize_email),
+        ):
+            if current_value and existing_value and normalizer(current_value) != existing_value:
+                conflict = True
+        if current.customer_name and lead.name and current.customer_name.strip().casefold() != lead.name.strip().casefold():
+            conflict = True
         return IntentResult(
-            service_requested=current.service_requested or previous.get("service_requested"),
+            service_requested=preserve_strong_fact(current.service_requested, "service_requested"),
             urgency=urgency,
-            customer_location=current.customer_location or previous.get("customer_location"),
-            preferred_time=current.preferred_time or previous.get("preferred_time"),
+            customer_location=preserve_strong_fact(current.customer_location, "customer_location"),
+            preferred_time=preserve_strong_fact(current.preferred_time, "preferred_time"),
             notes=current.notes or previous.get("notes"),
             confidence=current.confidence,
-            requires_human=current.requires_human,
+            requires_human=current.requires_human or conflict,
             qualification_answers=answers,
             ai_metadata=current.ai_metadata,
+            customer_name=current.customer_name,
+            phone=current.phone,
+            email=current.email,
         )
 
     def _validate_business_dna(self) -> None:

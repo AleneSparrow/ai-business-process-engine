@@ -5,10 +5,11 @@ Set TEST_DATABASE_URL to a dedicated, migrated PostgreSQL database to enable.
 
 import json
 import os
+import secrets
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
-from threading import Barrier
+from threading import Barrier, Lock
 from uuid import uuid4
 
 import pytest
@@ -20,12 +21,24 @@ from src.domain.qualification import IncomingMessage, IntentResult
 from src.domain.states import ProcessState
 from src.domain.tenancy import Business
 from src.engine.decision_router import DecisionRequest
+from src.engine.customer_response_generator import DeterministicCustomerResponseGenerator
 from src.engine.intent_extractor import DeterministicIntentExtractor
 from src.engine.process_engine import ProcessEngine
 from src.engine.question_generator import DeterministicQuestionGenerator
-from src.persistence.errors import IdempotencyCollisionError, StaleCaseError
+from src.persistence.conversation_service import ConversationService
+from src.persistence.errors import (
+    ConversationTokenError,
+    IdempotencyCollisionError,
+    StaleCaseError,
+)
 from src.persistence.lead_intake import PersistentLeadIntakeService
-from src.persistence.sqlalchemy_models import LeadRow, ProcessCaseRow, ProcessedMessageRow
+from src.persistence.sqlalchemy_models import (
+    ConversationMessageRow,
+    ConversationRow,
+    LeadRow,
+    ProcessCaseRow,
+    ProcessedMessageRow,
+)
 from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork, create_database_engine
 
 
@@ -245,3 +258,227 @@ def test_two_concurrent_case_updates_detect_one_stale_writer(pg_factory) -> None
         assert persisted is not None and persisted.version == 1
         event_ids = {event.event_id for event in persisted.event_history}
         assert len({first_id, second_id}.intersection(event_ids)) == 1
+
+
+class CountingDeterministicExtractor:
+    def __init__(self) -> None:
+        self.delegate = DeterministicIntentExtractor()
+        self.calls = 0
+        self.lock = Lock()
+
+    def extract(self, message: IncomingMessage, business_dna: dict) -> IntentResult:
+        with self.lock:
+            self.calls += 1
+        return self.delegate.extract(message, business_dna)
+
+
+def make_conversation_service(pg_factory, extractor=None) -> ConversationService:
+    return ConversationService(
+        pg_factory,
+        extractor or DeterministicIntentExtractor(),
+        DeterministicQuestionGenerator(),
+        DeterministicCustomerResponseGenerator(),
+    )
+
+
+def test_postgresql_conversation_persistence_and_tenant_isolation(pg_factory) -> None:
+    business_id = seed(pg_factory)
+    other_business_id = seed(pg_factory)
+    service = make_conversation_service(pg_factory)
+
+    created = service.create(
+        business_id,
+        message_text="I need AC help. Phone +1 312 555 0100. My name is Ada",
+        external_message_id="pg-conversation-first",
+    )
+    restored = service.get(business_id, created.conversation_token)
+
+    assert restored.internal_conversation_id == created.internal_conversation_id
+    assert len(restored.messages) == 2
+    with pytest.raises(ConversationTokenError):
+        service.get(other_business_id, created.conversation_token)
+    with pg_factory() as uow:
+        assert uow.session.scalar(
+            select(func.count()).select_from(ConversationRow).where(
+                ConversationRow.business_id == business_id
+            )
+        ) == 1
+        assert uow.session.scalar(
+            select(func.count()).select_from(ConversationMessageRow).where(
+                ConversationMessageRow.business_id == business_id
+            )
+        ) == 2
+
+
+def test_concurrent_duplicate_conversation_message_has_one_effect(pg_factory) -> None:
+    business_id = seed(pg_factory)
+    extractor = CountingDeterministicExtractor()
+    service = make_conversation_service(pg_factory, extractor)
+    created = service.create(business_id)
+    start = Barrier(2)
+
+    def send_duplicate():
+        start.wait(timeout=10)
+        return service.send_message(
+            business_id,
+            created.conversation_token,
+            message_text="I need AC help",
+            external_message_id="duplicate-browser-message",
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: send_duplicate(), range(2)))
+
+    assert sum(result.duplicate for result in results) == 1
+    assert extractor.calls == 1
+    with pg_factory() as uow:
+        conversation = uow.session.scalar(select(ConversationRow).where(
+            ConversationRow.id == created.internal_conversation_id,
+            ConversationRow.business_id == business_id,
+        ))
+        assert conversation is not None and conversation.case_id is not None
+        assert uow.session.scalar(select(func.count()).select_from(ConversationMessageRow).where(
+            ConversationMessageRow.business_id == business_id,
+            ConversationMessageRow.conversation_id == created.internal_conversation_id,
+        )) == 2
+        events = uow.events.list_for_case(business_id, conversation.case_id)
+        assert sum(event.event_type == EventType.LEAD_INTAKE_RECEIVED for event in events) == 1
+
+
+def test_concurrent_duplicate_conversation_create_converges(pg_factory) -> None:
+    business_id = seed(pg_factory)
+    extractor = CountingDeterministicExtractor()
+    service = make_conversation_service(pg_factory, extractor)
+    token = secrets.token_urlsafe(32)
+    start = Barrier(2)
+
+    def create_duplicate():
+        start.wait(timeout=10)
+        return service.create(
+            business_id,
+            message_text="I need AC help",
+            external_message_id="duplicate-create-message",
+            conversation_token=token,
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(lambda _: create_duplicate(), range(2)))
+
+    assert len({result.internal_conversation_id for result in results}) == 1
+    assert sum(result.duplicate for result in results) == 1
+    assert extractor.calls == 1
+    with pg_factory() as uow:
+        assert uow.session.scalar(select(func.count()).select_from(ConversationRow).where(
+            ConversationRow.business_id == business_id
+        )) == 1
+        assert uow.session.scalar(select(func.count()).select_from(ConversationMessageRow).where(
+            ConversationMessageRow.business_id == business_id
+        )) == 2
+
+
+def test_concurrent_distinct_followups_are_ordered_and_consistent(pg_factory) -> None:
+    business_id = seed(pg_factory)
+    service = make_conversation_service(pg_factory)
+    created = service.create(
+        business_id,
+        message_text="I need AC help. My name is Ada",
+        external_message_id="ordered-first",
+    )
+    start = Barrier(2)
+    followups = (
+        ("60601", "ordered-zip"),
+        ("My phone is +1 312 555 0198", "ordered-phone"),
+    )
+
+    def send_followup(value: tuple[str, str]):
+        start.wait(timeout=10)
+        return service.send_message(
+            business_id,
+            created.conversation_token,
+            message_text=value[0],
+            external_message_id=value[1],
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        list(executor.map(send_followup, followups))
+
+    restored = service.get(business_id, created.conversation_token)
+    assert restored.current_state is ProcessState.QUALIFIED
+    assert len(restored.messages) == 6
+    with pg_factory() as uow:
+        rows = tuple(uow.session.scalars(
+            select(ConversationMessageRow)
+            .where(
+                ConversationMessageRow.business_id == business_id,
+                ConversationMessageRow.conversation_id == created.internal_conversation_id,
+            )
+            .order_by(ConversationMessageRow.sequence_number)
+        ))
+        assert [row.sequence_number for row in rows] == list(range(1, 7))
+        conversation = uow.session.scalar(select(ConversationRow).where(
+            ConversationRow.business_id == business_id,
+            ConversationRow.id == created.internal_conversation_id,
+        ))
+        assert conversation is not None
+        assert conversation.version == 3
+
+
+def test_concurrent_conversation_collision_is_explicit(pg_factory) -> None:
+    business_id = seed(pg_factory)
+    service = make_conversation_service(pg_factory)
+    created = service.create(business_id)
+    start = Barrier(2)
+
+    def send_or_error(text_value: str):
+        start.wait(timeout=10)
+        try:
+            return service.send_message(
+                business_id,
+                created.conversation_token,
+                message_text=text_value,
+                external_message_id="same-browser-id",
+            )
+        except IdempotencyCollisionError as exc:
+            return exc
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = list(executor.map(send_or_error, ("I need AC help", "different text")))
+
+    assert sum(isinstance(outcome, IdempotencyCollisionError) for outcome in outcomes) == 1
+    with pg_factory() as uow:
+        assert uow.session.scalar(select(func.count()).select_from(ConversationMessageRow).where(
+            ConversationMessageRow.business_id == business_id,
+            ConversationMessageRow.conversation_id == created.internal_conversation_id,
+        )) == 2
+
+
+def test_concurrent_conversations_cannot_claim_same_contact_identity(pg_factory) -> None:
+    business_id = seed(pg_factory)
+    service = make_conversation_service(pg_factory)
+    phone = f"+1555{uuid4().int % 10_000_000:07d}"
+    start = Barrier(2)
+
+    def create_with_same_phone(customer_name: str):
+        start.wait(timeout=10)
+        return service.create(
+            business_id,
+            message_text=(
+                f"AC diagnostic in 60601. My phone is {phone}. "
+                f"My name is {customer_name}"
+            ),
+            external_message_id=f"same-contact-{customer_name}-{uuid4()}",
+        )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        results = list(executor.map(create_with_same_phone, ("Ada", "Grace")))
+
+    assert {result.current_state for result in results} == {
+        ProcessState.QUALIFIED,
+        ProcessState.NEEDS_HUMAN,
+    }
+    with pg_factory() as uow:
+        leads = tuple(uow.session.scalars(
+            select(LeadRow).where(LeadRow.business_id == business_id)
+        ))
+        assert len(leads) == 2
+        assert sum(lead.normalized_phone == phone for lead in leads) == 1

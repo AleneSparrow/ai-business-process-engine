@@ -26,6 +26,8 @@ Milestone 4 exposes that persisted workflow through a versioned FastAPI service.
 
 Milestone 5 introduces an explicit provider-neutral structured AI boundary and an OpenAI implementation. AI extracts intent and qualification answers and drafts constrained clarification, unsupported-service, outside-area, and human-escalation wording. Pydantic schemas and adapter-level policy validation treat every output as untrusted. Deterministic rules still decide service fit, geography, qualification, booking permission, escalation, and state transitions.
 
+Milestone 6 introduces durable website conversations and a framework-free embeddable chat widget. An anonymous visitor receives an opaque expiring tenant-bound token, and every inbound/outbound message is ordered and persisted with the same lead/case. Follow-ups use bounded redacted context, deterministically merge new facts, remember asked/answered qualification questions, and stop autonomous decisions when human takeover or a terminal case state is reached. The public API exposes only allowlisted chat state and text.
+
 ## Principles
 
 - Business rules and state validity are deterministic.
@@ -34,11 +36,13 @@ Milestone 5 introduces an explicit provider-neutral structured AI boundary and a
 - Trigger IDs make processing idempotent within a case, while database message claims make intake idempotent across workers and restarts.
 - Every accepted trigger, decision, state change, rejection, and duplicate is auditable.
 - Tenant IDs are mandatory at the domain and repository boundaries, and persistence enforces tenant-qualified relationships.
+- Anonymous continuation tokens are random bearer values stored only as hashes, scoped to one tenant, and validated for expiry/revocation.
+- Public customer text is treated as untrusted data in prompts, JSON responses, and DOM rendering.
 - Reasoning and action execution are separate concerns.
 
 ## Not in this milestone
 
-Persistence, the lead-intake HTTP API, and provider-backed LLM understanding/wording are implemented. Future milestones defer authentication and authorization, outbound messaging and other external integrations, queues, production deployment, billing, real payment processing, and user interfaces.
+Persistence, the lead-intake and public conversation APIs, provider-backed LLM understanding/wording, and the website widget are implemented. Future milestones defer authentication and authorization, staff UI, non-web outbound messaging and other external integrations, shared multi-worker abuse controls, queues, production deployment, billing, and real payment processing.
 
 ## Acceptance criteria
 
@@ -49,4 +53,6 @@ Persistence, the lead-intake HTTP API, and provider-backed LLM understanding/wor
 - Tenant-scoped HTTP intake preserves replay, collision, escalation, and concurrency behavior.
 - AI output is structured, policy-validated, privacy-minimized, auditable, and unable to override deterministic qualification.
 - Provider failure rolls back intake, while low-confidence or invalid intent escalates safely.
+- Public conversation retries have one logical effect, concurrent follow-ups stay ordered, and tokens cannot cross tenant boundaries.
+- Public history/configuration omit internal IDs and policy data, while the widget renders text without HTML injection.
 - The Lead-to-Cash happy path and its quote branch pass automated tests.

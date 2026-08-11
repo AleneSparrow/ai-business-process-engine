@@ -13,6 +13,7 @@ from sqlalchemy import (
     Index,
     Integer,
     String,
+    Text,
     UniqueConstraint,
     text,
 )
@@ -182,4 +183,137 @@ class ProcessedMessageRow(Base):
             name="ck_processed_messages_completion",
         ),
         Index("ix_processed_messages_case", "business_id", "case_id"),
+    )
+
+
+class ConversationRow(Base):
+    __tablename__ = "conversations"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    business_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    channel: Mapped[str] = mapped_column(String(64), nullable=False)
+    lead_id: Mapped[str | None] = mapped_column(String(128))
+    case_id: Mapped[str | None] = mapped_column(String(128))
+    external_session_id: Mapped[str | None] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_activity_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    token_expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    token_revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSON_VALUE, nullable=False, default=dict
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["business_id", "lead_id"],
+            ["leads.business_id", "leads.id"],
+            name="fk_conversations_tenant_lead",
+        ),
+        ForeignKeyConstraint(
+            ["business_id", "case_id"],
+            ["process_cases.business_id", "process_cases.id"],
+            name="fk_conversations_tenant_case",
+        ),
+        UniqueConstraint("business_id", "id", name="uq_conversations_business_id_id"),
+        UniqueConstraint("business_id", "token_hash", name="uq_conversations_business_token"),
+        UniqueConstraint(
+            "business_id",
+            "channel",
+            "external_session_id",
+            name="uq_conversations_business_external_session",
+        ),
+        CheckConstraint("version >= 0", name="ck_conversations_version_nonnegative"),
+        CheckConstraint(
+            "status IN ('ai_active','human_takeover_requested','human_takeover_active','closed')",
+            name="ck_conversations_known_status",
+        ),
+        CheckConstraint(
+            "(lead_id IS NULL AND case_id IS NULL) OR (lead_id IS NOT NULL AND case_id IS NOT NULL)",
+            name="ck_conversations_case_link_complete",
+        ),
+        CheckConstraint(
+            "token_expires_at > created_at",
+            name="ck_conversations_token_expiry",
+        ),
+        CheckConstraint(
+            "updated_at >= created_at AND last_activity_at >= created_at",
+            name="ck_conversations_timestamp_order",
+        ),
+        CheckConstraint(
+            "token_revoked_at IS NULL OR token_revoked_at >= created_at",
+            name="ck_conversations_revocation_order",
+        ),
+        Index("ix_conversations_business_activity", "business_id", "last_activity_at"),
+        Index("ix_conversations_business_status", "business_id", "status"),
+    )
+
+
+class ConversationMessageRow(Base):
+    __tablename__ = "conversation_messages"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    business_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    conversation_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    sequence_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    direction: Mapped[str] = mapped_column(String(16), nullable=False)
+    role: Mapped[str] = mapped_column(String(16), nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    external_message_id: Mapped[str | None] = mapped_column(String(255))
+    content_fingerprint: Mapped[str | None] = mapped_column(String(64))
+    correlation_id: Mapped[str | None] = mapped_column(String(128))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSON_VALUE, nullable=False, default=dict
+    )
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["business_id", "conversation_id"],
+            ["conversations.business_id", "conversations.id"],
+            ondelete="CASCADE",
+            name="fk_conversation_messages_tenant_conversation",
+        ),
+        UniqueConstraint(
+            "business_id",
+            "conversation_id",
+            "sequence_number",
+            name="uq_conversation_messages_sequence",
+        ),
+        UniqueConstraint(
+            "business_id",
+            "conversation_id",
+            "external_message_id",
+            name="uq_conversation_messages_external_id",
+        ),
+        CheckConstraint("sequence_number > 0", name="ck_conversation_messages_sequence_positive"),
+        CheckConstraint(
+            "direction IN ('inbound','outbound')",
+            name="ck_conversation_messages_direction",
+        ),
+        CheckConstraint(
+            "role IN ('customer','assistant','human','system')",
+            name="ck_conversation_messages_role",
+        ),
+        CheckConstraint(
+            "(direction = 'inbound' AND role = 'customer') OR "
+            "(direction = 'outbound' AND role IN ('assistant','human','system'))",
+            name="ck_conversation_messages_direction_role",
+        ),
+        CheckConstraint(
+            "(external_message_id IS NULL AND content_fingerprint IS NULL) OR "
+            "(external_message_id IS NOT NULL AND content_fingerprint IS NOT NULL)",
+            name="ck_conversation_messages_idempotency_pair",
+        ),
+        Index(
+            "ix_conversation_messages_business_order",
+            "business_id",
+            "conversation_id",
+            "sequence_number",
+        ),
     )

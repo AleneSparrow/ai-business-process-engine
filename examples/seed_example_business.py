@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 
 
@@ -16,6 +17,14 @@ from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork, create_database
 
 
 BUSINESS_ID = "acme-home-services"
+
+
+def _plain_json(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {str(key): _plain_json(item) for key, item in value.items()}
+    if isinstance(value, tuple | list):
+        return [_plain_json(item) for item in value]
+    return value
 
 
 def main() -> None:
@@ -39,7 +48,7 @@ def main() -> None:
                     Business(BUSINESS_ID, configuration["business"]["name"], now, now)
                 )
             active_dna = unit_of_work.business_dna.get_active(BUSINESS_ID)
-            if active_dna is None:
+            if active_dna is None or _plain_json(active_dna.configuration) != configuration:
                 unit_of_work.business_dna.add_version(BUSINESS_ID, configuration)
             unit_of_work.commit()
     finally:

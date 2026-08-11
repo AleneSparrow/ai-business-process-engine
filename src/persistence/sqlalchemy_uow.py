@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from .sqlalchemy_repositories import (
     SQLAlchemyBusinessDNARepository,
     SQLAlchemyBusinessRepository,
+    SQLAlchemyConversationMessageRepository,
+    SQLAlchemyConversationRepository,
     SQLAlchemyIdempotencyRepository,
     SQLAlchemyLeadRepository,
     SQLAlchemyProcessCaseRepository,
@@ -50,6 +52,8 @@ class SQLAlchemyUnitOfWork:
         self.events = SQLAlchemyProcessEventRepository(self.session)
         self.cases = SQLAlchemyProcessCaseRepository(self.session, self.events)
         self.idempotency = SQLAlchemyIdempotencyRepository(self.session)
+        self.conversations = SQLAlchemyConversationRepository(self.session)
+        self.conversation_messages = SQLAlchemyConversationMessageRepository(self.session)
         return self
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:

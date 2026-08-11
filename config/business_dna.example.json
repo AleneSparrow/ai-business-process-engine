@@ -16,7 +16,7 @@
       "duration_minutes": 60,
       "pricing": {"model": "fixed", "amount": 129, "tax_included": false},
       "service_area_ids": ["metro"],
-      "intake_keywords": ["diagnostic", "diagnosis", "plumbing visit"],
+      "intake_keywords": ["diagnostic", "diagnosis", "plumbing visit", "AC"],
       "booking_allowed": true,
       "qualification_questions": []
     }
@@ -67,11 +67,18 @@
     "human_approval_above": 5000
   },
   "communication": {
-    "channels": ["sms", "email"],
+    "channels": ["sms", "email", "webchat"],
     "default_channel": "sms",
     "language": "English",
     "tone": "friendly, concise, and professional",
     "quiet_hours": {"starts": "20:00", "ends": "08:00"}
+  },
+  "chat_widget": {
+    "enabled": true,
+    "title": "Chat with Acme Home Services",
+    "welcome_message": "Hi! Tell us what you need help with.",
+    "qualified_message": "Thanks — we have the information we need. Our team will review the next step with you.",
+    "closed_message": "This conversation is complete. Please contact us if you need more help."
   },
   "ai_permissions": {
     "allowed": ["classify_intent", "extract_customer_details", "draft_message", "recommend_next_step"],

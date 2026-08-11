@@ -13,9 +13,11 @@ from src.engine.intent_extractor import IntentExtractor
 from src.engine.customer_response_generator import CustomerResponseGenerator
 from src.engine.question_generator import QuestionGenerator
 from src.persistence.lead_intake import PersistentLeadIntakeService
+from src.persistence.conversation_service import ConversationService
 from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork
 
 from .errors import ResourceNotFoundError
+from .rate_limit import RateLimiter
 
 
 BusinessIdPath = Annotated[
@@ -35,6 +37,7 @@ class ApplicationContainer:
     customer_response_generator: CustomerResponseGenerator
     ai_provider_name: str
     ai_model_name: str
+    public_chat_rate_limiter: RateLimiter
 
 
 def get_container(request: Request) -> ApplicationContainer:
@@ -59,6 +62,24 @@ def get_intake_service(
         container.question_generator,
         customer_response_generator=container.customer_response_generator,
     )
+
+
+def get_conversation_service(
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+) -> ConversationService:
+    return ConversationService(
+        container.unit_of_work_factory,
+        container.intent_extractor,
+        container.question_generator,
+        container.customer_response_generator,
+        token_ttl_hours=container.settings.public_conversation_token_ttl_hours,
+    )
+
+
+def get_public_chat_rate_limiter(
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+) -> RateLimiter:
+    return container.public_chat_rate_limiter
 
 
 def resolve_business(
