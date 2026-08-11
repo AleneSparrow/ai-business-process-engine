@@ -9,8 +9,10 @@ from sqlalchemy import text
 from sqlalchemy.engine import Engine
 
 from src.config import Settings
-from src.engine.intent_extractor import DeterministicIntentExtractor, IntentExtractor
-from src.engine.question_generator import DeterministicQuestionGenerator, QuestionGenerator
+from src.ai.runtime import build_ai_runtime
+from src.engine.customer_response_generator import CustomerResponseGenerator
+from src.engine.intent_extractor import IntentExtractor
+from src.engine.question_generator import QuestionGenerator
 from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork, create_database_engine
 
 from .dependencies import ApplicationContainer
@@ -25,14 +27,18 @@ def create_app(
     settings: Settings | None = None,
     intent_extractor: IntentExtractor | None = None,
     question_generator: QuestionGenerator | None = None,
+    customer_response_generator: CustomerResponseGenerator | None = None,
 ) -> FastAPI:
-    configured_intent_extractor = intent_extractor or DeterministicIntentExtractor()
-    configured_question_generator = question_generator or DeterministicQuestionGenerator()
-
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
         runtime_settings = settings or Settings.from_environment()
         configure_logging(runtime_settings.log_level)
+        ai_runtime = build_ai_runtime(runtime_settings)
+        configured_intent_extractor = intent_extractor or ai_runtime.intent_extractor
+        configured_question_generator = question_generator or ai_runtime.question_generator
+        configured_response_generator = (
+            customer_response_generator or ai_runtime.customer_response_generator
+        )
         engine: Engine | None = None
         try:
             engine = create_database_engine(runtime_settings.database_url)
@@ -57,8 +63,17 @@ def create_app(
             unit_of_work_factory=SQLAlchemyUnitOfWork.factory_for_engine(engine),
             intent_extractor=configured_intent_extractor,
             question_generator=configured_question_generator,
+            customer_response_generator=configured_response_generator,
+            ai_provider_name=ai_runtime.provider_name,
+            ai_model_name=ai_runtime.model_name,
         )
-        log_event(logging.INFO, "application_started", app_env=runtime_settings.app_env)
+        log_event(
+            logging.INFO,
+            "application_started",
+            app_env=runtime_settings.app_env,
+            ai_provider=ai_runtime.provider_name,
+            ai_model=ai_runtime.model_name,
+        )
         try:
             yield
         finally:
@@ -70,9 +85,10 @@ def create_app(
         title="AI Business Process Engine API",
         description=(
             "Tenant-scoped HTTP API for durable lead intake and qualification. "
-            "The API uses deterministic intent extraction and does not call external AI providers."
+            "Understanding and response wording use the explicitly configured AI provider; "
+            "business decisions remain deterministic and policy-bound."
         ),
-        version="0.4.0",
+        version="0.5.0",
         lifespan=lifespan,
     )
     application.add_middleware(

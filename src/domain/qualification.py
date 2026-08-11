@@ -67,6 +67,7 @@ class IntentResult:
     confidence: float = 0.0
     requires_human: bool = False
     qualification_answers: Mapping[str, Any] = field(default_factory=dict)
+    ai_metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not isinstance(self.urgency, Urgency):
@@ -82,6 +83,7 @@ class IntentResult:
             if value is not None:
                 _require_text(value, name)
         object.__setattr__(self, "qualification_answers", _freeze(self.qualification_answers))
+        object.__setattr__(self, "ai_metadata", _freeze(self.ai_metadata))
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,6 +138,7 @@ class CustomerResponse:
     reason: str
     related_case_id: str
     requires_human: bool = False
+    ai_metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         for value, name in (
@@ -145,6 +148,7 @@ class CustomerResponse:
             (self.related_case_id, "related_case_id"),
         ):
             _require_text(value, name)
+        object.__setattr__(self, "ai_metadata", _freeze(self.ai_metadata))
 
 
 @dataclass(frozen=True, slots=True)

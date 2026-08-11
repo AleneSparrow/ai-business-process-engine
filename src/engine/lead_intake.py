@@ -20,6 +20,10 @@ from src.domain.qualification import (
 from src.domain.states import ProcessState
 
 from .decision_router import DecisionRequest
+from .customer_response_generator import (
+    CustomerResponseGenerator,
+    DeterministicCustomerResponseGenerator,
+)
 from .intent_extractor import IntentExtractor
 from .process_engine import ProcessEngine
 from .qualification_service import QualificationService
@@ -43,10 +47,14 @@ class LeadIntakeService:
         question_generator: QuestionGenerator,
         qualification_service: QualificationService | None = None,
         process_engine: ProcessEngine | None = None,
+        customer_response_generator: CustomerResponseGenerator | None = None,
     ) -> None:
         self.business_dna = deepcopy(business_dna)
         self.intent_extractor = intent_extractor
         self.question_generator = question_generator
+        self.customer_response_generator = (
+            customer_response_generator or DeterministicCustomerResponseGenerator()
+        )
         self.qualification_service = qualification_service or QualificationService()
         self.process_engine = process_engine or ProcessEngine()
         self._cases: dict[str, ProcessCase] = {}
@@ -134,6 +142,7 @@ class LeadIntakeService:
                 "confidence": intent.confidence,
                 "requires_human": intent.requires_human,
                 "qualification_answers": intent.qualification_answers,
+                "ai": intent.ai_metadata,
             },
         ))
 
@@ -167,6 +176,7 @@ class LeadIntakeService:
                     "channel": response.channel,
                     "reason": response.reason,
                     "requires_human": response.requires_human,
+                    "ai": response.ai_metadata,
                 },
             ))
 
@@ -237,10 +247,24 @@ class LeadIntakeService:
             )
         if state is ProcessState.NEEDS_HUMAN:
             text = self.business_dna["human_escalation"]["customer_message"]
-            return CustomerResponse(text, message.channel, "human_escalation", case.case_id, True)
+            return self.customer_response_generator.generate(
+                response_type="human_escalation",
+                approved_message=text,
+                business_dna=self.business_dna,
+                channel=message.channel,
+                case_id=case.case_id,
+                requires_human=True,
+            )
         if state is ProcessState.LOST:
             text = self.business_dna["qualification"]["lost_message"]
-            return CustomerResponse(text, message.channel, "not_qualified", case.case_id)
+            return self.customer_response_generator.generate(
+                response_type="not_qualified",
+                approved_message=text,
+                business_dna=self.business_dna,
+                channel=message.channel,
+                case_id=case.case_id,
+                requires_human=False,
+            )
         return None
 
     def _find_case(self, message: IncomingMessage) -> ProcessCase | None:
@@ -327,6 +351,7 @@ class LeadIntakeService:
             confidence=current.confidence,
             requires_human=current.requires_human,
             qualification_answers=answers,
+            ai_metadata=current.ai_metadata,
         )
 
     def _validate_business_dna(self) -> None:
@@ -339,6 +364,9 @@ class LeadIntakeService:
             raise ValueError("Business DNA must enable at least one communication channel")
         if communication.get("default_channel") not in channels:
             raise ValueError("default_channel must be one of the enabled channels")
+        language = communication.get("language", "English")
+        if not isinstance(language, str) or not language.strip():
+            raise ValueError("communication.language must be a non-empty string when configured")
 
         customer_information = self.business_dna.get("customer_information", {})
         required_fields = customer_information.get("required_fields", [])

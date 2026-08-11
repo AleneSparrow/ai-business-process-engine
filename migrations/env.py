@@ -12,7 +12,7 @@ from src.persistence.sqlalchemy_models import Base
 config = context.config
 if config.config_file_name:
     fileConfig(config.config_file_name)
-config.set_main_option("sqlalchemy.url", Settings.from_environment().database_url)
+config.set_main_option("sqlalchemy.url", Settings.database_url_from_environment())
 target_metadata = Base.metadata
 
 

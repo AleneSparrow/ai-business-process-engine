@@ -10,6 +10,7 @@ from sqlalchemy import Engine
 from src.config import Settings
 from src.domain.tenancy import Business
 from src.engine.intent_extractor import IntentExtractor
+from src.engine.customer_response_generator import CustomerResponseGenerator
 from src.engine.question_generator import QuestionGenerator
 from src.persistence.lead_intake import PersistentLeadIntakeService
 from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork
@@ -31,6 +32,9 @@ class ApplicationContainer:
     unit_of_work_factory: UnitOfWorkFactory
     intent_extractor: IntentExtractor
     question_generator: QuestionGenerator
+    customer_response_generator: CustomerResponseGenerator
+    ai_provider_name: str
+    ai_model_name: str
 
 
 def get_container(request: Request) -> ApplicationContainer:
@@ -53,6 +57,7 @@ def get_intake_service(
         container.unit_of_work_factory,
         container.intent_extractor,
         container.question_generator,
+        customer_response_generator=container.customer_response_generator,
     )
 
 

@@ -63,10 +63,31 @@ def test_yaml_workflow_exactly_matches_python_state_machine() -> None:
 
 def test_database_settings_require_environment_configuration(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("AI_PROVIDER", raising=False)
     with pytest.raises(RuntimeError, match="DATABASE_URL"):
         Settings.from_environment()
     monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://example.invalid/test")
+    with pytest.raises(RuntimeError, match="AI_PROVIDER"):
+        Settings.from_environment()
+    monkeypatch.setenv("AI_PROVIDER", "deterministic")
     assert Settings.from_environment().database_url.endswith("/test")
+
+
+def test_openai_settings_require_credentials_without_exposing_key_in_repr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://example.invalid/test")
+    monkeypatch.setenv("AI_PROVIDER", "openai")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_MODEL", "test-model")
+    with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
+        Settings.from_environment()
+
+    marker = "sensitive-test-key-marker"
+    monkeypatch.setenv("OPENAI_API_KEY", marker)
+    settings = Settings.from_environment()
+    assert settings.ai_provider == "openai"
+    assert marker not in repr(settings)
 
 
 def test_development_seed_refuses_production_environment(
@@ -76,5 +97,6 @@ def test_development_seed_refuses_production_environment(
 
     monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://example.invalid/production")
     monkeypatch.setenv("APP_ENV", "production")
+    monkeypatch.setenv("AI_PROVIDER", "deterministic")
     with pytest.raises(RuntimeError, match="development seed requires"):
         main()

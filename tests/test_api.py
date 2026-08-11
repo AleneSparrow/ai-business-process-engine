@@ -93,7 +93,10 @@ def test_health_and_readiness(api_environment) -> None:
     assert health.status_code == 200 and health.json() == {"status": "ok"}
     assert health.headers["X-Request-ID"] == request_id
     assert ready.status_code == 200
-    assert ready.json() == {"status": "ready", "dependencies": {"database": "ok"}}
+    assert ready.json() == {
+        "status": "ready",
+        "dependencies": {"database": "ok", "ai_configuration": "ok"},
+    }
 
 
 def test_application_startup_requires_database_url(monkeypatch: pytest.MonkeyPatch) -> None:

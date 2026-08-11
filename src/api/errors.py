@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from src.ai.errors import AIInvalidOutputError, AIProviderError
 from src.persistence.errors import (
     IdempotencyCollisionError,
     IdempotencyInProgressError,
@@ -59,7 +60,13 @@ def _response(
     return JSONResponse(status_code=status_code, content=content, headers=response_headers)
 
 
-def _log_error(request: Request, code: str, status_code: int, error_type: str) -> None:
+def _log_error(
+    request: Request,
+    code: str,
+    status_code: int,
+    error_type: str,
+    **safe_fields: object,
+) -> None:
     log_event(
         logging.ERROR if status_code >= 500 else logging.WARNING,
         "http_request_error",
@@ -69,6 +76,7 @@ def _log_error(request: Request, code: str, status_code: int, error_type: str) -
         status_code=status_code,
         error_code=code,
         error_type=error_type,
+        **safe_fields,
     )
 
 
@@ -132,6 +140,38 @@ def install_error_handlers(app: FastAPI) -> None:
             code,
             "The message result is temporarily unavailable; retry later",
             headers={"Retry-After": "1"},
+        )
+
+    @app.exception_handler(AIProviderError)
+    async def ai_provider_error_handler(request: Request, exc: AIProviderError) -> JSONResponse:
+        if isinstance(exc, AIInvalidOutputError):
+            code = "ai_output_invalid"
+            message = "The AI response could not be safely validated; retry later"
+        elif exc.transient:
+            code = "ai_temporarily_unavailable"
+            message = "The AI provider is temporarily unavailable; retry later"
+        else:
+            code = "ai_provider_unavailable"
+            message = "The configured AI provider is unavailable"
+        metadata = exc.metadata
+        _log_error(
+            request,
+            code,
+            503,
+            type(exc).__name__,
+            ai_provider=metadata.provider if metadata else None,
+            ai_model=metadata.model if metadata else None,
+            ai_prompt_id=metadata.prompt_id if metadata else None,
+            ai_prompt_version=metadata.prompt_version if metadata else None,
+            ai_category=metadata.category if metadata else exc.category,
+            ai_attempts=metadata.attempts if metadata else None,
+        )
+        return _response(
+            request,
+            503,
+            code,
+            message,
+            headers={"Retry-After": "1"} if exc.transient else None,
         )
 
     @app.exception_handler(Exception)

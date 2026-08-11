@@ -17,6 +17,10 @@ from src.domain.qualification import (
 )
 from src.domain.states import ProcessState
 from src.engine.intent_extractor import IntentExtractor
+from src.engine.customer_response_generator import (
+    CustomerResponseGenerator,
+    DeterministicCustomerResponseGenerator,
+)
 from src.engine.lead_intake import LeadIntakeService
 from src.engine.process_engine import ProcessEngine
 from src.engine.qualification_service import QualificationService
@@ -34,10 +38,14 @@ class PersistentLeadIntakeService:
         question_generator: QuestionGenerator,
         qualification_service: QualificationService | None = None,
         process_engine: ProcessEngine | None = None,
+        customer_response_generator: CustomerResponseGenerator | None = None,
     ) -> None:
         self.unit_of_work_factory = unit_of_work_factory
         self.intent_extractor = intent_extractor
         self.question_generator = question_generator
+        self.customer_response_generator = (
+            customer_response_generator or DeterministicCustomerResponseGenerator()
+        )
         self.qualification_service = qualification_service or QualificationService()
         self.process_engine = process_engine or ProcessEngine()
 
@@ -67,6 +75,7 @@ class PersistentLeadIntakeService:
                 self.question_generator,
                 self.qualification_service,
                 self.process_engine,
+                self.customer_response_generator,
             )
             try:
                 workflow._validate_message_scope(message)
@@ -206,6 +215,7 @@ class PersistentLeadIntakeService:
                 "confidence": intent.confidence,
                 "requires_human": intent.requires_human,
                 "qualification_answers": intent.qualification_answers,
+                "ai": intent.ai_metadata,
             },
         ))
         case.record(ProcessEvent(
@@ -239,6 +249,7 @@ class PersistentLeadIntakeService:
                 "channel": response.channel,
                 "reason": response.reason,
                 "requires_human": response.requires_human,
+                "ai": response.ai_metadata,
             },
         ))
 
@@ -268,6 +279,7 @@ class PersistentLeadIntakeService:
                 "reason": response.reason,
                 "related_case_id": response.related_case_id,
                 "requires_human": response.requires_human,
+                "ai_metadata": dict(response.ai_metadata),
             },
         }
 

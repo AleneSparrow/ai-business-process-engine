@@ -13,13 +13,18 @@ from fastapi.testclient import TestClient
 from httpx2 import Response
 from sqlalchemy import func, select
 
+from src.ai.adapters import AIIntentExtractor
+from src.ai.fake_provider import FakeAIProvider
 from src.api.app import create_app
 from src.config import Settings
 from src.domain.events import EventType
-from src.domain.qualification import IntentResult
 from src.domain.tenancy import Business
-from src.engine.intent_extractor import DeterministicIntentExtractor
-from src.persistence.sqlalchemy_models import LeadRow, ProcessCaseRow, ProcessedMessageRow, ProcessEventRow
+from src.persistence.sqlalchemy_models import (
+    LeadRow,
+    ProcessCaseRow,
+    ProcessedMessageRow,
+    ProcessEventRow,
+)
 from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork, create_database_engine
 
 
@@ -49,15 +54,21 @@ def test_concurrent_identical_http_requests_have_one_logical_effect(postgresql_u
         unit_of_work.business_dna.add_version(business_id, configuration)
         unit_of_work.commit()
 
+    provider = FakeAIProvider([{
+        "service_id": "diagnostic-visit",
+        "unsupported_service": False,
+        "unsupported_service_name": None,
+        "urgency": "normal",
+        "customer_location": "60601",
+        "preferred_time": None,
+        "notes": "Concurrent customer requests a diagnostic visit.",
+        "confidence": 0.95,
+        "requires_human": False,
+        "qualification_answers": [],
+    }])
     application = create_app(
         settings=Settings(database_url=postgresql_url, app_env="test"),
-        intent_extractor=DeterministicIntentExtractor({
-            external_id: IntentResult(
-                service_requested="diagnostic-visit",
-                customer_location="60601",
-                confidence=0.95,
-            )
-        }),
+        intent_extractor=AIIntentExtractor(provider),
     )
     payload = {
         "channel": "sms",
@@ -82,6 +93,7 @@ def test_concurrent_identical_http_requests_have_one_logical_effect(postgresql_u
     assert len({body["lead_id"] for body in bodies}) == 1
     assert {body["current_state"] for body in bodies} == {"QUALIFIED"}
     assert sum(body["duplicate"] for body in bodies) == 1
+    assert provider.call_count == 1
 
     with factory() as unit_of_work:
         assert unit_of_work.session.scalar(

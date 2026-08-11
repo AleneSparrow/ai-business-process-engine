@@ -1,5 +1,6 @@
 """Business-DNA-driven lead qualification."""
 
+import re
 from typing import Any, Mapping
 
 from src.domain.models import Lead
@@ -8,6 +9,11 @@ from src.domain.states import ProcessState
 
 
 class QualificationService:
+    _POSTAL_CODE_LABEL = re.compile(
+        r"^(?:zip(?:\s+code)?|postal\s+code|postcode)\s*(?:is\s+)?[:#-]?\s*",
+        re.IGNORECASE,
+    )
+
     def evaluate(
         self,
         lead: Lead,
@@ -162,12 +168,27 @@ class QualificationService:
                 return "unknown", None
             if area["type"] == "remote":
                 return "inside", area_id
-            if area["type"] in {"postal_codes", "cities", "regions"}:
-                if normalized in {str(value).strip().casefold() for value in area["values"]}:
+            if area["type"] == "postal_codes":
+                configured_values = {
+                    str(value).strip().casefold() for value in area["values"]
+                }
+                if QualificationService._postal_code_value(normalized) in configured_values:
+                    return "inside", area_id
+            elif area["type"] in {"cities", "regions"}:
+                if normalized in {
+                    str(value).strip().casefold() for value in area["values"]
+                }:
                     return "inside", area_id
             else:
                 unknown_type = True
         return ("unknown", None) if unknown_type else ("outside", None)
+
+    @staticmethod
+    def _postal_code_value(location: str) -> str:
+        """Remove only explicit postal labels; eligibility still uses exact configured values."""
+
+        without_label = QualificationService._POSTAL_CODE_LABEL.sub("", location, count=1)
+        return without_label.strip(" \t.,;")
 
     @staticmethod
     def _qualification_questions(

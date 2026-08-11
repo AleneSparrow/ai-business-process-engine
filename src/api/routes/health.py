@@ -36,4 +36,7 @@ def ready(
             status_code=503,
             content={"status": "not_ready", "dependencies": {"database": "unavailable"}},
         )
-    return ReadinessResponse(status="ready", dependencies={"database": "ok"})
+    return ReadinessResponse(
+        status="ready",
+        dependencies={"database": "ok", "ai_configuration": "ok"},
+    )

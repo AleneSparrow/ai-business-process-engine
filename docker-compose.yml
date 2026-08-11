@@ -22,6 +22,11 @@ services:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ai_process_engine}:${POSTGRES_PASSWORD:-local_development_only}@postgres:5432/${POSTGRES_DB:-ai_process_engine}
       APP_ENV: ${APP_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      AI_PROVIDER: ${AI_PROVIDER:?set AI_PROVIDER to deterministic or openai}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      AI_TIMEOUT_SECONDS: ${AI_TIMEOUT_SECONDS:-20}
+      AI_MAX_RETRIES: ${AI_MAX_RETRIES:-2}
     ports:
       - "${APP_PORT:-8000}:8000"
     depends_on:

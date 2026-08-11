@@ -69,6 +69,7 @@
   "communication": {
     "channels": ["sms", "email"],
     "default_channel": "sms",
+    "language": "English",
     "tone": "friendly, concise, and professional",
     "quiet_hours": {"starts": "20:00", "ends": "08:00"}
   },
