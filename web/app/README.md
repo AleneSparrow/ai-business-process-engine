@@ -30,9 +30,14 @@ cp .env.example .env.local   # point VITE_API_BASE at your running API if not lo
 npm run dev
 ```
 
-In another terminal, run the actual API it talks to:
+In another terminal, run the actual API it talks to. **The API must allow this app's
+origin via CORS or every request will fail with "Couldn't reach the server"** (the
+browser blocks the response before your code ever sees it) — make sure your
+environment (`.env` at the repo root, or exported shell vars) includes
+`http://localhost:5173` in `CORS_ALLOWED_ORIGINS`:
 
 ```bash
+export CORS_ALLOWED_ORIGINS=http://localhost:8000,http://localhost:5173
 uvicorn src.api.app:app --reload --port 8000
 ```
 
