@@ -159,6 +159,11 @@ class SQLAlchemyStaffUserRepository:
             password_hash=user.password_hash,
             created_at=user.created_at,
         ))
+        # Flush so the row exists before a StaffSession referencing this
+        # user_id is inserted later in the same unit of work (signup issues
+        # a session immediately after creating the user) — Postgres checks
+        # non-deferrable foreign keys per-statement, not at commit time.
+        self.session.flush()
 
     def get(self, user_id: str) -> StaffUser | None:
         row = self.session.get(StaffUserRow, user_id)

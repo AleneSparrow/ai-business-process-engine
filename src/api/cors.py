@@ -30,7 +30,7 @@ class ConfiguredCORSMiddleware:
             response_headers = {
                 "Vary": "Origin",
                 "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, X-Request-ID",
+                "Access-Control-Allow-Headers": "Content-Type, X-Request-ID, Authorization",
                 "Access-Control-Max-Age": "600",
             }
             if allowed:

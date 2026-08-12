@@ -26,6 +26,45 @@ from .observability import configure_logging, log_event
 from .routes import auth, businesses, health, lead_intake, onboarding, public_conversations
 
 
+def _maybe_run_migrations_on_startup(runtime_settings: Settings) -> None:
+    """Auto-apply Alembic migrations for local development only.
+
+    Local dev servers are commonly started against a Postgres instance whose
+    schema has drifted behind the latest migration in the repo (a new
+    milestone adds tables the running database doesn't have yet), which
+    otherwise surfaces as an opaque 500 on the first request that touches
+    the missing table. Running `alembic upgrade head` is a no-op when the
+    schema is already current, so this is safe to attempt on every startup.
+
+    Deliberately restricted to app_env == "development": test fixtures build
+    their own schema directly via `Base.metadata.create_all` against an
+    isolated database and must not have this reach for `DATABASE_URL` from
+    the environment instead, and production schema changes should be a
+    reviewed, explicit deploy step rather than an implicit side effect of
+    process startup.
+    """
+    if runtime_settings.app_env.casefold() != "development":
+        return
+    try:
+        from alembic import command
+        from alembic.config import Config as AlembicConfig
+
+        repo_root = Path(__file__).parents[2]
+        alembic_cfg = AlembicConfig(str(repo_root / "alembic.ini"))
+        alembic_cfg.set_main_option("script_location", str(repo_root / "migrations"))
+        command.upgrade(alembic_cfg, "head")
+        log_event(logging.INFO, "startup_migrations_applied", app_env=runtime_settings.app_env)
+    except Exception as exc:
+        # Never block startup on this — worst case the pre-existing "opaque
+        # 500 on missing table" behavior is unchanged, just not auto-fixed.
+        log_event(
+            logging.WARNING,
+            "startup_migrations_failed",
+            app_env=runtime_settings.app_env,
+            error_type=type(exc).__name__,
+        )
+
+
 def create_app(
     *,
     settings: Settings | None = None,
@@ -61,6 +100,7 @@ def create_app(
 
         if engine is None:  # Defensive narrowing; the successful connection path always assigns it.
             raise RuntimeError("API startup failed: database engine was not initialized")
+        _maybe_run_migrations_on_startup(runtime_settings)
         application.state.container = ApplicationContainer(
             settings=runtime_settings,
             engine=engine,
