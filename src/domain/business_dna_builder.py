@@ -133,6 +133,16 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
             "field_questions": {
                 "name": "What name should we use for the request?",
                 "phone": "What is the best phone number to reach you?",
+                # Not in required_fields above, but QualificationService (see
+                # src/engine/qualification_service.py) dynamically adds these two
+                # exact keys to missing_fields whenever it can't identify the
+                # requested service or the service area from the customer's
+                # message — regardless of what's configured as "required". Without
+                # a question configured for both, DeterministicQuestionGenerator
+                # raises and the customer's chat fails with an unhandled 500 the
+                # first time a message doesn't cleanly match a service or zip.
+                "service_id": "What kind of service do you need help with?",
+                "customer_location": "What's the ZIP code where you need service?",
             },
         },
         "qualification": {
