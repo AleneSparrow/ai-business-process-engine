@@ -161,7 +161,8 @@ def test_multi_turn_messages_reuse_conversation_lead_and_case(conversation_envir
 
     assert second.status_code == third.status_code == fourth.status_code == 200
     assert fourth.json()["current_state"] == "QUALIFIED"
-    assert fourth.json()["status"] == "closed"
+    assert fourth.json()["status"] == "ai_active"
+    assert "Choose an appointment time" in fourth.json()["messages"][-1]["text"]
     assert len(fourth.json()["messages"]) == 8
     with factory() as uow:
         restored = uow.session.scalar(select(ConversationRow).where(
@@ -172,6 +173,75 @@ def test_multi_turn_messages_reuse_conversation_lead_and_case(conversation_envir
         assert uow.session.scalar(select(func.count()).select_from(LeadRow)) == 1
         assert uow.session.scalar(select(func.count()).select_from(ProcessCaseRow)) == 1
         assert uow.session.scalar(select(func.count()).select_from(ConversationMessageRow)) == 8
+
+
+def test_conversation_books_valid_proposed_slot_and_public_status_is_token_scoped(
+    conversation_environment,
+) -> None:
+    client, _, _ = conversation_environment
+    qualified = create_conversation(
+        client,
+        "AC diagnostic in 60601. My phone is +1 312 555 0101. My name is Ada",
+        "commercial-booking-start",
+    )
+    token = qualified.json()["conversation_token"]
+    assert qualified.json()["current_state"] == "QUALIFIED"
+    assert "Choose an appointment time" in qualified.json()["messages"][-1]["text"]
+
+    booked = send(client, token, "The second option works", "commercial-booking-select")
+    assert booked.status_code == 200
+    assert booked.json()["current_state"] == "BOOKED"
+    assert "confirmed" in booked.json()["messages"][-1]["text"]
+
+    owned = client.get(
+        f"/api/v1/public/businesses/tenant-a/conversations/{token}/commercial"
+    )
+    another = create_conversation(client)
+    unrelated = client.get(
+        "/api/v1/public/businesses/tenant-a/conversations/"
+        f"{another.json()['conversation_token']}/commercial"
+    )
+    cross_tenant = client.get(
+        f"/api/v1/public/businesses/tenant-b/conversations/{token}/commercial"
+    )
+
+    assert owned.status_code == unrelated.status_code == 200
+    assert owned.json()["booking"]["status"] == "CONFIRMED"
+    assert owned.json()["payment_request"]["status"] == "READY"
+    assert unrelated.json() == {
+        "current_state": None,
+        "booking": None,
+        "quote": None,
+        "payment_request": None,
+    }
+    assert cross_tenant.status_code == 404
+
+
+def test_conversation_quote_flow_collects_fact_and_reaches_won(
+    conversation_environment,
+) -> None:
+    client, _, _ = conversation_environment
+    qualified = create_conversation(
+        client,
+        "Equipment replacement in 60601. My phone is +1 312 555 0102. My name is Grace",
+        "commercial-quote-start",
+    )
+    token = qualified.json()["conversation_token"]
+    assert qualified.json()["current_state"] == "QUALIFIED"
+    assert "How many equipment units" in qualified.json()["messages"][-1]["text"]
+
+    quoted = send(client, token, "2", "commercial-quote-input")
+    accepted = send(client, token, "Yes, let's do it", "commercial-quote-accept")
+
+    assert quoted.json()["current_state"] == "QUOTED"
+    assert "USD 5500.00" in quoted.json()["messages"][-1]["text"]
+    assert accepted.json()["current_state"] == "WON"
+    commercial = client.get(
+        f"/api/v1/public/businesses/tenant-a/conversations/{token}/commercial"
+    ).json()
+    assert commercial["quote"]["status"] == "ACCEPTED"
+    assert commercial["quote"]["total"] == "5500.00"
+    assert commercial["payment_request"]["amount"] == "1100.00"
 
 
 def test_late_contact_owned_by_another_lead_escalates_without_overwrite(

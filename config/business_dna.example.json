@@ -1,5 +1,5 @@
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "business": {
     "id": "acme-home-services",
     "name": "Acme Home Services",
@@ -14,10 +14,39 @@
       "name": "Diagnostic visit",
       "description": "On-site diagnosis",
       "duration_minutes": 60,
+      "fulfillment_type": "bookable",
       "pricing": {"model": "fixed", "amount": 129, "tax_included": false},
       "service_area_ids": ["metro"],
       "intake_keywords": ["diagnostic", "diagnosis", "plumbing visit", "AC"],
       "booking_allowed": true,
+      "qualification_questions": []
+    },
+    {
+      "id": "equipment-replacement",
+      "name": "Equipment replacement",
+      "description": "Replacement project quoted from configured project size",
+      "duration_minutes": 120,
+      "fulfillment_type": "quote_required",
+      "pricing": {"model": "custom_quote", "tax_included": false},
+      "quoting": {
+        "pricing_type": "formula",
+        "automatic_quote_allowed": true,
+        "quote_validity_days": 14,
+        "required_pricing_inputs": ["equipment_units"],
+        "pricing_input_questions": {
+          "equipment_units": "How many equipment units should the quote include?"
+        },
+        "formula": {
+          "base_amount": "500.00",
+          "components": [
+            {"input": "equipment_units", "unit_price": "2500.00"}
+          ]
+        },
+        "human_approval_threshold": "10000.00"
+      },
+      "service_area_ids": ["metro"],
+      "intake_keywords": ["equipment replacement", "replace equipment", "replacement"],
+      "booking_allowed": false,
       "qualification_questions": []
     }
   ],
@@ -51,20 +80,38 @@
   },
   "booking": {
     "enabled": true,
+    "timezone": "America/Chicago",
     "minimum_notice_minutes": 120,
     "maximum_advance_days": 60,
+    "slot_interval_minutes": 30,
+    "buffer_before_minutes": 15,
+    "buffer_after_minutes": 15,
+    "allowed_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+    "allowed_times": [{"starts": "09:00", "ends": "16:00"}],
+    "capacity": 1,
+    "proposal_count": 3,
+    "proposal_ttl_minutes": 30,
     "requires_confirmation": true,
-    "cancellation_notice_hours": 24
+    "cancellation_notice_hours": 24,
+    "rescheduling": {"allowed": true, "minimum_notice_hours": 24},
+    "cancellation": {"allowed": true, "minimum_notice_hours": 24}
   },
   "sales": {
     "quote_expiry_days": 14,
     "follow_up": {"delays_hours": [24, 72, 168], "maximum_attempts": 3}
   },
   "payment": {
-    "timing": "after_service",
+    "currency": "USD",
+    "timing": "before_service",
     "accepted_methods": ["card", "bank_transfer"],
-    "deposit": {"required": false, "percentage": 0},
-    "human_approval_above": 5000
+    "deposit": {
+      "required": true,
+      "type": "percentage",
+      "percentage": "20.00",
+      "fixed_amount": null
+    },
+    "request_expiry_hours": 72,
+    "human_approval_above": "10000.00"
   },
   "communication": {
     "channels": ["sms", "email", "webchat"],

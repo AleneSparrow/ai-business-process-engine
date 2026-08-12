@@ -21,6 +21,18 @@ class StaleCaseError(PersistenceError):
     """A case changed after it was loaded and cannot be overwritten safely."""
 
 
+class StaleBookingError(PersistenceError):
+    """A booking changed after it was loaded and cannot be overwritten safely."""
+
+
+class StaleQuoteError(PersistenceError):
+    """A quote changed after it was loaded and cannot be overwritten safely."""
+
+
+class StalePaymentRequestError(PersistenceError):
+    """A payment request changed after it was loaded and cannot be overwritten safely."""
+
+
 class ConversationTokenError(PersistenceError):
     """An anonymous conversation token is invalid for the requested tenant."""
 

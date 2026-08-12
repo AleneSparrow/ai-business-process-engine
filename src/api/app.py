@@ -23,7 +23,7 @@ from .middleware import RequestContextMiddleware
 from .cors import ConfiguredCORSMiddleware
 from .rate_limit import InMemorySlidingWindowRateLimiter
 from .observability import configure_logging, log_event
-from .routes import businesses, health, lead_intake, public_conversations
+from .routes import auth, businesses, health, lead_intake, onboarding, public_conversations
 
 
 def create_app(
@@ -92,11 +92,12 @@ def create_app(
     application = FastAPI(
         title="AI Business Process Engine API",
         description=(
-            "Tenant-scoped HTTP API for durable lead intake, qualification, and website conversations. "
+            "Tenant-scoped HTTP API for durable lead intake, qualification, website conversations, "
+            "and deterministic booking/quoting. "
             "Understanding and response wording use the explicitly configured AI provider; "
             "business decisions remain deterministic and policy-bound."
         ),
-        version="0.6.0",
+        version="0.7.0",
         lifespan=lifespan,
     )
     application.add_middleware(
@@ -106,7 +107,9 @@ def create_app(
     application.add_middleware(ConfiguredCORSMiddleware)
     install_error_handlers(application)
     application.include_router(health.router)
+    application.include_router(auth.router)
     application.include_router(businesses.router)
+    application.include_router(onboarding.router)
     application.include_router(lead_intake.router)
     application.include_router(public_conversations.router)
     application.mount(

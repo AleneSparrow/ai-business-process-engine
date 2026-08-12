@@ -8,12 +8,17 @@ from sqlalchemy.orm import Session, sessionmaker
 from .sqlalchemy_repositories import (
     SQLAlchemyBusinessDNARepository,
     SQLAlchemyBusinessRepository,
+    SQLAlchemyBookingRepository,
     SQLAlchemyConversationMessageRepository,
     SQLAlchemyConversationRepository,
     SQLAlchemyIdempotencyRepository,
     SQLAlchemyLeadRepository,
+    SQLAlchemyPaymentRequestRepository,
     SQLAlchemyProcessCaseRepository,
     SQLAlchemyProcessEventRepository,
+    SQLAlchemyQuoteRepository,
+    SQLAlchemyStaffSessionRepository,
+    SQLAlchemyStaffUserRepository,
 )
 
 
@@ -54,6 +59,11 @@ class SQLAlchemyUnitOfWork:
         self.idempotency = SQLAlchemyIdempotencyRepository(self.session)
         self.conversations = SQLAlchemyConversationRepository(self.session)
         self.conversation_messages = SQLAlchemyConversationMessageRepository(self.session)
+        self.bookings = SQLAlchemyBookingRepository(self.session)
+        self.quotes = SQLAlchemyQuoteRepository(self.session)
+        self.payment_requests = SQLAlchemyPaymentRequestRepository(self.session)
+        self.staff_users = SQLAlchemyStaffUserRepository(self.session)
+        self.staff_sessions = SQLAlchemyStaffSessionRepository(self.session)
         return self
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:

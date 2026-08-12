@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.invalid/schemas/business-dna-1.0.json",
+  "$id": "https://example.invalid/schemas/business-dna-1.1.json",
   "title": "Business DNA",
   "type": "object",
   "additionalProperties": false,
@@ -37,7 +37,7 @@
     }
   },
   "properties": {
-    "schema_version": {"const": "1.0"},
+    "schema_version": {"const": "1.1"},
     "business": {
       "type": "object", "additionalProperties": false,
       "required": ["id", "name", "industry", "description", "timezone", "currency"],
@@ -51,10 +51,12 @@
       "type": "array", "minItems": 1,
       "items": {
         "type": "object", "additionalProperties": false,
-        "required": ["id", "name", "description", "duration_minutes", "pricing", "service_area_ids", "intake_keywords", "booking_allowed", "qualification_questions"],
+        "required": ["id", "name", "description", "duration_minutes", "fulfillment_type", "pricing", "service_area_ids", "intake_keywords", "booking_allowed", "qualification_questions"],
         "properties": {
           "id": {"type": "string", "minLength": 1}, "name": {"type": "string", "minLength": 1}, "description": {"type": "string"},
           "duration_minutes": {"type": "integer", "minimum": 1}, "service_area_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+          "fulfillment_type": {"enum": ["bookable", "quote_required", "direct_sale", "human_review"]},
+          "direct_next_step_message": {"type": "string", "minLength": 1, "maxLength": 1000},
           "intake_keywords": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
           "booking_allowed": {"type": "boolean"},
           "qualification_questions": {
@@ -73,19 +75,117 @@
           },
           "pricing": {
             "type": "object", "additionalProperties": false, "required": ["model", "tax_included"],
-            "properties": {"model": {"enum": ["fixed", "starting_at", "hourly", "custom_quote"]}, "amount": {"type": "number", "minimum": 0}, "tax_included": {"type": "boolean"}},
+            "properties": {"model": {"enum": ["fixed", "starting_at", "hourly", "custom_quote"]}, "amount": {"type": "number", "minimum": 0, "multipleOf": 0.01}, "tax_included": {"type": "boolean"}},
             "allOf": [{"if": {"properties": {"model": {"enum": ["fixed", "starting_at", "hourly"]}}}, "then": {"required": ["amount"]}}]
+          },
+          "quoting": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["pricing_type", "automatic_quote_allowed", "required_pricing_inputs", "pricing_input_questions"],
+            "properties": {
+              "pricing_type": {"enum": ["fixed", "formula", "starting_price", "range"]},
+              "automatic_quote_allowed": {"type": "boolean"},
+              "quote_validity_days": {"type": "integer", "minimum": 1, "maximum": 365},
+              "fixed_price": {"type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$"},
+              "starting_price": {"type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$"},
+              "range_min": {"type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$"},
+              "range_max": {"type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$"},
+              "automatic_quote_amount": {"type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$"},
+              "human_approval_threshold": {"type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$"},
+              "required_pricing_inputs": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"}},
+              "pricing_input_questions": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1, "maxLength": 500}},
+              "formula": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["base_amount", "components"],
+                "properties": {
+                  "base_amount": {"type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$"},
+                  "components": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["input", "unit_price"],
+                      "properties": {
+                        "input": {"type": "string", "pattern": "^[a-z][a-z0-9_]*$"},
+                        "unit_price": {"type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$"}
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "allOf": [
+              {"if": {"properties": {"pricing_type": {"const": "fixed"}}}, "then": {"required": ["fixed_price"]}},
+              {"if": {"properties": {"pricing_type": {"const": "formula"}}}, "then": {"required": ["formula"]}},
+              {"if": {"properties": {"pricing_type": {"const": "starting_price"}}}, "then": {"required": ["starting_price"]}},
+              {"if": {"properties": {"pricing_type": {"const": "range"}}}, "then": {"required": ["range_min", "range_max"]}},
+              {"if": {"properties": {"pricing_type": {"enum": ["starting_price", "range"]}, "automatic_quote_allowed": {"const": true}}, "required": ["pricing_type", "automatic_quote_allowed"]}, "then": {"required": ["automatic_quote_amount"]}}
+            ]
           }
-        }
+        },
+        "allOf": [
+          {"if": {"properties": {"fulfillment_type": {"const": "quote_required"}}}, "then": {"required": ["quoting"]}},
+          {"if": {"properties": {"fulfillment_type": {"const": "direct_sale"}}}, "then": {"required": ["direct_next_step_message"]}}
+        ]
       }
     },
     "service_areas": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["id", "type", "values"], "properties": {"id": {"type": "string", "minLength": 1}, "type": {"enum": ["postal_codes", "cities", "regions", "radius", "remote"]}, "values": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": ["string", "number"]}}}}},
     "business_hours": {"type": "object", "minProperties": 1, "additionalProperties": false, "properties": {"monday": {"$ref": "#/$defs/hours"}, "tuesday": {"$ref": "#/$defs/hours"}, "wednesday": {"$ref": "#/$defs/hours"}, "thursday": {"$ref": "#/$defs/hours"}, "friday": {"$ref": "#/$defs/hours"}, "saturday": {"$ref": "#/$defs/hours"}, "sunday": {"$ref": "#/$defs/hours"}}},
     "customer_information": {"type": "object", "additionalProperties": false, "required": ["required_fields", "optional_fields", "field_questions"], "properties": {"required_fields": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}, "optional_fields": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}, "field_questions": {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}}}},
     "qualification": {"type": "object", "additionalProperties": false, "required": ["rules", "default_outcome", "enforce_service_area", "lost_message"], "properties": {"rules": {"type": "array", "items": {"$ref": "#/$defs/rule"}}, "default_outcome": {"enum": ["qualified", "lost", "needs_human"]}, "enforce_service_area": {"type": "boolean"}, "lost_message": {"type": "string", "minLength": 1}}},
-    "booking": {"type": "object", "additionalProperties": false, "required": ["enabled", "minimum_notice_minutes", "maximum_advance_days", "requires_confirmation", "cancellation_notice_hours"], "properties": {"enabled": {"type": "boolean"}, "minimum_notice_minutes": {"type": "integer", "minimum": 0}, "maximum_advance_days": {"type": "integer", "minimum": 1}, "requires_confirmation": {"type": "boolean"}, "cancellation_notice_hours": {"type": "integer", "minimum": 0}}},
+    "booking": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "timezone", "minimum_notice_minutes", "maximum_advance_days", "slot_interval_minutes", "buffer_before_minutes", "buffer_after_minutes", "allowed_days", "allowed_times", "capacity", "proposal_count", "proposal_ttl_minutes", "requires_confirmation", "cancellation_notice_hours", "rescheduling", "cancellation"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "timezone": {"type": "string", "minLength": 1},
+        "appointment_duration_minutes": {"type": "integer", "minimum": 1, "maximum": 10080},
+        "minimum_notice_minutes": {"type": "integer", "minimum": 0, "maximum": 525600},
+        "maximum_advance_days": {"type": "integer", "minimum": 1, "maximum": 730},
+        "slot_interval_minutes": {"type": "integer", "minimum": 1, "maximum": 1440},
+        "buffer_before_minutes": {"type": "integer", "minimum": 0, "maximum": 1440},
+        "buffer_after_minutes": {"type": "integer", "minimum": 0, "maximum": 1440},
+        "allowed_days": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]}},
+        "allowed_times": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["starts", "ends"], "properties": {"starts": {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"}, "ends": {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"}}}},
+        "capacity": {"type": "integer", "minimum": 1, "maximum": 100},
+        "proposal_count": {"type": "integer", "minimum": 1, "maximum": 10},
+        "proposal_ttl_minutes": {"type": "integer", "minimum": 1, "maximum": 1440},
+        "requires_confirmation": {"type": "boolean"},
+        "cancellation_notice_hours": {"type": "integer", "minimum": 0},
+        "rescheduling": {"type": "object", "additionalProperties": false, "required": ["allowed", "minimum_notice_hours"], "properties": {"allowed": {"type": "boolean"}, "minimum_notice_hours": {"type": "integer", "minimum": 0, "maximum": 8760}}},
+        "cancellation": {"type": "object", "additionalProperties": false, "required": ["allowed", "minimum_notice_hours"], "properties": {"allowed": {"type": "boolean"}, "minimum_notice_hours": {"type": "integer", "minimum": 0, "maximum": 8760}}}
+      }
+    },
     "sales": {"type": "object", "additionalProperties": false, "required": ["quote_expiry_days", "follow_up"], "properties": {"quote_expiry_days": {"type": "integer", "minimum": 1}, "follow_up": {"type": "object", "additionalProperties": false, "required": ["delays_hours", "maximum_attempts"], "properties": {"delays_hours": {"type": "array", "items": {"type": "integer", "minimum": 1}}, "maximum_attempts": {"type": "integer", "minimum": 0}}}}},
-    "payment": {"type": "object", "additionalProperties": false, "required": ["timing", "accepted_methods", "deposit", "human_approval_above"], "properties": {"timing": {"enum": ["before_booking", "before_service", "after_service", "invoice"]}, "accepted_methods": {"type": "array", "items": {"type": "string"}}, "deposit": {"type": "object", "additionalProperties": false, "required": ["required", "percentage"], "properties": {"required": {"type": "boolean"}, "percentage": {"type": "number", "minimum": 0, "maximum": 100}}}, "human_approval_above": {"type": "number", "minimum": 0}}},
+    "payment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["currency", "timing", "accepted_methods", "deposit", "request_expiry_hours", "human_approval_above"],
+      "properties": {
+        "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+        "timing": {"enum": ["before_booking", "before_service", "after_service", "invoice"]},
+        "accepted_methods": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "deposit": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["required", "type", "percentage", "fixed_amount"],
+          "properties": {
+            "required": {"type": "boolean"},
+            "type": {"enum": ["percentage", "fixed"]},
+            "percentage": {"type": ["string", "null"], "pattern": "^(0|[1-9][0-9]?|100)(\\.[0-9]{1,2})?$"},
+            "fixed_amount": {"type": ["string", "null"], "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$"}
+          },
+          "allOf": [
+            {"if": {"properties": {"required": {"const": true}, "type": {"const": "percentage"}}, "required": ["required", "type"]}, "then": {"properties": {"percentage": {"type": "string", "pattern": "^(0|[1-9][0-9]?|100)(\\.[0-9]{1,2})?$"}}}},
+            {"if": {"properties": {"required": {"const": true}, "type": {"const": "fixed"}}, "required": ["required", "type"]}, "then": {"properties": {"fixed_amount": {"type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$"}}}}
+          ]
+        },
+        "request_expiry_hours": {"type": "integer", "minimum": 1, "maximum": 8760},
+        "human_approval_above": {"type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$"}
+      }
+    },
     "communication": {"type": "object", "additionalProperties": false, "required": ["channels", "default_channel", "tone", "quiet_hours"], "properties": {"channels": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["email", "sms", "phone", "webchat", "messaging_app"]}}, "default_channel": {"enum": ["email", "sms", "phone", "webchat", "messaging_app"]}, "language": {"type": "string", "minLength": 1, "default": "English"}, "tone": {"type": "string", "minLength": 1}, "quiet_hours": {"type": "object", "additionalProperties": false, "required": ["starts", "ends"], "properties": {"starts": {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"}, "ends": {"type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$"}}}}},
     "chat_widget": {"type": "object", "additionalProperties": false, "required": ["enabled", "title", "welcome_message", "qualified_message", "closed_message"], "properties": {"enabled": {"type": "boolean"}, "title": {"type": "string", "minLength": 1, "maxLength": 120}, "welcome_message": {"type": "string", "minLength": 1, "maxLength": 500}, "qualified_message": {"type": "string", "minLength": 1, "maxLength": 1000}, "closed_message": {"type": "string", "minLength": 1, "maxLength": 1000}}},
     "ai_permissions": {"type": "object", "additionalProperties": false, "required": ["allowed", "forbidden", "minimum_confidence"], "properties": {"allowed": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "forbidden": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}}, "minimum_confidence": {"type": "number", "minimum": 0, "maximum": 1}}},

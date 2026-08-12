@@ -4,19 +4,22 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Annotated
 
-from fastapi import Depends, Path, Request
+from fastapi import Depends, Header, Path, Request
 from sqlalchemy import Engine
 
 from src.config import Settings
+from src.domain.auth import StaffUser
 from src.domain.tenancy import Business
 from src.engine.intent_extractor import IntentExtractor
 from src.engine.customer_response_generator import CustomerResponseGenerator
 from src.engine.question_generator import QuestionGenerator
+from src.persistence.auth_service import AuthService, SessionInvalidError
+from src.persistence.business_provisioning_service import BusinessProvisioningService
 from src.persistence.lead_intake import PersistentLeadIntakeService
 from src.persistence.conversation_service import ConversationService
 from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork
 
-from .errors import ResourceNotFoundError
+from .errors import ForbiddenError, ResourceNotFoundError, UnauthorizedError
 from .rate_limit import RateLimiter
 
 
@@ -80,6 +83,41 @@ def get_public_chat_rate_limiter(
     container: Annotated[ApplicationContainer, Depends(get_container)],
 ) -> RateLimiter:
     return container.public_chat_rate_limiter
+
+
+def get_auth_service(
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+) -> AuthService:
+    return AuthService(container.unit_of_work_factory)
+
+
+def get_business_provisioning_service(
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+) -> BusinessProvisioningService:
+    return BusinessProvisioningService(container.unit_of_work_factory)
+
+
+def get_current_staff_user(
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+    authorization: Annotated[str | None, Header()] = None,
+) -> StaffUser:
+    if not authorization or not authorization.startswith("Bearer "):
+        raise UnauthorizedError()
+    token = authorization.removeprefix("Bearer ").strip()
+    if not token:
+        raise UnauthorizedError()
+    try:
+        return auth_service.authenticate(token)
+    except SessionInvalidError as exc:
+        raise UnauthorizedError() from exc
+
+
+def require_business_owner(
+    user: Annotated[StaffUser, Depends(get_current_staff_user)],
+) -> StaffUser:
+    if user.business_id is None:
+        raise ForbiddenError("This account has not created a business yet")
+    return user
 
 
 def resolve_business(

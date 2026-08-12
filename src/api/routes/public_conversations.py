@@ -20,6 +20,7 @@ from ..rate_limit import RateLimiter
 from ..schemas import (
     ErrorResponse,
     PublicChatConfigResponse,
+    PublicCommercialResponse,
     PublicConversationCreateRequest,
     PublicConversationMessageRequest,
     PublicConversationResponse,
@@ -182,3 +183,25 @@ def get_conversation(
     request.state.conversation_id = result.internal_conversation_id
     request.state.resulting_state = result.current_state.value if result.current_state else None
     return PublicConversationResponse.from_domain(result)
+
+
+@router.get(
+    "/{business_id}/conversations/{conversation_token}/commercial",
+    response_model=PublicCommercialResponse,
+    responses={
+        404: {"model": ErrorResponse, "description": "Conversation not found"},
+        410: {"model": ErrorResponse, "description": "Conversation expired"},
+    },
+    summary="Get token-owned booking, quote, and payment-request status",
+)
+def get_conversation_commercial(
+    request: Request,
+    business: Annotated[Business, Depends(resolve_business)],
+    conversation_token: ConversationTokenPath,
+    service: Annotated[ConversationService, Depends(get_conversation_service)],
+) -> PublicCommercialResponse:
+    result = service.get_commercial(business.business_id, conversation_token)
+    request.state.resulting_state = (
+        result.current_state.value if result.current_state else None
+    )
+    return PublicCommercialResponse.from_domain(result)

@@ -1,6 +1,7 @@
 """SQLAlchemy table mappings for PostgreSQL-compatible persistence."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import (
@@ -12,6 +13,7 @@ from sqlalchemy import (
     ForeignKeyConstraint,
     Index,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -57,6 +59,42 @@ class BusinessDNARow(Base):
             postgresql_where=text("active"),
             sqlite_where=text("active = 1"),
         ),
+    )
+
+
+class StaffUserRow(Base):
+    __tablename__ = "staff_users"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    business_id: Mapped[str | None] = mapped_column(
+        String(128), ForeignKey("businesses.id", ondelete="SET NULL"), nullable=True
+    )
+    email: Mapped[str] = mapped_column(String(320), nullable=False)
+    normalized_email: Mapped[str] = mapped_column(String(320), nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("normalized_email", name="uq_staff_users_normalized_email"),
+        Index("ix_staff_users_business", "business_id"),
+    )
+
+
+class StaffSessionRow(Base):
+    __tablename__ = "staff_sessions"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("staff_users.id", ondelete="CASCADE"), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_staff_sessions_token_hash"),
+        Index("ix_staff_sessions_user", "user_id"),
     )
 
 
@@ -316,4 +354,197 @@ class ConversationMessageRow(Base):
             "conversation_id",
             "sequence_number",
         ),
+    )
+
+
+class BookingRow(Base):
+    __tablename__ = "bookings"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    business_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    case_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    lead_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    service_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    timezone: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSON_VALUE, nullable=False, default=dict
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["business_id", "case_id"],
+            ["process_cases.business_id", "process_cases.id"],
+            name="fk_bookings_tenant_case",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["business_id", "lead_id"],
+            ["leads.business_id", "leads.id"],
+            name="fk_bookings_tenant_lead",
+        ),
+        UniqueConstraint("business_id", "id", name="uq_bookings_business_id_id"),
+        UniqueConstraint("business_id", "case_id", name="uq_bookings_business_case"),
+        CheckConstraint("end_at > start_at", name="ck_bookings_time_order"),
+        CheckConstraint("updated_at >= created_at", name="ck_bookings_timestamp_order"),
+        CheckConstraint("version >= 0", name="ck_bookings_version_nonnegative"),
+        CheckConstraint(
+            "status IN ('PENDING','CONFIRMED','CANCELLED','RESCHEDULED','COMPLETED')",
+            name="ck_bookings_known_status",
+        ),
+        Index(
+            "ix_bookings_business_service_slot",
+            "business_id",
+            "service_id",
+            "start_at",
+            "end_at",
+            "status",
+        ),
+        Index("ix_bookings_business_lead", "business_id", "lead_id"),
+    )
+
+
+class QuoteRow(Base):
+    __tablename__ = "quotes"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    business_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    case_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    lead_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    service_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    subtotal: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    total: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    valid_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    pricing_basis: Mapped[dict[str, Any]] = mapped_column(JSON_VALUE, nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSON_VALUE, nullable=False, default=dict
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["business_id", "case_id"],
+            ["process_cases.business_id", "process_cases.id"],
+            name="fk_quotes_tenant_case",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["business_id", "lead_id"],
+            ["leads.business_id", "leads.id"],
+            name="fk_quotes_tenant_lead",
+        ),
+        UniqueConstraint("business_id", "id", name="uq_quotes_business_id_id"),
+        UniqueConstraint("business_id", "case_id", name="uq_quotes_business_case"),
+        CheckConstraint("subtotal >= 0 AND total >= subtotal", name="ck_quotes_amounts"),
+        CheckConstraint("valid_until > created_at", name="ck_quotes_validity"),
+        CheckConstraint("updated_at >= created_at", name="ck_quotes_timestamp_order"),
+        CheckConstraint("version >= 0", name="ck_quotes_version_nonnegative"),
+        CheckConstraint(
+            "status IN ('DRAFT','PRESENTED','ACCEPTED','REJECTED','EXPIRED','CANCELLED')",
+            name="ck_quotes_known_status",
+        ),
+        Index("ix_quotes_business_status_validity", "business_id", "status", "valid_until"),
+        Index("ix_quotes_business_lead", "business_id", "lead_id"),
+    )
+
+
+class QuoteLineRow(Base):
+    __tablename__ = "quote_lines"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    business_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    quote_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    description: Mapped[str] = mapped_column(String(500), nullable=False)
+    quantity: Mapped[Decimal] = mapped_column(Numeric(18, 3), nullable=False)
+    unit_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    line_total: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["business_id", "quote_id"],
+            ["quotes.business_id", "quotes.id"],
+            name="fk_quote_lines_tenant_quote",
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("business_id", "quote_id", "position", name="uq_quote_lines_position"),
+        CheckConstraint("position > 0", name="ck_quote_lines_position_positive"),
+        CheckConstraint(
+            "quantity > 0 AND unit_amount >= 0 AND line_total >= 0",
+            name="ck_quote_lines_amounts",
+        ),
+        Index("ix_quote_lines_business_quote", "business_id", "quote_id"),
+    )
+
+
+class PaymentRequestRow(Base):
+    __tablename__ = "payment_requests"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    business_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    case_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    quote_id: Mapped[str | None] = mapped_column(String(128))
+    booking_id: Mapped[str | None] = mapped_column(String(128))
+    amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    payment_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(
+        "metadata", JSON_VALUE, nullable=False, default=dict
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["business_id", "case_id"],
+            ["process_cases.business_id", "process_cases.id"],
+            name="fk_payment_requests_tenant_case",
+            ondelete="CASCADE",
+        ),
+        ForeignKeyConstraint(
+            ["business_id", "quote_id"],
+            ["quotes.business_id", "quotes.id"],
+            name="fk_payment_requests_tenant_quote",
+        ),
+        ForeignKeyConstraint(
+            ["business_id", "booking_id"],
+            ["bookings.business_id", "bookings.id"],
+            name="fk_payment_requests_tenant_booking",
+        ),
+        UniqueConstraint("business_id", "id", name="uq_payment_requests_business_id_id"),
+        UniqueConstraint(
+            "business_id",
+            "case_id",
+            "payment_type",
+            name="uq_payment_requests_business_case_type",
+        ),
+        CheckConstraint("amount >= 0", name="ck_payment_requests_amount"),
+        CheckConstraint("updated_at >= created_at", name="ck_payment_requests_timestamp_order"),
+        CheckConstraint("expires_at > created_at", name="ck_payment_requests_expiry"),
+        CheckConstraint("version >= 0", name="ck_payment_requests_version_nonnegative"),
+        CheckConstraint("payment_type IN ('DEPOSIT','FINAL')", name="ck_payment_requests_type"),
+        CheckConstraint(
+            "status IN ('PENDING','READY','PAID','FAILED','CANCELLED','EXPIRED')",
+            name="ck_payment_requests_known_status",
+        ),
+        Index("ix_payment_requests_business_status", "business_id", "status", "expires_at"),
+        Index("ix_payment_requests_business_case", "business_id", "case_id"),
     )

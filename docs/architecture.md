@@ -30,7 +30,7 @@ This preserves the conceptual loop:
 
 Each case tracks processed trigger IDs independently from user metadata. Re-delivery appends `DUPLICATE_IGNORED` but neither re-decides nor changes state. Invalid transitions append `TRANSITION_REJECTED`, mark the trigger processed, and raise `InvalidTransition`, allowing an API or worker to report failure without silently corrupting state. Generated audit records carry the incoming trigger ID as their `causation_id`; event payloads and exposed history are immutable.
 
-Persistent intake commits processed-message results, audit events, and case state atomically. Future side-effecting actions should use an outbox plus their own idempotency keys.
+Persistent intake commits processed-message results, audit events, and case state atomically. Commercial booking, quote, and payment-request records join the same transaction. Future external side effects still require an outbox and provider idempotency keys.
 
 ## Executable lead intake
 
@@ -46,7 +46,7 @@ Provider output is validated twice: Pydantic rejects a structurally invalid resp
 
 ## Repository and transaction boundary
 
-Repository protocols cover businesses, Business DNA, leads, cases, events, conversations, ordered messages, and idempotency records. SQLAlchemy implementations require `business_id` on every tenant-owned read or update. Composite tenant foreign keys ensure cases, conversations, messages, and events can reference only parents from the same business.
+Repository protocols cover businesses, Business DNA, leads, cases, events, conversations, ordered messages, idempotency records, bookings, quotes/lines, and payment requests. SQLAlchemy implementations require `business_id` on every tenant-owned read or update. Composite tenant foreign keys ensure every commercial aggregate can reference only a case, lead, quote, or booking from the same business.
 
 Persistent intake is one database transaction:
 
@@ -63,15 +63,19 @@ Any exception rolls back the entire Unit of Work. A stored message claim is neve
 
 Website intake extends that transaction. The conversation row is locked, the client message ID/fingerprint is checked, an inbound message receives the next sequence, and `PersistentLeadIntakeService` executes inside the already-active Unit of Work. The conversation is linked to the returned lead/case, unresolved and asked question state is updated, and an outbound message receives the following sequence before commit. Failure removes every candidate effect. A duplicate browser retry returns persisted history before invoking AI.
 
+After qualification, `CommercialPathSelector` reads the service `fulfillment_type`; AI cannot change the selected path. `DeterministicAvailabilityEngine` builds a bounded set of UTC slots from Business DNA and persisted bookings while retaining the IANA business timezone for display and DST conversion. Customer preference interpretation is constrained to those proposal IDs. Booking creation rechecks buffers/capacity after acquiring a PostgreSQL transaction advisory lock for the tenant/service schedule, then uses `ProcessEngine` for `QUALIFIED -> BOOKED`. Quote calculations use `Decimal`, persist line items and validity, and use guarded transitions through `QUOTED`, `FOLLOW_UP`, `WON`, or `LOST`. Unsupported discounts and configured approval thresholds enter `NEEDS_HUMAN` before any commitment.
+
+`PaymentRequest` is a provider-neutral aggregate for deposits or final payments. It records amount, currency, status, expiry, and its quote/booking reference, but contains no gateway secret or payment method and performs no charge. Quote and payment expiration are evaluated lazily until a background worker exists. Booking, quote, and payment status changes produce safe commercial audit events without customer payloads or hidden AI reasoning.
+
 ## Conversation continuation and fact merging
 
-The widget generates 256 bits of URL-safe randomness before its first request, allowing a lost or simultaneous create retry to reuse the same token; the server generates equivalent randomness when a caller omits it. PostgreSQL stores only its SHA-256 hash. Lookup is always qualified by `business_id`, checks expiry and revocation, and never treats a raw lead/case/conversation ID as authority. Conversation status supports `ai_active`, `human_takeover_requested`, `human_takeover_active`, and `closed`. `NEEDS_HUMAN` pauses autonomous intake; terminal case states return approved final or next-step wording without restarting qualification.
+The widget generates 256 bits of URL-safe randomness before its first request, allowing a lost or simultaneous create retry to reuse the same token; the server generates equivalent randomness when a caller omits it. PostgreSQL stores only its SHA-256 hash. Lookup is always qualified by `business_id`, checks expiry and revocation, and never treats a raw lead/case/conversation ID as authority. Conversation status supports `ai_active`, `human_takeover_requested`, `human_takeover_active`, and `closed`. `QUALIFIED`, `QUOTED`, `BOOKED`, and `WON` remain autonomous commercial states; `NEEDS_HUMAN` pauses all autonomous commitment and terminal states do not restart qualification.
 
 Lead facts merge deterministically. Missing facts can be filled from evidence in later customer messages. Strong existing service, location, preferred time, phone, email, name, and qualification answers are retained when a conflicting value arrives; the conflict forces human review. Answered question IDs remain on the lead and conversation tracking marks them answered, so only unresolved configured prompts can be asked again.
 
 ## HTTP boundary
 
-FastAPI owns transport validation and exposes `/health`, `/ready`, private-foundation routes, and public conversation routes under `/api/v1`. The existing `POST /api/v1/businesses/{business_id}/messages` remains backward compatible. Public create/send/get routes accept only an opaque conversation token and return allowlisted state plus message text; a separate chat-config route returns only enabled status, display name, title, welcome text, and language. No public route exposes Business DNA, lead/case IDs, audit data, prompt/provider metadata, question tracking, or internal notes.
+FastAPI owns transport validation and exposes `/health`, `/ready`, private-foundation routes, and public conversation routes under `/api/v1`. The existing `POST /api/v1/businesses/{business_id}/messages` remains backward compatible. Public create/send/get routes accept only an opaque conversation token. A token-scoped commercial status route returns only that conversation's safe booking, quote, and payment-request fields. No public route exposes Business DNA, lead/case IDs, audit data, prompt/provider metadata, question tracking, pricing formulas, or internal notes.
 
 Application startup requires `DATABASE_URL` and an explicit `AI_PROVIDER`, verifies database connectivity and AI configuration, creates one SQLAlchemy engine, and stores immutable dependency wiring on the FastAPI application. `AI_PROVIDER=openai` additionally requires `OPENAI_API_KEY` and `OPENAI_MODEL`; no paid provider call occurs during startup or readiness. Each repository operation still runs in a fresh Unit of Work whose session closes on success or failure. Alembic remains the only runtime schema authority.
 
@@ -81,7 +85,7 @@ Uvicorn raw-path access logging is disabled because public bearer tokens are par
 
 Public CORS origins are an explicit environment allowlist; wildcard configuration is rejected in production. Same-origin development needs no CORS grant. The widget renders customer and assistant strings with `textContent`, not HTML. Anonymous routes do not use cookies, but token secrecy and embedding-site XSS controls still matter. A thread-safe in-memory sliding-window limiter applies per-IP/business creation and per-IP/conversation message limits. It is a single-process foundation and must be replaced with shared enforcement for a multi-worker public deployment.
 
-The tenant path value is used for every repository lookup and for the domain `IncomingMessage`. An explicit case ID is queried together with that tenant ID, so another tenant's case is indistinguishable from a missing case. Authentication remains intentionally absent through Milestone 6. The public token authorizes only one anonymous conversation; `business_id` on private routes scopes data but does not authenticate tenant identity. Private tenant/staff routes must not be exposed to untrusted callers until authentication and authorization are added.
+The tenant path value is used for every repository lookup and for the domain `IncomingMessage`. An explicit case ID is queried together with that tenant ID, so another tenant's case is indistinguishable from a missing case. Authentication remains intentionally absent through Milestone 7. The public token authorizes only one anonymous conversation; `business_id` on private routes scopes data but does not authenticate tenant identity. Private tenant/staff routes must not be exposed to untrusted callers until authentication and authorization are added.
 
 ## Database idempotency and concurrency
 
@@ -90,6 +94,8 @@ The `processed_messages` primary key is `(business_id, channel, external_message
 Cases use optimistic concurrency. Each update includes the version that was loaded and atomically increments it. A zero-row update means another worker won; `StaleCaseError` aborts the losing transaction, so its state and candidate events never become visible. This protects distinct concurrent messages as well as direct competing transitions.
 
 Conversation follow-ups additionally use `SELECT ... FOR UPDATE` on the tenant/token-qualified conversation row. This serializes distinct rapid messages across PostgreSQL workers before allocating sequence numbers or loading the case. `(business_id, conversation_id, sequence_number)` and `(business_id, conversation_id, external_message_id)` are database uniqueness backstops. The existing case version and processed-message advisory lock remain authoritative within each serialized intake.
+
+Bookings serialize the whole tenant/service schedule rather than only an exact start, because different starts can overlap through duration and buffers. Capacity is re-read after lock acquisition. One booking per tenant/case and one payment type per tenant/case are database uniqueness backstops. Booking, quote, and payment records also use optimistic versions; quote row locking makes simultaneous acceptance converge on one accepted quote, one case progression, and one payment request.
 
 The advisory lock is acquired before any AI call. Concurrent identical HTTP messages therefore converge on one stored result and trigger one provider call where PostgreSQL coordination is available. A timeout or other exception releases the transaction-scoped lock and rolls back the claim, lead, case, and events together.
 
@@ -105,7 +111,7 @@ Business DNA uses `(business_id, version)` as its primary key. Adding a version 
 
 ## Migrations and configuration
 
-`DATABASE_URL` and `AI_PROVIDER` are required and read from the environment. OpenAI mode additionally requires its API key and model; deterministic mode requires no provider credentials and is never an implicit fallback. Alembic owns production schema changes: revision `0001` creates tenant workflow storage, `0002` adds conversations/messages, and `0003` adds stricter timestamp and idempotency checks. Docker Compose starts PostgreSQL and the API, waits for database health, and applies migrations before Uvicorn starts. Credentials in `.env.example` are local-development placeholders and no secrets are stored in Business DNA.
+`DATABASE_URL` and `AI_PROVIDER` are required and read from the environment. OpenAI mode additionally requires its API key and model; deterministic mode requires no provider credentials and is never an implicit fallback. Alembic owns production schema changes: revision `0001` creates tenant workflow storage, `0002` adds conversations/messages, `0003` adds stricter timestamp/idempotency checks, and `0004` adds commercial aggregates. Docker Compose starts PostgreSQL and the API, waits for database health, and applies migrations before Uvicorn starts. Credentials in `.env.example` are local-development placeholders and no secrets are stored in Business DNA.
 
 ## Tenant isolation and persistence
 

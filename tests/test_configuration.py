@@ -49,6 +49,27 @@ def test_priced_service_models_require_an_amount() -> None:
         Draft202012Validator(schema).validate(config)
 
 
+def test_commercial_schema_requires_explicit_authority_and_currency() -> None:
+    schema = load_json("business_dna.schema.json")
+    validator = Draft202012Validator(schema)
+    config = load_json("business_dna.example.json")
+
+    no_path = deepcopy(config)
+    del no_path["services"][0]["fulfillment_type"]
+    with pytest.raises(ValidationError):
+        validator.validate(no_path)
+
+    no_quote_authority = deepcopy(config)
+    del no_quote_authority["services"][1]["quoting"]["automatic_quote_allowed"]
+    with pytest.raises(ValidationError):
+        validator.validate(no_quote_authority)
+
+    bad_payment_currency = deepcopy(config)
+    bad_payment_currency["payment"]["currency"] = "usd"
+    with pytest.raises(ValidationError):
+        validator.validate(bad_payment_currency)
+
+
 def test_yaml_workflow_exactly_matches_python_state_machine() -> None:
     with (ROOT / "workflows" / "lead_to_cash.yaml").open(encoding="utf-8") as file:
         workflow = yaml.safe_load(file)

@@ -9,7 +9,18 @@ from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
+from src.domain.auth import StaffSession, StaffUser
 from src.domain.models import Lead, ProcessCase, ProcessEvent, utc_now
+from src.domain.commercial import (
+    Booking,
+    BookingStatus,
+    PaymentRequest,
+    PaymentStatus,
+    PaymentType,
+    Quote,
+    QuoteLine,
+    QuoteStatus,
+)
 from src.domain.conversations import (
     Conversation,
     ConversationMessage,
@@ -20,17 +31,30 @@ from src.domain.conversations import (
 from src.domain.states import ProcessState
 from src.domain.tenancy import Business, BusinessDNAVersion
 
-from .errors import IdempotencyCollisionError, IdempotencyInProgressError, StaleCaseError
+from .errors import (
+    IdempotencyCollisionError,
+    IdempotencyInProgressError,
+    StaleBookingError,
+    StaleCaseError,
+    StalePaymentRequestError,
+    StaleQuoteError,
+)
 from .repositories import ClaimStatus, IdempotencyRecord
 from .sqlalchemy_models import (
     BusinessDNARow,
     BusinessRow,
+    BookingRow,
     ConversationMessageRow,
     ConversationRow,
     LeadRow,
+    PaymentRequestRow,
     ProcessCaseRow,
     ProcessedMessageRow,
     ProcessEventRow,
+    QuoteLineRow,
+    QuoteRow,
+    StaffSessionRow,
+    StaffUserRow,
 )
 
 
@@ -119,6 +143,80 @@ class SQLAlchemyBusinessDNARepository:
     def _to_domain(row: BusinessDNARow) -> BusinessDNAVersion:
         return BusinessDNAVersion(
             row.business_id, row.version, row.configuration, _aware(row.created_at), row.active
+        )
+
+
+class SQLAlchemyStaffUserRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def add(self, user: StaffUser) -> None:
+        self.session.add(StaffUserRow(
+            id=user.user_id,
+            business_id=user.business_id,
+            email=user.email,
+            normalized_email=user.normalized_email,
+            password_hash=user.password_hash,
+            created_at=user.created_at,
+        ))
+
+    def get(self, user_id: str) -> StaffUser | None:
+        row = self.session.get(StaffUserRow, user_id)
+        return self._to_domain(row) if row else None
+
+    def get_by_email(self, normalized_email: str) -> StaffUser | None:
+        row = self.session.scalar(
+            select(StaffUserRow).where(StaffUserRow.normalized_email == normalized_email)
+        )
+        return self._to_domain(row) if row else None
+
+    def save(self, user: StaffUser) -> None:
+        row = self.session.get(StaffUserRow, user.user_id)
+        if row is None:
+            raise KeyError(f"unknown staff user_id: {user.user_id}")
+        row.business_id = user.business_id
+        row.email = user.email
+        row.password_hash = user.password_hash
+
+    @staticmethod
+    def _to_domain(row: StaffUserRow) -> StaffUser:
+        return StaffUser(
+            row.id, row.email, row.normalized_email, row.password_hash,
+            row.business_id, _aware(row.created_at),
+        )
+
+
+class SQLAlchemyStaffSessionRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def add(self, session: StaffSession) -> None:
+        self.session.add(StaffSessionRow(
+            id=session.session_id,
+            user_id=session.user_id,
+            token_hash=session.token_hash,
+            created_at=session.created_at,
+            expires_at=session.expires_at,
+            revoked_at=session.revoked_at,
+        ))
+
+    def get_by_token_hash(self, token_hash: str) -> StaffSession | None:
+        row = self.session.scalar(
+            select(StaffSessionRow).where(StaffSessionRow.token_hash == token_hash)
+        )
+        return self._to_domain(row) if row else None
+
+    def revoke(self, session_id: str, revoked_at: datetime) -> None:
+        row = self.session.get(StaffSessionRow, session_id)
+        if row is None:
+            raise KeyError(f"unknown session_id: {session_id}")
+        row.revoked_at = revoked_at
+
+    @staticmethod
+    def _to_domain(row: StaffSessionRow) -> StaffSession:
+        return StaffSession(
+            row.id, row.user_id, row.token_hash, _aware(row.created_at), _aware(row.expires_at),
+            _aware(row.revoked_at) if row.revoked_at is not None else None,
         )
 
 
@@ -613,4 +711,359 @@ class SQLAlchemyConversationMessageRepository:
             content_fingerprint=row.content_fingerprint,
             correlation_id=row.correlation_id,
             metadata=row.metadata_json,
+        )
+
+
+class SQLAlchemyBookingRepository:
+    ACTIVE_STATUSES = (
+        BookingStatus.PENDING.value,
+        BookingStatus.CONFIRMED.value,
+        BookingStatus.RESCHEDULED.value,
+    )
+
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def lock_slot(self, business_id: str, service_id: str, start_at: datetime) -> None:
+        if self.session.get_bind().dialect.name != "postgresql":
+            return
+        # Serialize a tenant/service schedule, not merely an exact start time:
+        # appointments with different starts can still overlap through duration
+        # or configured buffers.
+        identity = "\x1f".join(("booking-schedule", business_id, service_id))
+        digest = hashlib.sha256(identity.encode("utf-8")).digest()
+        lock_key = int.from_bytes(digest[:8], byteorder="big", signed=True)
+        self.session.execute(select(func.pg_advisory_xact_lock(lock_key)))
+
+    def add(self, booking: Booking) -> None:
+        self.session.add(BookingRow(
+            id=booking.booking_id,
+            business_id=booking.business_id,
+            case_id=booking.case_id,
+            lead_id=booking.lead_id,
+            service_id=booking.service_id,
+            start_at=booking.start_at,
+            end_at=booking.end_at,
+            timezone=booking.timezone,
+            status=booking.status.value,
+            created_at=booking.created_at,
+            updated_at=booking.updated_at,
+            metadata_json=_json_value(booking.metadata),
+            version=booking.version,
+        ))
+
+    def get(
+        self,
+        business_id: str,
+        booking_id: str,
+        *,
+        for_update: bool = False,
+    ) -> Booking | None:
+        statement = select(BookingRow).where(
+            BookingRow.business_id == business_id,
+            BookingRow.id == booking_id,
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        row = self.session.scalar(statement)
+        return self._to_domain(row) if row is not None else None
+
+    def get_for_case(
+        self,
+        business_id: str,
+        case_id: str,
+        *,
+        for_update: bool = False,
+    ) -> Booking | None:
+        statement = select(BookingRow).where(
+            BookingRow.business_id == business_id,
+            BookingRow.case_id == case_id,
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        row = self.session.scalar(statement)
+        return self._to_domain(row) if row is not None else None
+
+    def list_overlapping(
+        self,
+        business_id: str,
+        service_id: str,
+        start_at: datetime,
+        end_at: datetime,
+        *,
+        exclude_booking_id: str | None = None,
+    ) -> tuple[Booking, ...]:
+        statement = select(BookingRow).where(
+            BookingRow.business_id == business_id,
+            BookingRow.service_id == service_id,
+            BookingRow.status.in_(self.ACTIVE_STATUSES),
+            BookingRow.start_at < end_at,
+            BookingRow.end_at > start_at,
+        )
+        if exclude_booking_id is not None:
+            statement = statement.where(BookingRow.id != exclude_booking_id)
+        return tuple(self._to_domain(row) for row in self.session.scalars(statement))
+
+    def save(self, booking: Booking, expected_version: int) -> None:
+        new_version = expected_version + 1
+        result = self.session.execute(
+            update(BookingRow)
+            .where(
+                BookingRow.business_id == booking.business_id,
+                BookingRow.id == booking.booking_id,
+                BookingRow.version == expected_version,
+            )
+            .values(
+                start_at=booking.start_at,
+                end_at=booking.end_at,
+                timezone=booking.timezone,
+                status=booking.status.value,
+                updated_at=booking.updated_at,
+                metadata_json=_json_value(booking.metadata),
+                version=new_version,
+            )
+        )
+        if result.rowcount != 1:
+            raise StaleBookingError(f"booking version conflict: {booking.booking_id}")
+        booking.mark_persisted(new_version)
+
+    @staticmethod
+    def _to_domain(row: BookingRow) -> Booking:
+        return Booking(
+            booking_id=row.id,
+            business_id=row.business_id,
+            case_id=row.case_id,
+            lead_id=row.lead_id,
+            service_id=row.service_id,
+            start_at=_aware(row.start_at).astimezone(timezone.utc),
+            end_at=_aware(row.end_at).astimezone(timezone.utc),
+            timezone=row.timezone,
+            status=BookingStatus(row.status),
+            created_at=_aware(row.created_at).astimezone(timezone.utc),
+            updated_at=_aware(row.updated_at).astimezone(timezone.utc),
+            metadata=row.metadata_json,
+            version=row.version,
+        )
+
+
+class SQLAlchemyQuoteRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def add(self, quote: Quote) -> None:
+        self.session.add(QuoteRow(
+            id=quote.quote_id,
+            business_id=quote.business_id,
+            case_id=quote.case_id,
+            lead_id=quote.lead_id,
+            service_id=quote.service_id,
+            currency=quote.currency,
+            subtotal=quote.subtotal,
+            total=quote.total,
+            valid_until=quote.valid_until,
+            status=quote.status.value,
+            created_at=quote.created_at,
+            updated_at=quote.updated_at,
+            pricing_basis=_json_value(quote.pricing_basis),
+            metadata_json=_json_value(quote.metadata),
+            version=quote.version,
+        ))
+        # The mappings intentionally have no ORM relationships. Flush the
+        # parent explicitly so composite tenant foreign keys on lines are
+        # satisfied consistently on both SQLite and PostgreSQL.
+        self.session.flush()
+        for position, line in enumerate(quote.lines, start=1):
+            self.session.add(QuoteLineRow(
+                id=f"{quote.quote_id}:{line.line_id}",
+                business_id=quote.business_id,
+                quote_id=quote.quote_id,
+                position=position,
+                description=line.description,
+                quantity=line.quantity,
+                unit_amount=line.unit_amount,
+                line_total=line.line_total,
+            ))
+
+    def get(
+        self,
+        business_id: str,
+        quote_id: str,
+        *,
+        for_update: bool = False,
+    ) -> Quote | None:
+        statement = select(QuoteRow).where(
+            QuoteRow.business_id == business_id,
+            QuoteRow.id == quote_id,
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        row = self.session.scalar(statement)
+        return self._to_domain(row) if row is not None else None
+
+    def get_for_case(
+        self,
+        business_id: str,
+        case_id: str,
+        *,
+        for_update: bool = False,
+    ) -> Quote | None:
+        statement = select(QuoteRow).where(
+            QuoteRow.business_id == business_id,
+            QuoteRow.case_id == case_id,
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        row = self.session.scalar(statement)
+        return self._to_domain(row) if row is not None else None
+
+    def save(self, quote: Quote, expected_version: int) -> None:
+        new_version = expected_version + 1
+        result = self.session.execute(
+            update(QuoteRow)
+            .where(
+                QuoteRow.business_id == quote.business_id,
+                QuoteRow.id == quote.quote_id,
+                QuoteRow.version == expected_version,
+            )
+            .values(
+                status=quote.status.value,
+                updated_at=quote.updated_at,
+                metadata_json=_json_value(quote.metadata),
+                version=new_version,
+            )
+        )
+        if result.rowcount != 1:
+            raise StaleQuoteError(f"quote version conflict: {quote.quote_id}")
+        quote.mark_persisted(new_version)
+
+    def _to_domain(self, row: QuoteRow) -> Quote:
+        line_rows = tuple(self.session.scalars(
+            select(QuoteLineRow)
+            .where(
+                QuoteLineRow.business_id == row.business_id,
+                QuoteLineRow.quote_id == row.id,
+            )
+            .order_by(QuoteLineRow.position)
+        ))
+        lines = tuple(QuoteLine(
+            line_id=line_row.id.removeprefix(f"{row.id}:"),
+            description=line_row.description,
+            quantity=line_row.quantity,
+            unit_amount=line_row.unit_amount,
+            line_total=line_row.line_total,
+        ) for line_row in line_rows)
+        return Quote(
+            quote_id=row.id,
+            business_id=row.business_id,
+            case_id=row.case_id,
+            lead_id=row.lead_id,
+            service_id=row.service_id,
+            currency=row.currency,
+            subtotal=row.subtotal,
+            total=row.total,
+            valid_until=_aware(row.valid_until).astimezone(timezone.utc),
+            status=QuoteStatus(row.status),
+            created_at=_aware(row.created_at).astimezone(timezone.utc),
+            updated_at=_aware(row.updated_at).astimezone(timezone.utc),
+            pricing_basis=row.pricing_basis,
+            lines=lines,
+            metadata=row.metadata_json,
+            version=row.version,
+        )
+
+
+class SQLAlchemyPaymentRequestRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def add(self, payment_request: PaymentRequest) -> None:
+        self.session.add(PaymentRequestRow(
+            id=payment_request.payment_request_id,
+            business_id=payment_request.business_id,
+            case_id=payment_request.case_id,
+            quote_id=payment_request.quote_id,
+            booking_id=payment_request.booking_id,
+            amount=payment_request.amount,
+            currency=payment_request.currency,
+            payment_type=payment_request.payment_type.value,
+            status=payment_request.status.value,
+            created_at=payment_request.created_at,
+            updated_at=payment_request.updated_at,
+            expires_at=payment_request.expires_at,
+            metadata_json=_json_value(payment_request.metadata),
+            version=payment_request.version,
+        ))
+
+    def get(
+        self,
+        business_id: str,
+        payment_request_id: str,
+        *,
+        for_update: bool = False,
+    ) -> PaymentRequest | None:
+        statement = select(PaymentRequestRow).where(
+            PaymentRequestRow.business_id == business_id,
+            PaymentRequestRow.id == payment_request_id,
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        row = self.session.scalar(statement)
+        return self._to_domain(row) if row is not None else None
+
+    def get_for_case_type(
+        self,
+        business_id: str,
+        case_id: str,
+        payment_type: PaymentType,
+        *,
+        for_update: bool = False,
+    ) -> PaymentRequest | None:
+        statement = select(PaymentRequestRow).where(
+            PaymentRequestRow.business_id == business_id,
+            PaymentRequestRow.case_id == case_id,
+            PaymentRequestRow.payment_type == payment_type.value,
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        row = self.session.scalar(statement)
+        return self._to_domain(row) if row is not None else None
+
+    def save(self, payment_request: PaymentRequest, expected_version: int) -> None:
+        new_version = expected_version + 1
+        result = self.session.execute(
+            update(PaymentRequestRow)
+            .where(
+                PaymentRequestRow.business_id == payment_request.business_id,
+                PaymentRequestRow.id == payment_request.payment_request_id,
+                PaymentRequestRow.version == expected_version,
+            )
+            .values(
+                status=payment_request.status.value,
+                updated_at=payment_request.updated_at,
+                version=new_version,
+            )
+        )
+        if result.rowcount != 1:
+            raise StalePaymentRequestError(
+                f"payment request version conflict: {payment_request.payment_request_id}"
+            )
+        payment_request.mark_persisted(new_version)
+
+    @staticmethod
+    def _to_domain(row: PaymentRequestRow) -> PaymentRequest:
+        return PaymentRequest(
+            payment_request_id=row.id,
+            business_id=row.business_id,
+            case_id=row.case_id,
+            quote_id=row.quote_id,
+            booking_id=row.booking_id,
+            amount=row.amount,
+            currency=row.currency,
+            payment_type=PaymentType(row.payment_type),
+            status=PaymentStatus(row.status),
+            created_at=_aware(row.created_at).astimezone(timezone.utc),
+            updated_at=_aware(row.updated_at).astimezone(timezone.utc),
+            expires_at=_aware(row.expires_at).astimezone(timezone.utc),
+            metadata=row.metadata_json,
+            version=row.version,
         )

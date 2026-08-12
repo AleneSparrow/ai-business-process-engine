@@ -28,6 +28,8 @@ Milestone 5 introduces an explicit provider-neutral structured AI boundary and a
 
 Milestone 6 introduces durable website conversations and a framework-free embeddable chat widget. An anonymous visitor receives an opaque expiring tenant-bound token, and every inbound/outbound message is ordered and persisted with the same lead/case. Follow-ups use bounded redacted context, deterministically merge new facts, remember asked/answered qualification questions, and stop autonomous decisions when human takeover or a terminal case state is reached. The public API exposes only allowlisted chat state and text.
 
+Milestone 7 continues a qualified conversation into a Business-DNA-selected booking, quote, direct-next-step, or human-review path. Availability is calculated from configured hours, duration, notice, buffers, capacity, existing bookings, and timezone. Prices use deterministic `Decimal` rules and configured customer inputs. PostgreSQL persists bookings, quote lines, and internal payment requests; advisory locking protects capacity, optimistic versions reject stale aggregate updates, and all commercial state transitions still pass through `ProcessEngine`. Payment requests do not collect funds.
+
 ## Principles
 
 - Business rules and state validity are deterministic.
@@ -42,7 +44,7 @@ Milestone 6 introduces durable website conversations and a framework-free embedd
 
 ## Not in this milestone
 
-Persistence, the lead-intake and public conversation APIs, provider-backed LLM understanding/wording, and the website widget are implemented. Future milestones defer authentication and authorization, staff UI, non-web outbound messaging and other external integrations, shared multi-worker abuse controls, queues, production deployment, billing, and real payment processing.
+Persistence, lead intake, public conversations, the website widget, deterministic booking/quoting, and provider-neutral payment-request preparation are implemented. Future milestones defer authentication and authorization, staff UI, real calendar/payment/messaging providers, shared multi-worker abuse controls, queues/outbox delivery, production deployment, and billing.
 
 ## Acceptance criteria
 
@@ -55,4 +57,7 @@ Persistence, the lead-intake and public conversation APIs, provider-backed LLM u
 - Provider failure rolls back intake, while low-confidence or invalid intent escalates safely.
 - Public conversation retries have one logical effect, concurrent follow-ups stay ordered, and tokens cannot cross tenant boundaries.
 - Public history/configuration omit internal IDs and policy data, while the widget renders text without HTML injection.
+- Customer slot selections resolve only against unexpired server proposals, capacity is rechecked under database coordination, and repeated requests have one booking effect.
+- Quote amounts come only from configured Decimal rules; threshold, expiration, discount, and ambiguity policies escalate or reject safely.
+- Token-scoped commercial reads cannot expose another conversation or internal pricing basis.
 - The Lead-to-Cash happy path and its quote branch pass automated tests.

@@ -1,6 +1,7 @@
 """Pydantic request and response contracts for API v1."""
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Annotated, Any
 
 from pydantic import (
@@ -17,7 +18,8 @@ from src.domain.states import ProcessState
 from src.domain.tenancy import Business
 from src.engine.lead_intake import LeadIntakeService
 from src.domain.conversations import ConversationStatus, MessageDirection, MessageRole
-from src.persistence.conversation_service import PublicConversation
+from src.domain.commercial import BookingStatus, PaymentStatus, PaymentType, QuoteStatus
+from src.persistence.conversation_service import PublicCommercialSnapshot, PublicConversation
 
 
 class ApiModel(BaseModel):
@@ -251,6 +253,82 @@ class PublicChatConfigResponse(ApiModel):
     language: str
 
 
+class PublicBookingSchema(ApiModel):
+    booking_id: str
+    service_id: str
+    status: BookingStatus
+    start_at: datetime
+    end_at: datetime
+    timezone: str
+
+
+class PublicQuoteSchema(ApiModel):
+    quote_id: str
+    service_id: str
+    status: QuoteStatus
+    currency: str
+    total: Decimal
+    valid_until: datetime
+
+
+class PublicPaymentRequestSchema(ApiModel):
+    payment_request_id: str
+    status: PaymentStatus
+    payment_type: PaymentType
+    amount: Decimal
+    currency: str
+    expires_at: datetime
+
+
+class PublicCommercialResponse(ApiModel):
+    current_state: ProcessState | None
+    booking: PublicBookingSchema | None
+    quote: PublicQuoteSchema | None
+    payment_request: PublicPaymentRequestSchema | None
+
+    @classmethod
+    def from_domain(cls, value: PublicCommercialSnapshot) -> "PublicCommercialResponse":
+        return cls(
+            current_state=value.current_state,
+            booking=(
+                PublicBookingSchema(
+                    booking_id=value.booking.booking_id,
+                    service_id=value.booking.service_id,
+                    status=value.booking.status,
+                    start_at=value.booking.start_at,
+                    end_at=value.booking.end_at,
+                    timezone=value.booking.timezone,
+                )
+                if value.booking is not None
+                else None
+            ),
+            quote=(
+                PublicQuoteSchema(
+                    quote_id=value.quote.quote_id,
+                    service_id=value.quote.service_id,
+                    status=value.quote.status,
+                    currency=value.quote.currency,
+                    total=value.quote.total,
+                    valid_until=value.quote.valid_until,
+                )
+                if value.quote is not None
+                else None
+            ),
+            payment_request=(
+                PublicPaymentRequestSchema(
+                    payment_request_id=value.payment_request.payment_request_id,
+                    status=value.payment_request.status,
+                    payment_type=value.payment_request.payment_type,
+                    amount=value.payment_request.amount,
+                    currency=value.payment_request.currency,
+                    expires_at=value.payment_request.expires_at,
+                )
+                if value.payment_request is not None
+                else None
+            ),
+        )
+
+
 def validation_issues(errors: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         {
@@ -260,3 +338,91 @@ def validation_issues(errors: list[dict[str, Any]]) -> list[dict[str, Any]]:
         }
         for error in errors
     ]
+
+
+# --- Staff authentication -----------------------------------------------------------------
+
+
+def _validate_email_shape(value: str) -> str:
+    stripped = value.strip()
+    if "@" not in stripped or " " in stripped or stripped.startswith("@") or stripped.endswith("@"):
+        raise ValueError("email is not a valid address")
+    return stripped
+
+
+class SignupRequest(ApiModel):
+    email: Annotated[str, Field(min_length=3, max_length=320)]
+    password: Annotated[str, Field(min_length=8, max_length=128)]
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return _validate_email_shape(value)
+
+
+class LoginRequest(ApiModel):
+    email: Annotated[str, Field(min_length=3, max_length=320)]
+    password: Annotated[str, Field(min_length=1, max_length=128)]
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return _validate_email_shape(value)
+
+
+class StaffUserResponse(ApiModel):
+    user_id: str
+    email: str
+    business_id: str | None
+
+
+class SessionResponse(ApiModel):
+    token: str
+    expires_in_hours: int
+    user: StaffUserResponse
+
+
+# --- Self-serve business onboarding -------------------------------------------------------
+
+
+class OnboardingServiceRequest(ApiModel):
+    name: Annotated[str, Field(min_length=1, max_length=120)]
+    questions: Annotated[list[Annotated[str, Field(min_length=1, max_length=300)]], Field(max_length=20)] = []
+
+
+class OnboardingRequest(ApiModel):
+    business_name: Annotated[str, Field(min_length=1, max_length=255)]
+    industry: Annotated[str, Field(min_length=1, max_length=120)] = "Home services"
+    tone: Annotated[str, Field(min_length=1, max_length=60)] = "Friendly & direct"
+    services: Annotated[list[OnboardingServiceRequest], Field(min_length=1, max_length=50)]
+    service_zip_codes: Annotated[list[Annotated[str, Field(min_length=1, max_length=20)]], Field(min_length=1, max_length=500)]
+    enforce_service_area: bool = True
+
+    @field_validator("service_zip_codes")
+    @classmethod
+    def validate_zip_codes(cls, value: list[str]) -> list[str]:
+        cleaned = [item.strip() for item in value if item.strip()]
+        if not cleaned:
+            raise ValueError("at least one service zip code is required")
+        # De-duplicate while preserving order.
+        seen: set[str] = set()
+        unique = []
+        for item in cleaned:
+            if item not in seen:
+                seen.add(item)
+                unique.append(item)
+        return unique
+
+
+class BusinessCreatedResponse(ApiModel):
+    business_id: str
+    name: str
+    widget_snippet: str
+
+    @classmethod
+    def from_domain(cls, business: Business, *, api_base: str | None = None) -> "BusinessCreatedResponse":
+        base_attr = f' data-api-base="{api_base}"' if api_base else ""
+        snippet = (
+            f'<script src="/widget/widget.js" data-business-id="{business.business_id}"{base_attr}></script>'
+        )
+        return cls(business_id=business.business_id, name=business.name, widget_snippet=snippet)

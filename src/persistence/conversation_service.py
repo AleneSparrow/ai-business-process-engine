@@ -6,6 +6,7 @@ import re
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from typing import Any, Mapping
 from uuid import uuid4
 
@@ -19,12 +20,14 @@ from src.domain.conversations import (
     MessageRole,
 )
 from src.domain.models import utc_now
+from src.domain.commercial import BookingStatus, PaymentStatus, PaymentType, QuoteStatus
 from src.domain.qualification import IncomingMessage, LeadIntakeResult
 from src.domain.states import ProcessState
 from src.engine.customer_response_generator import CustomerResponseGenerator
 from src.engine.intent_extractor import IntentExtractor
 from src.engine.question_generator import QuestionGenerator
 
+from .commercial_service import CommercialWorkflowService
 from .errors import (
     ConversationTokenError,
     ConversationTokenExpiredError,
@@ -38,15 +41,19 @@ from .repositories import UnitOfWork, UnitOfWorkFactory
 _EMAIL = re.compile(r"\b[^@\s]+@[^@\s]+\.[^@\s]+\b")
 _PHONE = re.compile(r"(?<!\w)(?:\+?\d[\d .()\-]{5,}\d)(?!\w)")
 _TERMINAL_CASE_STATES = frozenset({
-    ProcessState.QUALIFIED,
     ProcessState.LOST,
     ProcessState.CANCELLED,
+    ProcessState.PAID,
     ProcessState.COMPLETED,
 })
 _AUTONOMOUS_CASE_STATES = frozenset({
     ProcessState.NEW_LEAD,
     ProcessState.CONTACTED,
     ProcessState.QUALIFYING,
+    ProcessState.QUALIFIED,
+    ProcessState.QUOTED,
+    ProcessState.BOOKED,
+    ProcessState.WON,
 })
 
 
@@ -67,6 +74,44 @@ class PublicConversation:
     requires_human: bool
     messages: tuple[PublicConversationMessage, ...]
     duplicate: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class PublicBooking:
+    booking_id: str
+    service_id: str
+    status: BookingStatus
+    start_at: datetime
+    end_at: datetime
+    timezone: str
+
+
+@dataclass(frozen=True, slots=True)
+class PublicQuote:
+    quote_id: str
+    service_id: str
+    status: QuoteStatus
+    currency: str
+    total: Decimal
+    valid_until: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class PublicPaymentRequest:
+    payment_request_id: str
+    status: PaymentStatus
+    payment_type: PaymentType
+    amount: Decimal
+    currency: str
+    expires_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class PublicCommercialSnapshot:
+    current_state: ProcessState | None
+    booking: PublicBooking | None
+    quote: PublicQuote | None
+    payment_request: PublicPaymentRequest | None
 
 
 class ConversationService:
@@ -94,6 +139,7 @@ class ConversationService:
             question_generator,
             customer_response_generator=customer_response_generator,
         )
+        self.commercial = CommercialWorkflowService()
         self.token_ttl = timedelta(hours=token_ttl_hours)
 
     def create(
@@ -221,6 +267,64 @@ class ConversationService:
             assert conversation is not None
             return self._snapshot(uow, conversation, conversation_token)
 
+    def get_commercial(
+        self,
+        business_id: str,
+        conversation_token: str,
+    ) -> PublicCommercialSnapshot:
+        """Return only commercial data owned by the token-bound tenant conversation."""
+        with self.unit_of_work_factory() as uow:
+            conversation = uow.conversations.get_by_token_hash(
+                business_id, self.hash_token(conversation_token), for_update=True
+            )
+            self._validate_conversation_token(conversation)
+            assert conversation is not None
+            if conversation.case_id is None:
+                return PublicCommercialSnapshot(None, None, None, None)
+            case = uow.cases.get(business_id, conversation.case_id)
+            if case is None or case.lead.lead_id != conversation.lead_id:
+                raise RuntimeError("conversation references an invalid tenant case")
+            self.commercial.expire_due_items(uow, case, occurred_at=utc_now())
+            case = uow.cases.get(business_id, conversation.case_id)
+            if case is None or case.lead.lead_id != conversation.lead_id:
+                raise RuntimeError("commercial expiration invalidated the tenant case")
+            booking = uow.bookings.get_for_case(business_id, case.case_id)
+            quote = uow.quotes.get_for_case(business_id, case.case_id)
+            payment = uow.payment_requests.get_for_case_type(
+                business_id, case.case_id, PaymentType.DEPOSIT
+            ) or uow.payment_requests.get_for_case_type(
+                business_id, case.case_id, PaymentType.FINAL
+            )
+            result = PublicCommercialSnapshot(
+                case.current_state,
+                None if booking is None else PublicBooking(
+                    booking.booking_id,
+                    booking.service_id,
+                    booking.status,
+                    booking.start_at,
+                    booking.end_at,
+                    booking.timezone,
+                ),
+                None if quote is None else PublicQuote(
+                    quote.quote_id,
+                    quote.service_id,
+                    quote.status,
+                    quote.currency,
+                    quote.total,
+                    quote.valid_until,
+                ),
+                None if payment is None else PublicPaymentRequest(
+                    payment.payment_request_id,
+                    payment.status,
+                    payment.payment_type,
+                    payment.amount,
+                    payment.currency,
+                    payment.expires_at,
+                ),
+            )
+            uow.commit()
+            return result
+
     def _process_message(
         self,
         uow: UnitOfWork,
@@ -271,22 +375,61 @@ class ConversationService:
         ))
 
         if conversation.status is ConversationStatus.AI_ACTIVE:
-            result = self._run_intake(
-                uow,
-                conversation,
-                message_text,
-                external_message_id,
-                occurred_at,
-                prior_messages,
+            case = (
+                uow.cases.get(conversation.business_id, conversation.case_id)
+                if conversation.case_id is not None
+                else None
             )
-            conversation.link_case(result.lead_id, result.case_id)
-            response_text, response_reason = self._response_for_result(result, dna)
-            current_state = result.current_state
+            if case is not None and case.current_state in {
+                ProcessState.QUALIFIED,
+                ProcessState.QUOTED,
+                ProcessState.BOOKED,
+                ProcessState.WON,
+            }:
+                commercial_response = self.commercial.handle_message(
+                    uow,
+                    case,
+                    dna,
+                    conversation.metadata,
+                    message_text,
+                    occurred_at=occurred_at,
+                )
+                response_text = commercial_response.message_text
+                response_reason = commercial_response.reason
+                current_state = case.current_state
+                conversation.metadata["unresolved_items"] = []
+            else:
+                result = self._run_intake(
+                    uow,
+                    conversation,
+                    message_text,
+                    external_message_id,
+                    occurred_at,
+                    prior_messages,
+                )
+                conversation.link_case(result.lead_id, result.case_id)
+                response_text, response_reason = self._response_for_result(result, dna)
+                current_state = result.current_state
+                conversation.metadata["unresolved_items"] = list(
+                    self._unresolved_items(result, dna)
+                )
+                self._track_questions(conversation, result, dna, occurred_at)
+                if current_state is ProcessState.QUALIFIED:
+                    case = uow.cases.get(conversation.business_id, result.case_id)
+                    if case is None:
+                        raise RuntimeError("qualified intake result references a missing case")
+                    commercial_response = self.commercial.initialize(
+                        uow,
+                        case,
+                        dna,
+                        conversation.metadata,
+                        occurred_at=occurred_at,
+                    )
+                    response_text = commercial_response.message_text
+                    response_reason = commercial_response.reason
+                    current_state = case.current_state
+                    conversation.metadata["unresolved_items"] = []
             conversation.metadata["current_state"] = current_state.value
-            conversation.metadata["unresolved_items"] = list(
-                self._unresolved_items(result, dna)
-            )
-            self._track_questions(conversation, result, dna, occurred_at)
             if current_state is ProcessState.NEEDS_HUMAN:
                 conversation.set_status(
                     ConversationStatus.HUMAN_TAKEOVER_REQUESTED, occurred_at

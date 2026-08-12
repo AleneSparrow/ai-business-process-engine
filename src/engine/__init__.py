@@ -6,6 +6,16 @@ from .intent_extractor import DeterministicIntentExtractor, IntentExtractor
 from .lead_intake import LeadIntakeService
 from .qualification_service import QualificationService
 from .question_generator import DeterministicQuestionGenerator, QuestionGenerator
+from .commercial import (
+    AvailabilityProvider,
+    CommercialPathSelector,
+    DeterministicAvailabilityEngine,
+    DeterministicPricingEngine,
+    DeterministicSlotPreferenceInterpreter,
+    PricingDecision,
+    SlotPreference,
+    SlotPreferenceInterpreter,
+)
 
 __all__ = [
     "DecisionRequest",
@@ -17,4 +27,12 @@ __all__ = [
     "ProcessEngine",
     "QualificationService",
     "QuestionGenerator",
+    "AvailabilityProvider",
+    "CommercialPathSelector",
+    "DeterministicAvailabilityEngine",
+    "DeterministicPricingEngine",
+    "DeterministicSlotPreferenceInterpreter",
+    "PricingDecision",
+    "SlotPreference",
+    "SlotPreferenceInterpreter",
 ]
