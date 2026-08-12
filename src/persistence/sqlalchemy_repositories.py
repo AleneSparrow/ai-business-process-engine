@@ -418,6 +418,15 @@ class SQLAlchemyProcessCaseRepository:
             raise StaleCaseError(f"case version conflict: {case.case_id}")
         case.mark_persisted(new_version)
 
+    def list_for_business(self, business_id: str, *, limit: int = 200) -> tuple[ProcessCase, ...]:
+        rows = self.session.scalars(
+            select(ProcessCaseRow)
+            .where(ProcessCaseRow.business_id == business_id)
+            .order_by(ProcessCaseRow.updated_at.desc())
+            .limit(limit)
+        )
+        return tuple(self._to_domain(row) for row in rows)
+
     def _to_domain(self, row: ProcessCaseRow) -> ProcessCase:
         lead_row = self.session.scalar(select(LeadRow).where(
             LeadRow.business_id == row.business_id,
@@ -615,6 +624,15 @@ class SQLAlchemyConversationRepository:
         if result.rowcount != 1:
             raise StaleCaseError(f"conversation version conflict: {conversation.conversation_id}")
         conversation.mark_persisted(new_version)
+
+    def list_for_business(self, business_id: str, *, limit: int = 200) -> tuple[Conversation, ...]:
+        rows = self.session.scalars(
+            select(ConversationRow)
+            .where(ConversationRow.business_id == business_id)
+            .order_by(ConversationRow.last_activity_at.desc())
+            .limit(limit)
+        )
+        return tuple(self._to_domain(row) for row in rows)
 
     @staticmethod
     def _to_domain(row: ConversationRow) -> Conversation:

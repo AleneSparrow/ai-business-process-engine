@@ -13,11 +13,12 @@ from pydantic import (
     model_validator,
 )
 
+from src.domain.models import Lead, ProcessCase, ProcessEvent
 from src.domain.qualification import LeadIntakeResult
 from src.domain.states import ProcessState
 from src.domain.tenancy import Business
 from src.engine.lead_intake import LeadIntakeService
-from src.domain.conversations import ConversationStatus, MessageDirection, MessageRole
+from src.domain.conversations import Conversation, ConversationStatus, MessageDirection, MessageRole
 from src.domain.commercial import BookingStatus, PaymentStatus, PaymentType, QuoteStatus
 from src.persistence.conversation_service import PublicCommercialSnapshot, PublicConversation
 
@@ -426,3 +427,131 @@ class BusinessCreatedResponse(ApiModel):
             f'<script src="/widget/widget.js" data-business-id="{business.business_id}"{base_attr}></script>'
         )
         return cls(business_id=business.business_id, name=business.name, widget_snippet=snippet)
+
+
+# --- Staff dashboard: real cases, conversations, and audit trail --------------------------
+
+
+class DashboardLeadSchema(ApiModel):
+    lead_id: str
+    name: str | None
+    email: str | None
+    phone: str | None
+
+    @classmethod
+    def from_domain(cls, lead: Lead) -> "DashboardLeadSchema":
+        return cls(lead_id=lead.lead_id, name=lead.name, email=lead.email, phone=lead.phone)
+
+
+class DashboardCaseSummarySchema(ApiModel):
+    case_id: str
+    lead: DashboardLeadSchema
+    current_state: ProcessState
+    created_at: datetime
+    updated_at: datetime
+    event_count: int
+    latest_event_type: str | None
+
+    @classmethod
+    def from_domain(cls, case: ProcessCase) -> "DashboardCaseSummarySchema":
+        latest = case.event_history[-1] if case.event_history else None
+        return cls(
+            case_id=case.case_id,
+            lead=DashboardLeadSchema.from_domain(case.lead),
+            current_state=case.current_state,
+            created_at=case.created_at,
+            updated_at=case.updated_at,
+            event_count=len(case.event_history),
+            latest_event_type=str(latest.event_type) if latest else None,
+        )
+
+
+class DashboardCaseListResponse(ApiModel):
+    cases: tuple[DashboardCaseSummarySchema, ...]
+
+
+class DashboardEventSchema(ApiModel):
+    event_id: str
+    event_type: str
+    source: str
+    occurred_at: datetime
+    payload: dict[str, Any]
+
+    @classmethod
+    def from_domain(cls, event: ProcessEvent) -> "DashboardEventSchema":
+        return cls(
+            event_id=event.event_id,
+            event_type=str(event.event_type),
+            source=event.source,
+            occurred_at=event.occurred_at,
+            payload=dict(event.payload),
+        )
+
+
+class DashboardCaseDetailResponse(ApiModel):
+    case_id: str
+    lead: DashboardLeadSchema
+    current_state: ProcessState
+    created_at: datetime
+    updated_at: datetime
+    events: tuple[DashboardEventSchema, ...]
+
+    @classmethod
+    def from_domain(cls, case: ProcessCase) -> "DashboardCaseDetailResponse":
+        return cls(
+            case_id=case.case_id,
+            lead=DashboardLeadSchema.from_domain(case.lead),
+            current_state=case.current_state,
+            created_at=case.created_at,
+            updated_at=case.updated_at,
+            events=tuple(DashboardEventSchema.from_domain(event) for event in case.event_history),
+        )
+
+
+class DashboardConversationSchema(ApiModel):
+    conversation_id: str
+    case_id: str | None
+    lead_id: str | None
+    lead_name: str | None
+    case_state: ProcessState | None
+    channel: str
+    status: ConversationStatus
+    created_at: datetime
+    last_activity_at: datetime
+
+    @classmethod
+    def from_domain(
+        cls,
+        conversation: Conversation,
+        *,
+        lead_name: str | None = None,
+        case_state: ProcessState | None = None,
+    ) -> "DashboardConversationSchema":
+        return cls(
+            conversation_id=conversation.conversation_id,
+            case_id=conversation.case_id,
+            lead_id=conversation.lead_id,
+            lead_name=lead_name,
+            case_state=case_state,
+            channel=conversation.channel,
+            status=conversation.status,
+            created_at=conversation.created_at,
+            last_activity_at=conversation.last_activity_at,
+        )
+
+
+class DashboardConversationListResponse(ApiModel):
+    conversations: tuple[DashboardConversationSchema, ...]
+
+
+class DashboardMessageSchema(ApiModel):
+    message_id: str
+    direction: MessageDirection
+    role: MessageRole
+    text: str
+    created_at: datetime
+
+
+class DashboardConversationDetailResponse(ApiModel):
+    conversation: DashboardConversationSchema
+    messages: tuple[DashboardMessageSchema, ...]

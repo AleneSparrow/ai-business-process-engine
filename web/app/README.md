@@ -11,15 +11,24 @@ TypeScript app that talks to the actual backend in `src/api` (not a mockup).
   "Launch engine" and creates a real, schema-valid Business DNA (every service starts on
   `human_review`, nothing auto-books until you change that later).
 - **Sidebar business name** — reads the real business via `GET /api/v1/businesses/{id}`.
+- **Dashboard (leads & cases)** — real cases for your business via
+  `GET /api/v1/businesses/{id}/cases`, mapped from the engine's actual `ProcessState`.
+- **Conversation view** — real conversation list and message thread via
+  `GET /api/v1/businesses/{id}/conversations` and `GET .../conversations/{conversation_id}`,
+  plus the real audit trail (`ProcessEvent` history) for the linked case via
+  `GET /api/v1/businesses/{id}/cases/{case_id}`.
 
-## What's still preview data
+All of the above (Milestone 8 slice 2) are staff-authenticated and scoped to your own
+`business_id` server-side — a session token for one business cannot read another's data.
 
-Dashboard, Conversations, and Settings render the same illustrative content as the
-original prototype (`atelierprototype.jsx`), because there is no staff dashboard /
-conversation API yet — that's Milestone 8 slice 2. Each of those screens shows an
-amber banner saying so. Building the real thing there means: (1) shipping that
-backend API, then (2) swapping the static `CASES` / `CONVERSATIONS` / `SETTINGS_INITIAL`
-arrays in `src/pages/*.tsx` for real fetches through `src/api/client.ts`.
+## What's still not wired
+
+- **Replying and "mark resolved"** on the Conversation screen are visually present but
+  disabled — there's no backend action yet for staff to send a message or resolve a case
+  (the engine's `NEEDS_HUMAN` state currently has no defined transition out of it in
+  `src/domain/state_machine.py`, which is a real design question, not just missing plumbing).
+- **Settings** still renders the original prototype's static `SETTINGS_INITIAL` content —
+  editing live Business DNA from the UI hasn't been built.
 
 ## Running it
 

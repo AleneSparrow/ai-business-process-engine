@@ -1,22 +1,19 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Bell, ArrowUpRight, Clock, MessageSquare, Phone, Mail } from "lucide-react";
+import { Search, Bell, ArrowUpRight, Clock, Phone, Mail, Loader2 } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
-import { STAGES, STATE_META, Stepper, StatePill, PreviewBanner, type CaseState } from "../components/Shared";
-
-/**
- * Preview data — ported verbatim from the prototype. There is no staff dashboard/
- * conversation API yet (Milestone 8 slice 2), so this screen renders illustrative
- * cases rather than a live feed from your account.
- */
-const CASES: { id: string; name: string; service: string; channel: string; state: CaseState; stage: number; detail: string; time: string }[] = [
-  { id: "CS-1042", name: "Marcus Webb", service: "Furnace diagnostic", channel: "Web chat", state: "NEEDS_HUMAN", stage: 2, detail: "Asked for a price before confirming service address", time: "2m ago" },
-  { id: "CS-1041", name: "Priya Anand", service: "Drain cleaning", channel: "SMS", state: "BOOKED", stage: 4, detail: "Confirmed Thursday 9–11am window", time: "14m ago" },
-  { id: "CS-1040", name: "Dana Okafor", service: "AC repair", channel: "Web chat", state: "QUALIFYING", stage: 1, detail: "Waiting on unit age and zip code", time: "22m ago" },
-  { id: "CS-1039", name: "Leon Frei", service: "Water heater install", channel: "SMS", state: "QUALIFYING", stage: 1, detail: "Outside standard service radius — checking", time: "41m ago" },
-  { id: "CS-1038", name: "Ines Roth", service: "Furnace diagnostic", channel: "Web chat", state: "COMPLETED", stage: 4, detail: "Job closed, review request sent", time: "1h ago" },
-  { id: "CS-1037", name: "Wyatt Chen", service: "Drain cleaning", channel: "SMS", state: "LOST", stage: 2, detail: "Went with another provider", time: "3h ago" },
-];
+import { useAuth, describeError } from "../auth/AuthContext";
+import { api, type DashboardCaseSummary } from "../api/client";
+import {
+  STAGES,
+  STATE_META,
+  Stepper,
+  StatePill,
+  mapProcessState,
+  describeEvent,
+  formatRelativeTime,
+  type CaseState,
+} from "../components/Shared";
 
 const FILTERS: (CaseState | "ALL")[] = ["ALL", "NEEDS_HUMAN", "QUALIFYING", "BOOKED", "LOST", "COMPLETED"];
 
@@ -34,28 +31,68 @@ function StatCard({ label, value, sub, tone }: { label: string; value: string | 
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { token, user } = useAuth();
+  const [cases, setCases] = useState<DashboardCaseSummary[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<CaseState | "ALL">("ALL");
-  const [selected, setSelected] = useState(CASES[0]);
-  const filtered = useMemo(() => (filter === "ALL" ? CASES : CASES.filter((c) => c.state === filter)), [filter]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!token || !user?.business_id) return;
+    api
+      .listCases(token, user.business_id)
+      .then((res) => {
+        if (cancelled) return;
+        setCases(res.cases);
+        setSelectedId((prev) => prev ?? res.cases[0]?.case_id ?? null);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(describeError(err));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, user?.business_id]);
+
+  const decorated = useMemo(
+    () =>
+      (cases ?? []).map((c) => {
+        const { caseState, stage } = mapProcessState(c.current_state);
+        const detail = c.latest_event_type ? describeEvent(c.latest_event_type).label : "No activity yet";
+        return { ...c, caseState, stage, detail };
+      }),
+    [cases],
+  );
+
+  const filtered = useMemo(
+    () => (filter === "ALL" ? decorated : decorated.filter((c) => c.caseState === filter)),
+    [decorated, filter],
+  );
+
+  const selected = useMemo(
+    () => decorated.find((c) => c.case_id === selectedId) ?? decorated[0] ?? null,
+    [decorated, selectedId],
+  );
+
   const counts = useMemo(() => {
     const c = { needsHuman: 0, booked: 0, qualifying: 0 };
-    CASES.forEach((x) => {
-      if (x.state === "NEEDS_HUMAN") c.needsHuman++;
-      if (x.state === "BOOKED") c.booked++;
-      if (x.state === "QUALIFYING") c.qualifying++;
+    decorated.forEach((x) => {
+      if (x.caseState === "NEEDS_HUMAN") c.needsHuman++;
+      if (x.caseState === "BOOKED") c.booked++;
+      if (x.caseState === "QUALIFYING") c.qualifying++;
     });
     return c;
-  }, []);
+  }, [decorated]);
 
   return (
     <div className="min-h-screen w-full flex" style={{ backgroundColor: "#F7F6F2", fontFamily: "'Inter', sans-serif", color: "#171A21" }}>
       <Sidebar />
       <main className="flex-1 min-w-0 flex flex-col">
-        <PreviewBanner text="Preview data — the live cases feed ships with the staff dashboard API (next milestone)." />
         <header className="flex items-center justify-between px-6 md:px-8 py-4 border-b border-[#E7E5DE]">
           <div>
             <h1 className="text-xl" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>Leads & cases</h1>
-            <p className="text-sm text-[#6B7280] mt-0.5">Every conversation your engine has handled since 8:00am</p>
+            <p className="text-sm text-[#6B7280] mt-0.5">Every conversation your engine has handled</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative hidden sm:block">
@@ -70,89 +107,103 @@ export default function Dashboard() {
         </header>
 
         <div className="p-6 md:p-8 flex flex-col gap-6">
+          {error && (
+            <div className="px-4 py-3 rounded-lg text-sm" style={{ backgroundColor: "#FBEBE9", color: "#8A3225" }}>
+              Couldn't load your leads: {error}
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-3">
-            <StatCard label="Needs your attention" value={counts.needsHuman} sub="respond soon" tone="#C97A1F" />
-            <StatCard label="Qualifying now" value={counts.qualifying} sub="engine working" tone="#3A3EA6" />
-            <StatCard label="Booked this week" value={counts.booked} sub="+2 vs last wk" tone="#1E7B52" />
-            <StatCard label="Avg. reply time" value="38s" sub="engine-side" />
+            <StatCard label="Needs your attention" value={counts.needsHuman} tone="#C97A1F" />
+            <StatCard label="Qualifying now" value={counts.qualifying} tone="#3A3EA6" />
+            <StatCard label="Booked" value={counts.booked} tone="#1E7B52" />
+            <StatCard label="Total cases" value={decorated.length} />
           </div>
 
-          <div className="flex flex-col lg:flex-row gap-6">
-            <div className="flex-1 min-w-0 bg-white rounded-2xl border border-[#E7E5DE] overflow-hidden">
-              <div className="flex items-center gap-2 px-5 py-3 border-b border-[#E7E5DE] overflow-x-auto">
-                {FILTERS.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => setFilter(s)}
-                    className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors"
-                    style={{ backgroundColor: filter === s ? "#171A21" : "transparent", color: filter === s ? "#fff" : "#6B7280" }}
-                  >
-                    {s === "ALL" ? "All" : STATE_META[s].label}
-                  </button>
-                ))}
-              </div>
-              <ul>
-                {filtered.map((c) => (
-                  <li
-                    key={c.id}
-                    onClick={() => setSelected(c)}
-                    className="px-5 py-4 border-b border-[#F0EFE9] last:border-0 cursor-pointer transition-colors"
-                    style={{ backgroundColor: selected.id === c.id ? "#FAFAF7" : "transparent" }}
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-sm font-semibold truncate">{c.name}</span>
-                          <span className="text-[11px] text-[#9AA1AC]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{c.id}</span>
+          {cases === null && !error ? (
+            <div className="flex items-center gap-2 text-sm text-[#6B7280] py-12 justify-center">
+              <Loader2 size={16} className="animate-spin" /> Loading your leads…
+            </div>
+          ) : decorated.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-[#E7E5DE] px-6 py-12 text-center text-sm text-[#6B7280]">
+              No leads yet. Once a customer messages your widget or number, cases will show up here in real time.
+            </div>
+          ) : (
+            <div className="flex flex-col lg:flex-row gap-6">
+              <div className="flex-1 min-w-0 bg-white rounded-2xl border border-[#E7E5DE] overflow-hidden">
+                <div className="flex items-center gap-2 px-5 py-3 border-b border-[#E7E5DE] overflow-x-auto">
+                  {FILTERS.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setFilter(s)}
+                      className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors"
+                      style={{ backgroundColor: filter === s ? "#171A21" : "transparent", color: filter === s ? "#fff" : "#6B7280" }}
+                    >
+                      {s === "ALL" ? "All" : STATE_META[s].label}
+                    </button>
+                  ))}
+                </div>
+                <ul>
+                  {filtered.map((c) => (
+                    <li
+                      key={c.case_id}
+                      onClick={() => setSelectedId(c.case_id)}
+                      className="px-5 py-4 border-b border-[#F0EFE9] last:border-0 cursor-pointer transition-colors"
+                      style={{ backgroundColor: selected?.case_id === c.case_id ? "#FAFAF7" : "transparent" }}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-semibold truncate">{c.lead.name || "Unnamed lead"}</span>
+                            <span className="text-[11px] text-[#9AA1AC]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{c.case_id.slice(0, 8)}</span>
+                          </div>
+                          <div className="text-sm text-[#6B7280] truncate">{c.detail}</div>
                         </div>
-                        <div className="text-sm text-[#6B7280] truncate">{c.service} · {c.detail}</div>
+                        <div className="flex flex-col items-end gap-2 shrink-0">
+                          <StatePill state={c.caseState} />
+                          <span className="text-[11px] text-[#9AA1AC] flex items-center gap-1"><Clock size={11} /> {formatRelativeTime(c.updated_at)}</span>
+                        </div>
                       </div>
-                      <div className="flex flex-col items-end gap-2 shrink-0">
-                        <StatePill state={c.state} />
-                        <span className="text-[11px] text-[#9AA1AC] flex items-center gap-1"><Clock size={11} /> {c.time}</span>
-                      </div>
-                    </div>
-                    <div className="mt-3"><Stepper stage={c.stage} color={STATE_META[c.state].color} /></div>
-                  </li>
-                ))}
-              </ul>
-            </div>
+                      <div className="mt-3"><Stepper stage={c.stage} color={STATE_META[c.caseState].color} /></div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
 
-            <div className="w-full lg:w-80 shrink-0 bg-white rounded-2xl border border-[#E7E5DE] p-5 h-fit sticky top-6">
-              <div className="flex items-center justify-between mb-4">
-                <span className="text-[11px] uppercase tracking-wide text-[#9AA1AC] font-medium" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{selected.id}</span>
-                <StatePill state={selected.state} />
-              </div>
-              <h2 className="text-lg font-semibold mb-1">{selected.name}</h2>
-              <p className="text-sm text-[#6B7280] mb-4">{selected.service} · {selected.channel}</p>
-              <div className="mb-5">
-                <div className="text-xs font-medium text-[#9AA1AC] mb-2">Where this case is</div>
-                <Stepper stage={selected.stage} color={STATE_META[selected.state].color} />
-                <div className="flex justify-between mt-1.5">
-                  {STAGES.map((s) => <span key={s} className="text-[10px] text-[#9AA1AC]" style={{ width: 40 }}>{s}</span>)}
+              {selected && (
+                <div className="w-full lg:w-80 shrink-0 bg-white rounded-2xl border border-[#E7E5DE] p-5 h-fit sticky top-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-[11px] uppercase tracking-wide text-[#9AA1AC] font-medium" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{selected.case_id.slice(0, 8)}</span>
+                    <StatePill state={selected.caseState} />
+                  </div>
+                  <h2 className="text-lg font-semibold mb-1">{selected.lead.name || "Unnamed lead"}</h2>
+                  <p className="text-sm text-[#6B7280] mb-4">{selected.event_count} event{selected.event_count === 1 ? "" : "s"} recorded</p>
+                  <div className="mb-5">
+                    <div className="text-xs font-medium text-[#9AA1AC] mb-2">Where this case is</div>
+                    <Stepper stage={selected.stage} color={STATE_META[selected.caseState].color} />
+                    <div className="flex justify-between mt-1.5">
+                      {STAGES.map((s) => <span key={s} className="text-[10px] text-[#9AA1AC]" style={{ width: 40 }}>{s}</span>)}
+                    </div>
+                  </div>
+                  <div className="rounded-xl p-3 mb-5" style={{ backgroundColor: "#FAFAF7" }}>
+                    <p className="text-sm leading-relaxed">{selected.detail}</p>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <button onClick={() => navigate(`/app/conversations?case=${selected.case_id}`)} className="w-full py-2.5 rounded-lg text-sm font-medium text-white flex items-center justify-center gap-2" style={{ backgroundColor: "#171A21" }}>
+                      Open conversation <ArrowUpRight size={14} />
+                    </button>
+                    {selected.caseState === "NEEDS_HUMAN" && (
+                      <button disabled title="Mark resolved isn't wired to the engine yet" className="w-full py-2.5 rounded-lg text-sm font-medium border border-[#E7E5DE] opacity-50 cursor-not-allowed">Mark resolved</button>
+                    )}
+                  </div>
+                  <div className="mt-5 pt-4 border-t border-[#F0EFE9] flex items-center gap-4 text-xs text-[#6B7280]">
+                    <span className="flex items-center gap-1.5"><Phone size={12} /> {selected.lead.phone || "Not on file"}</span>
+                    <span className="flex items-center gap-1.5"><Mail size={12} /> {selected.lead.email || "Not on file"}</span>
+                  </div>
                 </div>
-              </div>
-              <div className="rounded-xl p-3 mb-5" style={{ backgroundColor: "#FAFAF7" }}>
-                <p className="text-sm leading-relaxed">{selected.detail}</p>
-              </div>
-              {selected.state === "NEEDS_HUMAN" ? (
-                <div className="flex flex-col gap-2">
-                  <button onClick={() => navigate("/app/conversations")} className="w-full py-2.5 rounded-lg text-sm font-medium text-white flex items-center justify-center gap-2" style={{ backgroundColor: "#171A21" }}>
-                    Open conversation <ArrowUpRight size={14} />
-                  </button>
-                  <button className="w-full py-2.5 rounded-lg text-sm font-medium border border-[#E7E5DE]">Mark resolved</button>
-                </div>
-              ) : (
-                <button onClick={() => navigate("/app/conversations")} className="w-full py-2.5 rounded-lg text-sm font-medium border border-[#E7E5DE] flex items-center justify-center gap-2">
-                  <MessageSquare size={14} /> View full conversation
-                </button>
               )}
-              <div className="mt-5 pt-4 border-t border-[#F0EFE9] flex items-center gap-4 text-xs text-[#6B7280]">
-                <span className="flex items-center gap-1.5"><Phone size={12} /> On file</span>
-                <span className="flex items-center gap-1.5"><Mail size={12} /> On file</span>
-              </div>
             </div>
-          </div>
+          )}
         </div>
       </main>
     </div>

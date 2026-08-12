@@ -120,6 +120,16 @@ def require_business_owner(
     return user
 
 
+def require_own_business(
+    business_id: BusinessIdPath,
+    user: Annotated[StaffUser, Depends(get_current_staff_user)],
+) -> StaffUser:
+    """Staff-facing dashboard endpoints: the caller may only see their own tenant."""
+    if user.business_id != business_id:
+        raise ForbiddenError("Not permitted for this business")
+    return user
+
+
 def resolve_business(
     request: Request,
     business_id: BusinessIdPath,

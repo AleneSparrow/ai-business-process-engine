@@ -5,12 +5,15 @@
  *   POST /api/v1/auth/login
  *   POST /api/v1/auth/logout
  *   GET  /api/v1/auth/me
- *   POST /api/v1/businesses          (self-serve onboarding)
- *   GET  /api/v1/businesses/{id}     (safe public metadata)
+ *   POST /api/v1/businesses                                    (self-serve onboarding)
+ *   GET  /api/v1/businesses/{id}                                (safe public metadata)
+ *   GET  /api/v1/businesses/{id}/cases                          (Milestone 8 slice 2)
+ *   GET  /api/v1/businesses/{id}/cases/{case_id}                (Milestone 8 slice 2)
+ *   GET  /api/v1/businesses/{id}/conversations                  (Milestone 8 slice 2)
+ *   GET  /api/v1/businesses/{id}/conversations/{conversation_id} (Milestone 8 slice 2)
  *
- * There is deliberately no client here for a staff dashboard/conversation API —
- * that backend (Milestone 8 slice 2) has not been built yet. Dashboard/Conversation/
- * Settings pages in this app use static preview data until it exists.
+ * The dashboard endpoints above are read-only for now — there is no reply/mark-resolved
+ * backend yet, so Settings and the reply box in Conversation still use preview data.
  */
 
 export interface ApiErrorPayload {
@@ -106,6 +109,90 @@ export interface OnboardingPayload {
   enforce_service_area: boolean;
 }
 
+export type ProcessState =
+  | "NEW_LEAD"
+  | "CONTACTED"
+  | "QUALIFYING"
+  | "QUALIFIED"
+  | "BOOKED"
+  | "QUOTED"
+  | "FOLLOW_UP"
+  | "WON"
+  | "PAID"
+  | "COMPLETED"
+  | "REVIEW_REQUESTED"
+  | "REACTIVATION"
+  | "NEEDS_HUMAN"
+  | "LOST"
+  | "CANCELLED";
+
+export interface DashboardLead {
+  lead_id: string;
+  name: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
+export interface DashboardCaseSummary {
+  case_id: string;
+  lead: DashboardLead;
+  current_state: ProcessState;
+  created_at: string;
+  updated_at: string;
+  event_count: number;
+  latest_event_type: string | null;
+}
+
+export interface DashboardCaseListResponse {
+  cases: DashboardCaseSummary[];
+}
+
+export interface DashboardEvent {
+  event_id: string;
+  event_type: string;
+  source: string;
+  occurred_at: string;
+  payload: Record<string, unknown>;
+}
+
+export interface DashboardCaseDetail {
+  case_id: string;
+  lead: DashboardLead;
+  current_state: ProcessState;
+  created_at: string;
+  updated_at: string;
+  events: DashboardEvent[];
+}
+
+export interface DashboardConversationSummary {
+  conversation_id: string;
+  case_id: string | null;
+  lead_id: string | null;
+  lead_name: string | null;
+  case_state: ProcessState | null;
+  channel: string;
+  status: "ai_active" | "human_takeover_requested" | "human_takeover_active" | "closed";
+  created_at: string;
+  last_activity_at: string;
+}
+
+export interface DashboardConversationListResponse {
+  conversations: DashboardConversationSummary[];
+}
+
+export interface DashboardMessage {
+  message_id: string;
+  direction: "inbound" | "outbound";
+  role: "customer" | "assistant" | "human" | "system";
+  text: string;
+  created_at: string;
+}
+
+export interface DashboardConversationDetail {
+  conversation: DashboardConversationSummary;
+  messages: DashboardMessage[];
+}
+
 export const api = {
   signup: (email: string, password: string) =>
     request<SessionResponse>("/api/v1/auth/signup", {
@@ -131,6 +218,26 @@ export const api = {
     ),
 
   getBusiness: (businessId: string) => request<BusinessResponse>(`/api/v1/businesses/${businessId}`),
+
+  listCases: (token: string, businessId: string) =>
+    request<DashboardCaseListResponse>(`/api/v1/businesses/${businessId}/cases`, { method: "GET" }, token),
+
+  getCase: (token: string, businessId: string, caseId: string) =>
+    request<DashboardCaseDetail>(`/api/v1/businesses/${businessId}/cases/${caseId}`, { method: "GET" }, token),
+
+  listConversations: (token: string, businessId: string) =>
+    request<DashboardConversationListResponse>(
+      `/api/v1/businesses/${businessId}/conversations`,
+      { method: "GET" },
+      token,
+    ),
+
+  getConversation: (token: string, businessId: string, conversationId: string) =>
+    request<DashboardConversationDetail>(
+      `/api/v1/businesses/${businessId}/conversations/${conversationId}`,
+      { method: "GET" },
+      token,
+    ),
 };
 
 export { API_BASE };
