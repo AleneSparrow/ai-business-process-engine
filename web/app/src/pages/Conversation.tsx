@@ -302,7 +302,7 @@ export default function Conversation() {
                     return (
                       <div key={e.event_id} className="flex gap-3">
                         <span className="text-[#9AA1AC] shrink-0" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>
-                          {new Date(e.occurred_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                          {new Date(e.occurred_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
                         </span>
                         <span className="font-medium shrink-0 w-16">{meta.stage}</span>
                         <span className="text-[#6B7280]">{meta.label}</span>

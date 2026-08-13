@@ -46,7 +46,7 @@ const STATUS_COPY: Record<BillingStatus["subscription_status"], { label: string;
 
 function formatDate(iso: string | null): string | null {
   if (!iso) return null;
-  return new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+  return new Date(iso).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 }
 
 export default function Billing() {
