@@ -17,7 +17,7 @@ from pydantic import (
 from src.domain.models import Lead, ProcessCase, ProcessEvent
 from src.domain.qualification import LeadIntakeResult
 from src.domain.states import ProcessState
-from src.domain.tenancy import Business
+from src.domain.tenancy import Business, BusinessDNAVersion
 from src.engine.lead_intake import LeadIntakeService
 from src.domain.conversations import Conversation, ConversationStatus, MessageDirection, MessageRole
 from src.domain.commercial import BookingStatus, PaymentStatus, PaymentType, QuoteStatus
@@ -582,3 +582,68 @@ class StaffReplyRequest(ApiModel):
 class StaffActionResponse(ApiModel):
     conversation: DashboardConversationSchema
     case: DashboardCaseSummarySchema | None
+
+
+class BusinessDNAServiceSchema(ApiModel):
+    id: str
+    name: str
+    questions: tuple[str, ...]
+
+    @classmethod
+    def from_domain(cls, service: Mapping[str, Any]) -> "BusinessDNAServiceSchema":
+        return cls(
+            id=str(service["id"]),
+            name=str(service["name"]),
+            questions=tuple(str(q["prompt"]) for q in service.get("qualification_questions", [])),
+        )
+
+
+class BusinessDNASettingsResponse(ApiModel):
+    version: int
+    updated_at: datetime
+    name: str
+    industry: str
+    tone: str
+    services: tuple[BusinessDNAServiceSchema, ...]
+    service_zip_codes: tuple[str, ...]
+    escalate_on_high_urgency: bool
+    escalate_on_emergency: bool
+
+    @classmethod
+    def from_domain(cls, dna: BusinessDNAVersion) -> "BusinessDNASettingsResponse":
+        config = dna.configuration
+        primary_area = next(
+            (area for area in config["service_areas"] if area["id"] == "primary"),
+            None,
+        )
+        zips = tuple(str(value) for value in primary_area["values"]) if primary_area else ()
+        triggers = set(config["human_escalation"]["triggers"])
+        return cls(
+            version=dna.version,
+            updated_at=dna.created_at,
+            name=str(config["business"]["name"]),
+            industry=str(config["business"]["industry"]),
+            tone=str(config["communication"]["tone"]),
+            services=tuple(BusinessDNAServiceSchema.from_domain(service) for service in config["services"]),
+            service_zip_codes=zips,
+            escalate_on_high_urgency="high" in triggers,
+            escalate_on_emergency="emergency" in triggers,
+        )
+
+
+class BusinessDNAServiceUpdateSchema(ApiModel):
+    id: Annotated[str | None, Field(min_length=1, max_length=128)] = None
+    name: Annotated[str, Field(min_length=1, max_length=200)]
+    questions: Annotated[tuple[Annotated[str, Field(min_length=1, max_length=500)], ...], Field(max_length=20)] = ()
+
+
+class BusinessDNASettingsUpdateRequest(ApiModel):
+    name: Annotated[str, Field(min_length=1, max_length=200)]
+    industry: Annotated[str, Field(min_length=1, max_length=200)]
+    tone: Annotated[str, Field(min_length=1, max_length=500)]
+    services: Annotated[tuple[BusinessDNAServiceUpdateSchema, ...], Field(min_length=1, max_length=50)]
+    service_zip_codes: Annotated[
+        tuple[Annotated[str, Field(min_length=1, max_length=32)], ...], Field(min_length=1, max_length=500)
+    ]
+    escalate_on_high_urgency: bool
+    escalate_on_emergency: bool

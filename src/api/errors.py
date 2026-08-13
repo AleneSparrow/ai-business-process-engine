@@ -12,6 +12,7 @@ from src.persistence.auth_service import EmailAlreadyRegisteredError, InvalidCre
 from src.persistence.business_provisioning_service import (
     AccountAlreadyHasBusinessError,
     BusinessIdTakenError,
+    InvalidBusinessDNAError,
 )
 from src.persistence.errors import (
     CaseNotAwaitingApprovalError,
@@ -273,6 +274,18 @@ def install_error_handlers(app: FastAPI) -> None:
         code = "business_id_taken"
         _log_error(request, code, 409, type(exc).__name__)
         return _response(request, 409, code, "A business with this name is already registered")
+
+    @app.exception_handler(InvalidBusinessDNAError)
+    async def invalid_business_dna_handler(request: Request, exc: InvalidBusinessDNAError) -> JSONResponse:
+        code = "invalid_business_dna"
+        _log_error(request, code, 422, type(exc).__name__)
+        return _response(
+            request,
+            422,
+            code,
+            "That change would produce an invalid business configuration",
+            details=[{"message": str(exc)}],
+        )
 
     @app.exception_handler(Exception)
     async def unexpected_error_handler(request: Request, exc: Exception) -> JSONResponse:

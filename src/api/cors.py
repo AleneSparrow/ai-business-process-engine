@@ -29,7 +29,15 @@ class ConfiguredCORSMiddleware:
         if is_preflight:
             response_headers = {
                 "Vary": "Origin",
-                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                # Every method a route in this app actually uses. PUT was missing
+                # until the Business DNA settings endpoint (the first PUT route in
+                # the app -- everything before it used POST) needed it: the browser
+                # preflight would report PUT disallowed and the real request never
+                # went out, surfacing to `fetch()` as an opaque "Failed to fetch"
+                # with no server-side trace at all (same-origin calls, which skip
+                # preflight entirely, worked the whole time -- that's what made it
+                # look request-specific rather than method-specific).
+                "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type, X-Request-ID, Authorization",
                 "Access-Control-Max-Age": "600",
             }

@@ -24,15 +24,27 @@ TypeScript app that talks to the actual backend in `src/api` (not a mockup).
   case's pending transition (the state the engine wanted to move to before it escalated to
   `NEEDS_HUMAN` — see `StaffActionService` in `src/persistence/staff_action_service.py`)
   and closes the conversation. Only enabled while the case is actually `NEEDS_HUMAN`.
+- **Business DNA (Settings)** — `GET`/`PUT /api/v1/businesses/{id}/dna` reads and edits the
+  real, active Business DNA: name/industry, communication tone, the service list with each
+  service's qualification questions, service-area zip codes, and which customer-urgency
+  signals (`high`/`emergency` — real `Urgency` values the engine extracts per message, see
+  `QualificationService.evaluate`) escalate a case to a human. Every save creates a new,
+  versioned Business DNA record (`BusinessDNASettingsService` in
+  `src/persistence/business_dna_settings_service.py`) rather than overwriting history, and
+  only touches those fields — pricing, booking hours, payment, and everything else already
+  configured carries over unchanged. The old mock UI's radius slider and its three
+  illustrative escalation checkboxes are gone: they didn't correspond to anything the engine
+  actually reads (only postal-code matching and the two urgency values above are real).
 
-All of the above (Milestone 8 slice 2 and its reply/resolve follow-up) are
-staff-authenticated and scoped to your own `business_id` server-side — a session token for
-one business cannot read or act on another's data.
+All of the above (Milestone 8 slice 2 and its reply/resolve/Business-DNA-settings
+follow-ups) are staff-authenticated and scoped to your own `business_id` server-side — a
+session token for one business cannot read or act on another's data.
 
 ## What's still not wired
 
-- **Settings** still renders the original prototype's static `SETTINGS_INITIAL` content —
-  editing live Business DNA from the UI hasn't been built.
+- Pricing, booking hours/availability, and payment configuration aren't editable from the
+  UI yet — they carry the safe defaults `build_business_dna` (self-serve onboarding) sets,
+  editable only by hand-editing a Business DNA version directly.
 
 ## Running it
 

@@ -13,10 +13,15 @@
  *   GET  /api/v1/businesses/{id}/conversations/{conversation_id} (Milestone 8 slice 2)
  *   POST /api/v1/businesses/{id}/conversations/{conversation_id}/reply   (staff reply)
  *   POST /api/v1/businesses/{id}/conversations/{conversation_id}/resolve (staff resolve)
+ *   GET  /api/v1/businesses/{id}/dna                            (live Business DNA settings)
+ *   PUT  /api/v1/businesses/{id}/dna                            (live Business DNA settings)
  *
  * reply/resolve only work while the case is actually NEEDS_HUMAN with a pending
  * transition (see StaffActionService) — resolve approves that exact pending
- * transition, it doesn't invent a new one. Settings still uses preview data.
+ * transition, it doesn't invent a new one. The dna endpoints only touch what
+ * Settings actually edits (name/industry/tone, services + their qualification
+ * questions, service-area zip codes, urgency-based escalation) — see
+ * BusinessDNASettingsService for what's carried over unchanged.
  */
 
 export interface ApiErrorPayload {
@@ -201,6 +206,40 @@ export interface StaffActionResponse {
   case: DashboardCaseSummary | null;
 }
 
+export interface BusinessDNAService {
+  id: string;
+  name: string;
+  questions: string[];
+}
+
+export interface BusinessDNASettings {
+  version: number;
+  updated_at: string;
+  name: string;
+  industry: string;
+  tone: string;
+  services: BusinessDNAService[];
+  service_zip_codes: string[];
+  escalate_on_high_urgency: boolean;
+  escalate_on_emergency: boolean;
+}
+
+export interface BusinessDNAServiceUpdate {
+  id?: string;
+  name: string;
+  questions: string[];
+}
+
+export interface BusinessDNASettingsUpdate {
+  name: string;
+  industry: string;
+  tone: string;
+  services: BusinessDNAServiceUpdate[];
+  service_zip_codes: string[];
+  escalate_on_high_urgency: boolean;
+  escalate_on_emergency: boolean;
+}
+
 export const api = {
   signup: (email: string, password: string) =>
     request<SessionResponse>("/api/v1/auth/signup", {
@@ -258,6 +297,16 @@ export const api = {
     request<StaffActionResponse>(
       `/api/v1/businesses/${businessId}/conversations/${conversationId}/resolve`,
       { method: "POST", body: JSON.stringify({}) },
+      token,
+    ),
+
+  getBusinessDNASettings: (token: string, businessId: string) =>
+    request<BusinessDNASettings>(`/api/v1/businesses/${businessId}/dna`, { method: "GET" }, token),
+
+  updateBusinessDNASettings: (token: string, businessId: string, payload: BusinessDNASettingsUpdate) =>
+    request<BusinessDNASettings>(
+      `/api/v1/businesses/${businessId}/dna`,
+      { method: "PUT", body: JSON.stringify(payload) },
       token,
     ),
 };

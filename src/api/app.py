@@ -23,7 +23,7 @@ from .middleware import RequestContextMiddleware
 from .cors import ConfiguredCORSMiddleware
 from .rate_limit import InMemorySlidingWindowRateLimiter
 from .observability import configure_logging, log_event
-from .routes import auth, businesses, dashboard, health, lead_intake, onboarding, public_conversations
+from .routes import auth, business_dna, businesses, dashboard, health, lead_intake, onboarding, public_conversations
 
 
 def _maybe_run_migrations_on_startup(runtime_settings: Settings) -> None:
@@ -151,6 +151,7 @@ def create_app(
     application.include_router(businesses.router)
     application.include_router(onboarding.router)
     application.include_router(dashboard.router)
+    application.include_router(business_dna.router)
     application.include_router(lead_intake.router)
     application.include_router(public_conversations.router)
     application.mount(
