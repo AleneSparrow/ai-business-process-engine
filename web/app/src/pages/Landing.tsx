@@ -32,22 +32,22 @@ function ChatBubble() {
     <div className="bg-white rounded-2xl border border-[#E7E5DE] shadow-[0_1px_2px_rgba(0,0,0,0.03)] p-5 w-full max-w-sm">
       <div className="flex items-center justify-between mb-4">
         <span className="text-xs font-medium text-[#9AA1AC]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-          acme-home-services · web chat
+          acme-co · web chat
         </span>
         <Stepper stage={step} />
       </div>
       <div className="flex flex-col gap-2.5">
         <div className="self-start bg-[#F1F1EF] rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm max-w-[85%]">
-          Hi, my furnace is making a rattling noise, can someone come look today?
+          Hi, I saw your pricing page — can someone walk me through getting started?
         </div>
         <div
           className="self-end text-white rounded-2xl rounded-br-sm px-3.5 py-2.5 text-sm max-w-[85%]"
           style={{ backgroundColor: "#3A3EA6" }}
         >
-          I can get that scheduled. What's the service zip code, and is anyone home this afternoon?
+          Happy to help. What are you looking to get done, and what's your timeline?
         </div>
         <div className="self-start bg-[#F1F1EF] rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm max-w-[85%]">
-          60601, yes I'll be home after 2pm
+          Onboarding automation for ~50 leads/month, ideally live this month
         </div>
       </div>
       <button
@@ -174,7 +174,7 @@ export default function Landing() {
       <section className="max-w-6xl mx-auto px-6 pt-16 md:pt-24 pb-16 grid md:grid-cols-2 gap-12 items-center">
         <div>
           <div className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full mb-6" style={{ backgroundColor: "#EEEEF9", color: "#3A3EA6" }}>
-            <Zap size={12} /> Built for service businesses
+            <Zap size={12} /> Adaptive to any business
           </div>
           <h1 className="text-4xl md:text-5xl leading-[1.08] mb-5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>
             Every lead gets answered.<br />Every step gets logged.
@@ -218,7 +218,7 @@ export default function Landing() {
         <div className="grid md:grid-cols-2 gap-x-16">
           <div>
             <StepRow n="1" title="A customer messages your business" body="Through your website chat or a text — Atelier picks it up the moment it arrives." />
-            <StepRow n="2" title="It qualifies against your rules" body="Service area, required details, urgency — defined by you, applied every time, the same way." />
+            <StepRow n="2" title="It qualifies against your rules" body="Your questions, required details, urgency — defined by you, applied every time, the same way." />
             <StepRow n="3" title="It decides, or it asks you" body="Clear cases move forward on their own. Anything ambiguous escalates to you, in plain language." last />
           </div>
           <div className="mt-2 md:mt-[52px]">
@@ -258,10 +258,10 @@ export default function Landing() {
             <div className="flex flex-col gap-2.5 text-sm">
               {[
                 ["09:41:02", "Trigger", "Inbound web chat message received"],
-                ["09:41:03", "Context", "Matched existing lead by phone"],
-                ["09:41:04", "Decision", "Missing required field: service zip"],
+                ["09:41:03", "Context", "Matched existing lead by email"],
+                ["09:41:04", "Decision", "Missing required field: project timeline"],
                 ["09:41:04", "Action", "Sent clarifying question"],
-                ["09:44:18", "Result", "Escalated — outside standard radius"],
+                ["09:44:18", "Result", "Escalated — customer flagged this as urgent"],
               ].map(([time, stage, desc]) => (
                 <div key={stage} className="flex gap-3">
                   <span className="text-[#9AA1AC] shrink-0" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>{time}</span>
