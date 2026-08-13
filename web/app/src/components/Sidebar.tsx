@@ -10,9 +10,9 @@ function NavItem({
   active,
   onClick,
 }: {
-  // size is `string | number` on lucide-react's own prop type -- widened to
-  // match, same fix as AreaOption in Shared.tsx.
-  icon: ComponentType<{ size?: number | string; strokeWidth?: number }>;
+  // size and strokeWidth are both `string | number` on lucide-react's own
+  // prop type -- widened to match, same fix as AreaOption in Shared.tsx.
+  icon: ComponentType<{ size?: number | string; strokeWidth?: number | string }>;
   label: string;
   active: boolean;
   onClick: () => void;

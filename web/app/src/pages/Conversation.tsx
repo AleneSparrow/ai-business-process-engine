@@ -166,7 +166,7 @@ export default function Conversation() {
                         <span className="text-sm font-semibold">{c.lead_name || "Unnamed lead"}</span>
                         <span className="text-[11px] text-[#9AA1AC]">{formatRelativeTime(c.last_activity_at)}</span>
                       </div>
-                      <div className="text-xs text-[#6B7280] truncate mb-1.5">{c.channel} · {c.status.replaceAll("_", " ")}</div>
+                      <div className="text-xs text-[#6B7280] truncate mb-1.5">{c.channel} · {c.status.replace(/_/g, " ")}</div>
                       {c.case_state && <StatePill state={meta.caseState} />}
                     </li>
                   );
@@ -196,7 +196,7 @@ export default function Conversation() {
                           {detail.conversation.case_id ? detail.conversation.case_id.slice(0, 8) : detail.conversation.conversation_id.slice(0, 8)}
                         </span>
                       </div>
-                      <p className="text-xs text-[#6B7280] mt-0.5">{detail.conversation.channel} · {detail.conversation.status.replaceAll("_", " ")}</p>
+                      <p className="text-xs text-[#6B7280] mt-0.5">{detail.conversation.channel} · {detail.conversation.status.replace(/_/g, " ")}</p>
                     </div>
                   </div>
                   {stateInfo && <StatePill state={stateInfo.caseState} />}
