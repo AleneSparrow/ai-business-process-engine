@@ -1,17 +1,26 @@
-import { useState, type ComponentType } from "react";
+import { useMemo, useState, type ComponentType } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  ArrowRight, ArrowLeft, Check, Plus, X, Building2, Wrench, MapPin,
+  ArrowRight, ArrowLeft, Check, Plus, X, Building2, Wrench, MapPin, Globe,
   MessageCircleQuestion, ShieldAlert, Sparkles,
 } from "lucide-react";
 import { useAuth, describeError } from "../auth/AuthContext";
 import { api, type OnboardingServicePayload } from "../api/client";
-import { Field, inputCls, ToneOption } from "../components/Shared";
+import { AreaOption, Field, inputCls, ToneOption } from "../components/Shared";
+
+/**
+ * Adaptive to any business, not just a fixed vertical -- see
+ * src/domain/business_dna_builder.py for how each answer here maps onto the
+ * real Business DNA. Nothing in this wizard assumes a home-services /
+ * appointment-based business: "Who can you serve?" supports a fully remote
+ * business with no fixed area (maps to a `remote` service area, not
+ * `postal_codes`), and industry is free text, not a fixed list.
+ */
 
 const OB_STEPS: { key: string; label: string; icon: ComponentType<{ size?: number }> }[] = [
   { key: "basics", label: "Business", icon: Building2 },
   { key: "services", label: "Services", icon: Wrench },
-  { key: "area", label: "Service area", icon: MapPin },
+  { key: "area", label: "Who you serve", icon: MapPin },
   { key: "questions", label: "Questions", icon: MessageCircleQuestion },
   { key: "escalation", label: "Escalation", icon: ShieldAlert },
   { key: "review", label: "Review", icon: Sparkles },
@@ -55,37 +64,81 @@ const TONE_OPTIONS: [string, string][] = [
   ["Casual & brief", "Short, plain texts"],
 ];
 
-const ESCALATION_OPTIONS: [string, string, string][] = [
-  ["outsideArea", "Lead is outside your service area", "Never auto-books a job it can't confirm you can reach."],
-  ["priceObjection", "Customer pushes back on price", "Pricing conversations route to you by default. (Detecting this automatically is on the roadmap — for now every case routes to human review.)"],
-  ["angryTone", "Message reads as frustrated or urgent", "Tone signals that call for a person, not a script. (Also on the roadmap — every case currently routes to human review by default.)"],
+/** Free-text industry with suggestions -- not a fixed list. The business isn't
+ * limited to any one of these; a <datalist> just speeds up typing. */
+const INDUSTRY_SUGGESTIONS = [
+  "Consulting", "Coaching", "Real estate", "Legal services", "Health & wellness",
+  "Education & tutoring", "Marketing agency", "E-commerce", "SaaS / Software",
+  "Financial services", "Events & photography", "Home services", "Auto repair",
+  "Restaurant & hospitality",
 ];
+
+/** Both map to real `intent.urgency` values the engine extracts per message (see
+ * `Urgency` in src/domain/qualification.py) -- `QualificationService.evaluate()`
+ * checks `intent.urgency.value in business_dna["human_escalation"]["triggers"]`
+ * directly, so these are the actual, live escalation switches. The previous
+ * three-checkbox version of this step was never sent to the backend at all. */
+const ESCALATION_OPTIONS: [keyof EscalationState, string, string][] = [
+  ["highUrgency", "Customer describes it as high urgency", "Hands off to you instead of letting the engine keep qualifying on its own."],
+  ["emergency", "Customer describes it as an emergency", "Always hands off immediately — no automated next step at all."],
+];
+
+const DEFAULT_QUESTION_SEED = ["What can we help you with?"];
+
+interface EscalationState {
+  highUrgency: boolean;
+  emergency: boolean;
+}
 
 export default function Onboarding() {
   const navigate = useNavigate();
   const { user, setUser, token } = useAuth();
 
   const [step, setStep] = useState(0);
-  const [business, setBusiness] = useState({ name: "", industry: "Home services", tone: "Friendly & direct" });
-  const [services, setServices] = useState<string[]>(["Furnace diagnostic", "AC repair", "Drain cleaning"]);
+  const [business, setBusiness] = useState({ name: "", industry: "", tone: "Friendly & direct" });
+  const [services, setServices] = useState<string[]>([]);
   const [newService, setNewService] = useState("");
-  const [radius, setRadius] = useState(25);
-  const [zips, setZips] = useState("60601, 60602, 60603");
-  const [questions, setQuestions] = useState<Record<string, string[]>>({
-    "Furnace diagnostic": ["Unit age?", "Making unusual noise or smell?"],
-  });
-  const [escalation, setEscalation] = useState({ outsideArea: true, priceObjection: true, angryTone: true });
+  const [areaMode, setAreaMode] = useState<"remote" | "local" | null>(null);
+  const [zips, setZips] = useState("");
+  const [questions, setQuestions] = useState<Record<string, string[]>>({});
+  const [escalation, setEscalation] = useState<EscalationState>({ highUrgency: true, emergency: true });
   const [launched, setLaunched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [attemptedContinue, setAttemptedContinue] = useState(false);
 
-  const next = () => setStep((s) => Math.min(s + 1, OB_STEPS.length - 1));
-  const back = () => setStep((s) => Math.max(s - 1, 0));
-  const addService = () => {
-    if (newService.trim()) {
-      setServices([...services, newService.trim()]);
-      setNewService("");
+  const zipList = useMemo(() => zips.split(",").map((z) => z.trim()).filter(Boolean), [zips]);
+
+  const canContinue = useMemo(() => {
+    switch (OB_STEPS[step].key) {
+      case "basics":
+        return business.name.trim().length > 0 && business.industry.trim().length > 0;
+      case "services":
+        return services.length > 0;
+      case "area":
+        return areaMode === "remote" || (areaMode === "local" && zipList.length > 0);
+      default:
+        return true;
     }
+  }, [step, business, services, areaMode, zipList]);
+
+  const next = () => {
+    if (!canContinue) {
+      setAttemptedContinue(true);
+      return;
+    }
+    setAttemptedContinue(false);
+    setStep((s) => Math.min(s + 1, OB_STEPS.length - 1));
+  };
+  const back = () => {
+    setAttemptedContinue(false);
+    setStep((s) => Math.max(s - 1, 0));
+  };
+  const addService = () => {
+    const v = newService.trim();
+    if (!v || services.some((s) => s.toLowerCase() === v.toLowerCase())) return;
+    setServices([...services, v]);
+    setNewService("");
   };
 
   async function launch() {
@@ -95,20 +148,18 @@ export default function Onboarding() {
     try {
       const servicePayloads: OnboardingServicePayload[] = services.map((name) => ({
         name,
-        questions: (questions[name] ?? []).map((q) => q.trim()).filter(Boolean),
+        questions: (questions[name] ?? DEFAULT_QUESTION_SEED).map((q) => q.trim()).filter(Boolean),
       }));
-      const zipCodes = zips
-        .split(",")
-        .map((z) => z.trim())
-        .filter(Boolean);
 
       const created = await api.createBusiness(token, {
         business_name: business.name.trim() || "Untitled business",
-        industry: business.industry,
+        industry: business.industry.trim(),
         tone: business.tone,
         services: servicePayloads,
-        service_zip_codes: zipCodes,
-        enforce_service_area: true,
+        service_zip_codes: areaMode === "local" ? zipList : [],
+        enforce_service_area: areaMode === "local",
+        escalate_on_high_urgency: escalation.highUrgency,
+        escalate_on_emergency: escalation.emergency,
       });
 
       if (user) {
@@ -153,14 +204,25 @@ export default function Onboarding() {
                 {step === 0 && (
                   <>
                     <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>Tell us about your business</h2>
-                    <p className="text-sm text-[#6B7280] mb-7">This shapes how your engine talks to every customer.</p>
+                    <p className="text-sm text-[#6B7280] mb-7">This shapes how your engine talks to every customer — works for any kind of business.</p>
                     <Field label="Business name">
-                      <input className={inputCls} placeholder="Acme Home Services" value={business.name} onChange={(e) => setBusiness({ ...business, name: e.target.value })} />
+                      <input className={inputCls} placeholder="e.g. Acme Studio" value={business.name} onChange={(e) => setBusiness({ ...business, name: e.target.value })} />
+                      {attemptedContinue && !business.name.trim() && <p className="text-xs mt-1.5" style={{ color: "#B4483A" }}>Give it a name to continue.</p>}
                     </Field>
                     <Field label="Industry">
-                      <select className={inputCls} value={business.industry} onChange={(e) => setBusiness({ ...business, industry: e.target.value })}>
-                        <option>Home services</option><option>Auto repair</option><option>Health & wellness</option><option>Professional services</option>
-                      </select>
+                      <input
+                        className={inputCls}
+                        list="industry-suggestions"
+                        placeholder="e.g. Consulting, Real estate, E-commerce…"
+                        value={business.industry}
+                        onChange={(e) => setBusiness({ ...business, industry: e.target.value })}
+                      />
+                      <datalist id="industry-suggestions">
+                        {INDUSTRY_SUGGESTIONS.map((i) => (
+                          <option key={i} value={i} />
+                        ))}
+                      </datalist>
+                      {attemptedContinue && !business.industry.trim() && <p className="text-xs mt-1.5" style={{ color: "#B4483A" }}>Type your industry — anything works.</p>}
                     </Field>
                     <Field label="How should it sound to customers?">
                       <div className="grid sm:grid-cols-3 gap-2.5">
@@ -184,45 +246,72 @@ export default function Onboarding() {
                           {s} <X size={12} className="cursor-pointer text-[#9AA1AC]" onClick={() => setServices(services.filter((x) => x !== s))} />
                         </span>
                       ))}
+                      {services.length === 0 && <span className="text-xs text-[#9AA1AC]">No services yet — add at least one below.</span>}
                     </div>
                     <div className="flex gap-2">
-                      <input className={inputCls} placeholder="Add a service" value={newService} onChange={(e) => setNewService(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addService())} />
+                      <input
+                        className={inputCls}
+                        placeholder="e.g. Consulting call, Product demo, Initial diagnosis"
+                        value={newService}
+                        onChange={(e) => setNewService(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addService())}
+                      />
                       <button type="button" onClick={addService} className="px-4 rounded-lg text-white text-sm font-medium flex items-center gap-1.5 shrink-0" style={{ backgroundColor: "#171A21" }}>
                         <Plus size={14} /> Add
                       </button>
                     </div>
+                    {attemptedContinue && services.length === 0 && <p className="text-xs mt-2.5" style={{ color: "#B4483A" }}>Add at least one to continue.</p>}
                   </>
                 )}
 
                 {step === 2 && (
                   <>
-                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>Where do you work?</h2>
-                    <p className="text-sm text-[#6B7280] mb-7">Leads outside this area escalate to you instead of getting booked automatically.</p>
-                    <Field label="Service radius" hint={`${radius} miles from your base zip code`}>
-                      <input type="range" min="5" max="60" value={radius} onChange={(e) => setRadius(Number(e.target.value))} className="w-full accent-[#3A3EA6]" />
-                    </Field>
-                    <Field label="Known service zip codes" hint="Comma-separated — the engine matches against these first">
-                      <textarea className={inputCls} rows={3} value={zips} onChange={(e) => setZips(e.target.value)} />
-                    </Field>
+                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>Who can you serve?</h2>
+                    <p className="text-sm text-[#6B7280] mb-7">This decides which leads book automatically and which ones escalate to you instead.</p>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <AreaOption
+                        icon={Globe}
+                        label="Anywhere"
+                        desc="Fully remote or online — no fixed location. Every lead qualifies regardless of where they're based."
+                        active={areaMode === "remote"}
+                        onClick={() => setAreaMode("remote")}
+                      />
+                      <AreaOption
+                        icon={MapPin}
+                        label="A specific area"
+                        desc="Only leads inside the zip codes you list book automatically — others go to you instead."
+                        active={areaMode === "local"}
+                        onClick={() => setAreaMode("local")}
+                      />
+                    </div>
+                    {areaMode === "local" && (
+                      <div className="mt-5 dna-fade">
+                        <Field label="Known service zip codes" hint="Comma-separated — the engine matches against these first.">
+                          <textarea className={inputCls} rows={3} placeholder="e.g. 60601, 60602, 60603" value={zips} onChange={(e) => setZips(e.target.value)} />
+                        </Field>
+                        {attemptedContinue && zipList.length === 0 && <p className="text-xs mt-1.5" style={{ color: "#B4483A" }}>Add at least one zip code, or choose "Anywhere" above.</p>}
+                      </div>
+                    )}
+                    {attemptedContinue && areaMode === null && <p className="text-xs mt-3" style={{ color: "#B4483A" }}>Pick one to continue.</p>}
                   </>
                 )}
 
                 {step === 3 && (
                   <>
                     <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>What does it need to ask?</h2>
-                    <p className="text-sm text-[#6B7280] mb-7">Per service, the questions your engine confirms before booking.</p>
+                    <p className="text-sm text-[#6B7280] mb-7">Per service, the questions your engine confirms before qualifying a lead.</p>
                     {services.map((svc) => (
                       <div key={svc} className="mb-5 pb-5 border-b border-[#F0EFE9] last:border-0">
                         <div className="text-sm font-semibold mb-2.5">{svc}</div>
                         <div className="flex flex-col gap-2">
-                          {(questions[svc] || ["What's the issue you're experiencing?"]).map((q, i) => (
+                          {(questions[svc] || DEFAULT_QUESTION_SEED).map((q, i) => (
                             <div key={i} className="flex items-center gap-2">
                               <span className="text-xs text-[#9AA1AC] w-5 shrink-0" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{i + 1}</span>
                               <input
                                 className={inputCls}
                                 value={q}
                                 onChange={(e) => {
-                                  const qs = [...(questions[svc] || [])];
+                                  const qs = [...(questions[svc] || DEFAULT_QUESTION_SEED)];
                                   qs[i] = e.target.value;
                                   setQuestions({ ...questions, [svc]: qs });
                                 }}
@@ -232,7 +321,7 @@ export default function Onboarding() {
                           <button
                             type="button"
                             className="text-xs font-medium text-[#3A3EA6] flex items-center gap-1 mt-0.5 ml-7"
-                            onClick={() => setQuestions({ ...questions, [svc]: [...(questions[svc] || []), ""] })}
+                            onClick={() => setQuestions({ ...questions, [svc]: [...(questions[svc] || DEFAULT_QUESTION_SEED), ""] })}
                           >
                             <Plus size={12} /> Add question
                           </button>
@@ -252,14 +341,14 @@ export default function Onboarding() {
                           key={key}
                           className="flex items-start gap-3 p-4 rounded-xl border cursor-pointer"
                           style={{
-                            borderColor: escalation[key as keyof typeof escalation] ? "#3A3EA6" : "#E7E5DE",
-                            backgroundColor: escalation[key as keyof typeof escalation] ? "#EEEEF9" : "#fff",
+                            borderColor: escalation[key] ? "#3A3EA6" : "#E7E5DE",
+                            backgroundColor: escalation[key] ? "#EEEEF9" : "#fff",
                           }}
                         >
                           <input
                             type="checkbox"
-                            checked={escalation[key as keyof typeof escalation]}
-                            onChange={() => setEscalation({ ...escalation, [key]: !escalation[key as keyof typeof escalation] })}
+                            checked={escalation[key]}
+                            onChange={() => setEscalation({ ...escalation, [key]: !escalation[key] })}
                             className="mt-0.5 accent-[#3A3EA6]"
                           />
                           <div>
@@ -280,8 +369,16 @@ export default function Onboarding() {
                       <div className="flex justify-between"><span className="text-[#6B7280]">Business</span><span className="font-medium">{business.name || "Untitled business"} · {business.industry}</span></div>
                       <div className="flex justify-between"><span className="text-[#6B7280]">Voice</span><span className="font-medium">{business.tone}</span></div>
                       <div className="flex justify-between"><span className="text-[#6B7280]">Services</span><span className="font-medium text-right">{services.join(", ")}</span></div>
-                      <div className="flex justify-between"><span className="text-[#6B7280]">Service radius</span><span className="font-medium">{radius} miles</span></div>
-                      <div className="flex justify-between"><span className="text-[#6B7280]">Escalation rules</span><span className="font-medium">{Object.values(escalation).filter(Boolean).length} active</span></div>
+                      <div className="flex justify-between">
+                        <span className="text-[#6B7280]">Service area</span>
+                        <span className="font-medium">{areaMode === "remote" ? "Anywhere (remote)" : `${zipList.length} zip code${zipList.length === 1 ? "" : "s"}`}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-[#6B7280]">Escalates to you on</span>
+                        <span className="font-medium text-right">
+                          {[escalation.highUrgency && "High urgency", escalation.emergency && "Emergency"].filter(Boolean).join(", ") || "Nothing — never escalates automatically"}
+                        </span>
+                      </div>
                     </div>
                     <div className="flex items-center gap-2 mt-5 text-xs" style={{ color: "#1E7B52" }}>
                       <Check size={14} /> Every service starts on human review — nothing books or quotes itself until you turn that on.

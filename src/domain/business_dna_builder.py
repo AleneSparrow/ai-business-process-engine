@@ -48,8 +48,15 @@ class OnboardingInput:
     industry: str
     tone: str
     services: tuple[OnboardingService, ...]
+    # Empty means "no fixed service area" -- build_business_dna maps that to a
+    # `remote` service area instead of `postal_codes`, so a fully online/
+    # nationwide business (not just a local one) onboards cleanly.
     service_zip_codes: tuple[str, ...]
     enforce_service_area: bool = True
+    # Real Urgency-based escalation triggers (see Urgency in
+    # src/domain/qualification.py, consumed by QualificationService.evaluate).
+    escalate_on_high_urgency: bool = True
+    escalate_on_emergency: bool = True
 
     def __post_init__(self) -> None:
         if not self.business_id.strip():
@@ -60,8 +67,8 @@ class OnboardingInput:
             raise ValueError("industry must not be empty")
         if not self.services:
             raise ValueError("at least one service is required")
-        if not self.service_zip_codes:
-            raise ValueError("at least one service zip code is required")
+        if self.enforce_service_area and not self.service_zip_codes:
+            raise ValueError("at least one service zip code is required when a service area is enforced")
 
 
 def _build_services(services: tuple[OnboardingService, ...]) -> list[dict]:
@@ -109,6 +116,21 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
         if onboarding.enforce_service_area
         else []
     )
+    # No zip codes submitted means the business has no fixed service area at all
+    # (remote/nationwide/online) -- QualificationService._service_area_status()
+    # short-circuits to "inside" for every lead whenever enforce_service_area is
+    # false, so the `remote` area below is never actually read for matching; it
+    # only exists because the schema requires every service to reference at
+    # least one service_area_id with a non-empty `values` array.
+    is_remote = not onboarding.service_zip_codes
+    escalation_triggers = [
+        trigger
+        for trigger, enabled in (
+            ("high", onboarding.escalate_on_high_urgency),
+            ("emergency", onboarding.escalate_on_emergency),
+        )
+        if enabled
+    ]
 
     return {
         "schema_version": "1.1",
@@ -122,7 +144,11 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
         },
         "services": _build_services(onboarding.services),
         "service_areas": [
-            {"id": _SERVICE_AREA_ID, "type": "postal_codes", "values": list(onboarding.service_zip_codes)},
+            {
+                "id": _SERVICE_AREA_ID,
+                "type": "remote" if is_remote else "postal_codes",
+                "values": ["everywhere"] if is_remote else list(onboarding.service_zip_codes),
+            },
         ],
         "business_hours": {
             day: [{"opens": "09:00", "closes": "17:00"}] for day in _WEEKDAYS
@@ -142,7 +168,11 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
                 # raises and the customer's chat fails with an unhandled 500 the
                 # first time a message doesn't cleanly match a service or zip.
                 "service_id": "What kind of service do you need help with?",
-                "customer_location": "What's the ZIP code where you need service?",
+                "customer_location": (
+                    "Is there anything else about your location we should know?"
+                    if is_remote
+                    else "What's the ZIP code where you need service?"
+                ),
             },
         },
         "qualification": {
@@ -204,7 +234,7 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
             "minimum_confidence": 0.8,
         },
         "human_escalation": {
-            "triggers": ["low_confidence", "customer_request"],
+            "triggers": escalation_triggers,
             "queue": "operations",
             "response_target_minutes": 30,
             "customer_message": "A team member needs to review your request and will follow up shortly.",

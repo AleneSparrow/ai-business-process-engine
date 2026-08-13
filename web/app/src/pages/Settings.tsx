@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Loader2, Plus, RotateCcw, X } from "lucide-react";
+import { Check, Globe, Loader2, MapPin, Plus, RotateCcw, X } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
-import { Field, formatRelativeTime, inputCls, ToneOption } from "../components/Shared";
+import { AreaOption, Field, formatRelativeTime, inputCls, ToneOption } from "../components/Shared";
 import { useAuth, describeError } from "../auth/AuthContext";
 import { api, type BusinessDNASettings } from "../api/client";
 
@@ -29,6 +29,10 @@ interface SettingsState {
   industry: string;
   tone: string;
   services: DNAServiceState[];
+  /** "remote" = no fixed service area (business.service_zip_codes comes back
+   * empty from the server whenever the active area is `remote` rather than
+   * `postal_codes` — see BusinessDNASettingsResponse.from_domain). */
+  areaMode: "remote" | "local";
   zips: string;
   escalation: { highUrgency: boolean; emergency: boolean };
 }
@@ -63,6 +67,7 @@ function fromServer(dna: BusinessDNASettings): SettingsState {
     industry: dna.industry,
     tone: dna.tone,
     services: dna.services.map((s) => ({ key: nextClientKey(), id: s.id, name: s.name, questions: [...s.questions] })),
+    areaMode: dna.service_zip_codes.length === 0 ? "remote" : "local",
     zips: dna.service_zip_codes.join(", "),
     escalation: { highUrgency: dna.escalate_on_high_urgency, emergency: dna.escalate_on_emergency },
   };
@@ -122,7 +127,7 @@ export default function Settings() {
     state.industry.trim().length > 0 &&
     state.services.length > 0 &&
     state.services.every((s) => s.name.trim().length > 0) &&
-    zipList.length > 0;
+    (state.areaMode === "remote" || zipList.length > 0);
 
   const addService = () => {
     const v = newService.trim();
@@ -150,7 +155,7 @@ export default function Settings() {
           name: s.name.trim(),
           questions: s.questions.map((q) => q.trim()).filter(Boolean),
         })),
-        service_zip_codes: zipList,
+        service_zip_codes: state.areaMode === "local" ? zipList : [],
         escalate_on_high_urgency: state.escalation.highUrgency,
         escalate_on_emergency: state.escalation.emergency,
       });
@@ -268,10 +273,30 @@ export default function Settings() {
               )}
 
               {tab === "area" && (
-                <Field label="Known service zip codes" hint="Comma-separated — the engine matches a customer's stated zip against these first, and treats anything else as outside your area.">
-                  <textarea className={inputCls} rows={3} value={state.zips} onChange={(e) => setState({ ...state, zips: e.target.value })} />
-                  {zipList.length === 0 && <p className="text-xs mt-2" style={{ color: "#B4483A" }}>At least one zip code is required.</p>}
-                </Field>
+                <div>
+                  <div className="grid sm:grid-cols-2 gap-3 mb-5">
+                    <AreaOption
+                      icon={Globe}
+                      label="Anywhere"
+                      desc="Fully remote or online — no fixed location. Every lead qualifies regardless of where they're based."
+                      active={state.areaMode === "remote"}
+                      onClick={() => setState({ ...state, areaMode: "remote" })}
+                    />
+                    <AreaOption
+                      icon={MapPin}
+                      label="A specific area"
+                      desc="Only leads inside the zip codes you list book automatically — others go to you instead."
+                      active={state.areaMode === "local"}
+                      onClick={() => setState({ ...state, areaMode: "local" })}
+                    />
+                  </div>
+                  {state.areaMode === "local" && (
+                    <Field label="Known service zip codes" hint="Comma-separated — the engine matches a customer's stated zip against these first, and treats anything else as outside your area.">
+                      <textarea className={inputCls} rows={3} value={state.zips} onChange={(e) => setState({ ...state, zips: e.target.value })} />
+                      {zipList.length === 0 && <p className="text-xs mt-2" style={{ color: "#B4483A" }}>At least one zip code is required.</p>}
+                    </Field>
+                  )}
+                </div>
               )}
 
               {tab === "questions" && (

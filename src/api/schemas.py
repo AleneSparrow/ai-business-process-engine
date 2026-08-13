@@ -394,18 +394,26 @@ class OnboardingServiceRequest(ApiModel):
 
 class OnboardingRequest(ApiModel):
     business_name: Annotated[str, Field(min_length=1, max_length=255)]
-    industry: Annotated[str, Field(min_length=1, max_length=120)] = "Home services"
+    # No longer defaulted to a specific vertical -- the wizard now requires the
+    # owner to type their own industry (any business, not just home services).
+    industry: Annotated[str, Field(min_length=1, max_length=120)]
     tone: Annotated[str, Field(min_length=1, max_length=60)] = "Friendly & direct"
     services: Annotated[list[OnboardingServiceRequest], Field(min_length=1, max_length=50)]
-    service_zip_codes: Annotated[list[Annotated[str, Field(min_length=1, max_length=20)]], Field(min_length=1, max_length=500)]
+    # Empty means "no fixed service area" (a remote/nationwide business) -- see
+    # build_business_dna, which maps that to a `remote` service area instead of
+    # `postal_codes`. Only required when enforce_service_area is true.
+    service_zip_codes: Annotated[list[Annotated[str, Field(min_length=1, max_length=20)]], Field(max_length=500)] = []
     enforce_service_area: bool = True
+    # Real Urgency-based triggers (see QualificationService.evaluate) -- replaces
+    # the old onboarding wizard's three checkboxes, which were never actually
+    # sent to the backend at all and had no effect on the created business.
+    escalate_on_high_urgency: bool = True
+    escalate_on_emergency: bool = True
 
     @field_validator("service_zip_codes")
     @classmethod
     def validate_zip_codes(cls, value: list[str]) -> list[str]:
         cleaned = [item.strip() for item in value if item.strip()]
-        if not cleaned:
-            raise ValueError("at least one service zip code is required")
         # De-duplicate while preserving order.
         seen: set[str] = set()
         unique = []
@@ -414,6 +422,12 @@ class OnboardingRequest(ApiModel):
                 seen.add(item)
                 unique.append(item)
         return unique
+
+    @model_validator(mode="after")
+    def require_zip_codes_when_area_is_enforced(self) -> "OnboardingRequest":
+        if self.enforce_service_area and not self.service_zip_codes:
+            raise ValueError("at least one service zip code is required when a service area is enforced")
+        return self
 
 
 class BusinessCreatedResponse(ApiModel):
@@ -616,7 +630,16 @@ class BusinessDNASettingsResponse(ApiModel):
             (area for area in config["service_areas"] if area["id"] == "primary"),
             None,
         )
-        zips = tuple(str(value) for value in primary_area["values"]) if primary_area else ()
+        # A `remote` area's `values` is a placeholder (["everywhere"]), never real
+        # zip codes -- report an empty list rather than leak that placeholder into
+        # the UI as if it were a configured zip code. Settings.tsx treats an empty
+        # list as "no fixed area" (see AreaOption / areaMode), matching how the
+        # onboarding wizard represents the same choice.
+        zips = (
+            tuple(str(value) for value in primary_area["values"])
+            if primary_area is not None and primary_area["type"] == "postal_codes"
+            else ()
+        )
         triggers = set(config["human_escalation"]["triggers"])
         return cls(
             version=dna.version,
@@ -642,8 +665,11 @@ class BusinessDNASettingsUpdateRequest(ApiModel):
     industry: Annotated[str, Field(min_length=1, max_length=200)]
     tone: Annotated[str, Field(min_length=1, max_length=500)]
     services: Annotated[tuple[BusinessDNAServiceUpdateSchema, ...], Field(min_length=1, max_length=50)]
+    # Empty means "no fixed service area" (a remote/nationwide business) -- see
+    # BusinessDNASettingsService._apply, which maps that to a `remote` service
+    # area and turns off service-area enforcement, same convention as onboarding.
     service_zip_codes: Annotated[
-        tuple[Annotated[str, Field(min_length=1, max_length=32)], ...], Field(min_length=1, max_length=500)
-    ]
+        tuple[Annotated[str, Field(min_length=1, max_length=32)], ...], Field(max_length=500)
+    ] = ()
     escalate_on_high_urgency: bool
     escalate_on_emergency: bool

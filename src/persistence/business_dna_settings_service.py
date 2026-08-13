@@ -75,8 +75,8 @@ class SettingsUpdate:
             raise ValueError("tone must not be empty")
         if not self.services:
             raise ValueError("at least one service is required")
-        if not self.service_zip_codes:
-            raise ValueError("at least one service zip code is required")
+        # Empty is valid -- it means "no fixed service area" (see _apply, which
+        # maps that to a `remote` service area instead of `postal_codes`).
 
 
 def _load_schema() -> dict:
@@ -185,11 +185,18 @@ class BusinessDNASettingsService:
         else:
             primary = dict(primary)
             areas = [primary if area["id"] == _PRIMARY_AREA_ID else area for area in areas]
-        primary["type"] = "postal_codes"
-        primary["values"] = list(
-            dict.fromkeys(zip_code.strip() for zip_code in update.service_zip_codes if zip_code.strip())
-        )
+        # No zip codes submitted means "no fixed service area" (a remote/
+        # nationwide business), same convention as onboarding
+        # (src/domain/business_dna_builder.py). `values` is required non-empty by
+        # the schema even for a remote area, so it gets a placeholder that's
+        # never actually read for matching (enforce_service_area below is what
+        # actually turns matching off).
+        cleaned_zips = list(dict.fromkeys(zip_code.strip() for zip_code in update.service_zip_codes if zip_code.strip()))
+        is_remote = not cleaned_zips
+        primary["type"] = "remote" if is_remote else "postal_codes"
+        primary["values"] = ["everywhere"] if is_remote else cleaned_zips
         config["service_areas"] = areas
+        config["qualification"]["enforce_service_area"] = not is_remote
 
         other_triggers = [
             trigger

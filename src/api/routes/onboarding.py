@@ -35,6 +35,8 @@ def create_business(
         ),
         service_zip_codes=tuple(body.service_zip_codes),
         enforce_service_area=body.enforce_service_area,
+        escalate_on_high_urgency=body.escalate_on_high_urgency,
+        escalate_on_emergency=body.escalate_on_emergency,
     )
     business = provisioning_service.create_business(user, onboarding)
     api_base = str(request.base_url).rstrip("/")

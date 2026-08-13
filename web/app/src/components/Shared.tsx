@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import type { ProcessState } from "../api/client";
 
 /**
@@ -145,6 +145,43 @@ export function Field({
 
 export const inputCls =
   "w-full px-3.5 py-2.5 rounded-lg border border-[#E7E5DE] bg-white text-sm outline-none focus:ring-2 focus:ring-[#3A3EA633] focus:border-[#3A3EA6] transition-shadow";
+
+/** Used on both Onboarding's "Who can you serve?" step and Settings' "Service
+ * area" tab, so a remote/local choice looks and behaves identically wherever
+ * it's edited. */
+export function AreaOption({
+  icon: Icon,
+  label,
+  desc,
+  active,
+  onClick,
+}: {
+  icon: ComponentType<{ size?: number }>;
+  label: string;
+  desc: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="text-left p-4 rounded-xl border transition-colors flex flex-col gap-2.5"
+      style={{ borderColor: active ? "#3A3EA6" : "#E7E5DE", backgroundColor: active ? "#EEEEF9" : "#fff" }}
+    >
+      <div
+        className="w-8 h-8 rounded-lg flex items-center justify-center"
+        style={{ backgroundColor: active ? "#3A3EA6" : "#F1F1EF", color: active ? "#fff" : "#6B7280" }}
+      >
+        <Icon size={15} />
+      </div>
+      <div>
+        <div className="text-sm font-medium mb-0.5">{label}</div>
+        <div className="text-xs text-[#6B7280] leading-relaxed">{desc}</div>
+      </div>
+    </button>
+  );
+}
 
 export function ToneOption({
   label,

@@ -113,8 +113,13 @@ export interface OnboardingPayload {
   industry: string;
   tone: string;
   services: OnboardingServicePayload[];
+  /** Empty means "no fixed service area" (a remote/nationwide business) --
+   * see BusinessDNASettingsService / build_business_dna for how that maps to
+   * a `remote` service area instead of `postal_codes`. */
   service_zip_codes: string[];
   enforce_service_area: boolean;
+  escalate_on_high_urgency: boolean;
+  escalate_on_emergency: boolean;
 }
 
 export type ProcessState =
