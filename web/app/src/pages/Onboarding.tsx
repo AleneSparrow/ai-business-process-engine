@@ -17,7 +17,7 @@ import { AreaOption, Field, inputCls, ToneOption } from "../components/Shared";
  * `postal_codes`), and industry is free text, not a fixed list.
  */
 
-const OB_STEPS: { key: string; label: string; icon: ComponentType<{ size?: number }> }[] = [
+const OB_STEPS: { key: string; label: string; icon: ComponentType<{ size?: number | string }> }[] = [
   { key: "basics", label: "Business", icon: Building2 },
   { key: "services", label: "Services", icon: Wrench },
   { key: "area", label: "Who you serve", icon: MapPin },

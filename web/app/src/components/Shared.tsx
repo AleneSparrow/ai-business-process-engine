@@ -156,7 +156,11 @@ export function AreaOption({
   active,
   onClick,
 }: {
-  icon: ComponentType<{ size?: number }>;
+  // lucide-react icons type `size` as `string | number`, not just `number` --
+  // widened to match so passing Globe/MapPin here type-checks under `tsc -b`
+  // (this prop previously only worked because it was never actually built
+  // with project-reference mode; `npm run dev` doesn't run this check).
+  icon: ComponentType<{ size?: number | string }>;
   label: string;
   desc: string;
   active: boolean;
