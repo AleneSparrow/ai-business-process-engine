@@ -146,7 +146,7 @@ class BusinessResponse(ApiModel):
         )
 
 
-# --- Billing: self-serve Stripe subscription for the business's own Atelier account ------
+# --- Billing: self-serve Lemon Squeezy subscription for the business's own Atelier account --
 
 
 class BillingStatusResponse(ApiModel):
@@ -154,7 +154,6 @@ class BillingStatusResponse(ApiModel):
     subscription_status: str
     trial_ends_at: datetime | None
     current_period_end: datetime | None
-    cancel_at_period_end: bool
     has_billing_access: bool
 
     @classmethod
@@ -164,7 +163,6 @@ class BillingStatusResponse(ApiModel):
             subscription_status=business.subscription_status,
             trial_ends_at=business.trial_ends_at,
             current_period_end=business.current_period_end,
-            cancel_at_period_end=business.cancel_at_period_end,
             has_billing_access=business.has_billing_access,
         )
 

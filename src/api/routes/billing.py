@@ -1,4 +1,4 @@
-"""Self-serve Stripe subscription billing.
+"""Self-serve Lemon Squeezy subscription billing.
 
 Two route groups on purpose:
 
@@ -7,9 +7,9 @@ Two route groups on purpose:
   dashboard.py / business_dna.py). Deliberately NOT gated by
   `require_active_subscription` -- this is where an owner goes precisely
   *because* their subscription needs attention.
-- `/api/v1/billing/webhook` -- called directly by Stripe, not a browser.
-  No staff auth (Stripe doesn't have a session token); authenticity comes
-  from the Stripe-Signature header instead, verified inside
+- `/api/v1/billing/webhook` -- called directly by Lemon Squeezy, not a
+  browser. No staff auth (Lemon Squeezy doesn't have a session token);
+  authenticity comes from the X-Signature header instead, verified inside
   `BillingService.handle_webhook`. Raw body bytes are required for that
   verification, so this route reads the body directly rather than
   declaring a Pydantic model.
@@ -66,13 +66,13 @@ def create_portal_session(
 
 
 @webhook_router.post("/webhook", status_code=status.HTTP_200_OK)
-async def stripe_webhook(
+async def lemonsqueezy_webhook(
     request: Request,
     billing_service: Annotated[BillingService, Depends(get_billing_service)],
-    stripe_signature: Annotated[str | None, Header(alias="stripe-signature")] = None,
+    x_signature: Annotated[str | None, Header(alias="X-Signature")] = None,
 ) -> dict:
-    if not stripe_signature:
-        raise RequestDataError("Missing Stripe-Signature header")
+    if not x_signature:
+        raise RequestDataError("Missing X-Signature header")
     payload = await request.body()
-    billing_service.handle_webhook(payload, stripe_signature)
+    billing_service.handle_webhook(payload, x_signature)
     return {"received": True}

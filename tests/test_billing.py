@@ -1,15 +1,20 @@
-"""Self-serve Stripe billing: BillingService directly (fake Stripe client --
-see FakeStripe below) plus the HTTP layer (billing routes, the
-require_active_subscription gate on the dashboard, and that Settings/Business
-DNA stay reachable regardless of subscription status).
+"""Self-serve Lemon Squeezy billing: BillingService directly (fake Lemon
+Squeezy client -- see FakeLemonSqueezyClient below) plus the HTTP layer
+(billing routes, the require_active_subscription gate on the dashboard, and
+that Settings/Business DNA stay reachable regardless of subscription status).
 
-The real `stripe` package is never imported here -- BillingService takes an
-injectable `stripe_client`, so these tests exercise all of this module's own
-logic (checkout/portal params, webhook event routing, business_id
-resolution, status/date mapping) without needing Stripe installed or any
-network access. See BillingService's docstring.
+The real network is never touched here -- BillingService takes an injectable
+`client`, so these tests exercise all of this module's own logic (checkout/
+portal params, webhook event routing + signature verification, business_id
+resolution, status/date mapping) without needing a real Lemon Squeezy API key
+or any network access. See BillingService's module docstring for why Lemon
+Squeezy (not Stripe) and what that changes about the shape of this code:
+Vietnam, where this business is based, isn't in Stripe's supported-country
+list.
 """
 
+import hashlib
+import hmac
 import json
 from pathlib import Path
 
@@ -31,68 +36,114 @@ from src.persistence.errors import (
 from src.persistence.sqlalchemy_models import Base
 from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork, create_database_engine
 
-
-# --- Fake Stripe client -------------------------------------------------------------
-
-
-class SignatureVerificationError(Exception):
-    pass
+_STORE_ID = "store_fake_1"
+_VARIANT_STARTER = "variant_starter_fake"
+_VARIANT_PRO = "variant_pro_fake"
+_WEBHOOK_SECRET = "whsec_test"
 
 
-class _FakeError:
-    SignatureVerificationError = SignatureVerificationError
+# --- Fake Lemon Squeezy client -------------------------------------------------------
 
 
-class _RecordingResource:
-    """Stands in for both `stripe.checkout.Session` and `stripe.billing_portal.Session`
-    -- both are just "create(**kwargs) -> object with a url" from this module's
-    point of view."""
+class FakeLemonSqueezyClient:
+    """Stands in for LemonSqueezyClient -- records every call so tests can
+    assert on the exact params sent, and returns JSON:API-shaped responses
+    matching what the real client hands back to BillingService."""
 
-    def __init__(self, url: str) -> None:
-        self._url = url
-        self.calls: list[dict] = []
+    def __init__(
+        self,
+        *,
+        checkout_url: str = "https://checkout.lemonsqueezy.test/session",
+        portal_url: str = "https://portal.lemonsqueezy.test/manage",
+    ) -> None:
+        self.checkout_calls: list[dict] = []
+        self.portal_calls: list[str] = []
+        self._checkout_url = checkout_url
+        self._portal_url = portal_url
 
-    def create(self, **kwargs) -> dict:
-        self.calls.append(kwargs)
-        return {"id": "fake_id_123", "url": self._url}
+    def create_checkout(self, **kwargs) -> dict:
+        self.checkout_calls.append(kwargs)
+        return {"data": {"attributes": {"url": self._checkout_url}}}
 
-
-class _FakeWebhook:
-    def __init__(self, expected_secret: str) -> None:
-        self.expected_secret = expected_secret
-
-    def construct_event(self, payload: bytes, sig_header: str | None, secret: str) -> dict:
-        if sig_header != "valid-signature" or secret != self.expected_secret:
-            raise SignatureVerificationError("signature mismatch")
-        return json.loads(payload)
-
-
-class FakeStripe:
-    def __init__(self, *, webhook_secret: str = "whsec_test") -> None:
-        self.checkout = type("checkout", (), {})()
-        self.checkout.Session = _RecordingResource("https://checkout.stripe.test/session")
-        self.billing_portal = type("billing_portal", (), {})()
-        self.billing_portal.Session = _RecordingResource("https://billing.stripe.test/portal")
-        self.Webhook = _FakeWebhook(webhook_secret)
-        self.error = _FakeError()
+    def get_subscription(self, subscription_id: str) -> dict:
+        self.portal_calls.append(subscription_id)
+        return {"data": {"attributes": {"urls": {"customer_portal": self._portal_url}}}}
 
 
 def _billing_settings(**overrides) -> Settings:
     defaults = dict(
         database_url="sqlite+pysqlite:///:memory:",
         app_env="test",
-        stripe_secret_key="sk_test_fake",
-        stripe_webhook_secret="whsec_test",
-        stripe_price_starter="price_starter_fake",
-        stripe_price_pro="price_pro_fake",
+        lemonsqueezy_api_key="ls_test_fake",
+        lemonsqueezy_webhook_secret=_WEBHOOK_SECRET,
+        lemonsqueezy_store_id=_STORE_ID,
+        lemonsqueezy_variant_starter=_VARIANT_STARTER,
+        lemonsqueezy_variant_pro=_VARIANT_PRO,
         frontend_base_url="http://localhost:5173",
     )
     defaults.update(overrides)
     return Settings(**defaults)
 
 
-def _event(event_type: str, obj: dict) -> bytes:
-    return json.dumps({"type": event_type, "data": {"object": obj}}).encode("utf-8")
+def _sign(payload: bytes, secret: str = _WEBHOOK_SECRET) -> str:
+    return hmac.new(secret.encode("utf-8"), payload, hashlib.sha256).hexdigest()
+
+
+def _subscription_event(
+    event_name: str,
+    *,
+    subscription_id: str,
+    customer_id: str | None = None,
+    variant_id: str | None = None,
+    status: str = "active",
+    trial_ends_at: str | None = None,
+    renews_at: str | None = None,
+    ends_at: str | None = None,
+    custom_data: dict | None = None,
+) -> bytes:
+    """Builds a `subscription_*` webhook payload -- these carry a full
+    subscription snapshot in data.attributes (data.type == "subscriptions")."""
+    return json.dumps(
+        {
+            "meta": {"event_name": event_name, "custom_data": custom_data or {}},
+            "data": {
+                "type": "subscriptions",
+                "id": subscription_id,
+                "attributes": {
+                    "customer_id": customer_id,
+                    "variant_id": variant_id,
+                    "status": status,
+                    "trial_ends_at": trial_ends_at,
+                    "renews_at": renews_at,
+                    "ends_at": ends_at,
+                },
+            },
+        }
+    ).encode("utf-8")
+
+
+def _payment_failed_event(
+    *,
+    subscription_id: str,
+    customer_id: str | None = None,
+    custom_data: dict | None = None,
+) -> bytes:
+    """Builds a `subscription_payment_failed` payload -- a different shape
+    (a subscription-invoice object), see BillingService._apply_payment_failed."""
+    return json.dumps(
+        {
+            "meta": {"event_name": "subscription_payment_failed", "custom_data": custom_data or {}},
+            "data": {
+                "type": "subscription-invoices",
+                "id": "inv_1",
+                "attributes": {
+                    "subscription_id": subscription_id,
+                    "customer_id": customer_id,
+                    "status": "pending",
+                },
+            },
+        }
+    ).encode("utf-8")
 
 
 # --- Service-level fixtures ---------------------------------------------------------
@@ -130,50 +181,35 @@ def _make_business(uow_factory, business_id: str = "acme-co") -> None:
 # --- BillingService: checkout / portal ----------------------------------------------
 
 
-def test_checkout_session_new_customer_uses_owner_email(uow_factory) -> None:
+def test_checkout_session_uses_owner_email_and_carries_custom_data(uow_factory) -> None:
     _make_business(uow_factory)
-    fake = FakeStripe()
-    service = BillingService(uow_factory, _billing_settings(), stripe_client=fake)
+    fake = FakeLemonSqueezyClient()
+    service = BillingService(uow_factory, _billing_settings(), client=fake)
 
     url = service.create_checkout_session("acme-co", "starter", "owner@example.com")
 
-    assert url == "https://checkout.stripe.test/session"
-    call = fake.checkout.Session.calls[0]
-    assert call["customer_email"] == "owner@example.com"
-    assert "customer" not in call
-    assert call["client_reference_id"] == "acme-co"
-    assert call["metadata"] == {"business_id": "acme-co", "plan": "starter"}
-    assert call["subscription_data"]["trial_period_days"] == 7
-    assert call["line_items"] == [{"price": "price_starter_fake", "quantity": 1}]
+    assert url == "https://checkout.lemonsqueezy.test/session"
+    call = fake.checkout_calls[0]
+    assert call["email"] == "owner@example.com"
+    assert call["store_id"] == _STORE_ID
+    assert call["variant_id"] == _VARIANT_STARTER
+    assert call["custom_data"] == {"business_id": "acme-co", "plan": "starter"}
+    assert call["redirect_url"] == "http://localhost:5173/app/billing?checkout=success"
 
 
-def test_checkout_session_reuses_existing_stripe_customer(uow_factory) -> None:
+def test_checkout_session_picks_variant_by_plan(uow_factory) -> None:
     _make_business(uow_factory)
-    fake = FakeStripe()
-    service = BillingService(uow_factory, _billing_settings(), stripe_client=fake)
-    with uow_factory() as unit_of_work:
-        unit_of_work.businesses.update_billing(
-            "acme-co",
-            stripe_customer_id="cus_existing",
-            stripe_subscription_id=None,
-            plan=None,
-            subscription_status="canceled",
-            trial_ends_at=None,
-            current_period_end=None,
-            cancel_at_period_end=False,
-        )
-        unit_of_work.commit()
+    fake = FakeLemonSqueezyClient()
+    service = BillingService(uow_factory, _billing_settings(), client=fake)
 
     service.create_checkout_session("acme-co", "pro", "owner@example.com")
 
-    call = fake.checkout.Session.calls[0]
-    assert call["customer"] == "cus_existing"
-    assert "customer_email" not in call
+    assert fake.checkout_calls[0]["variant_id"] == _VARIANT_PRO
 
 
 def test_checkout_session_rejects_unknown_plan(uow_factory) -> None:
     _make_business(uow_factory)
-    service = BillingService(uow_factory, _billing_settings(), stripe_client=FakeStripe())
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
     with pytest.raises(InvalidPlanError):
         service.create_checkout_session("acme-co", "enterprise", "owner@example.com")
 
@@ -185,118 +221,162 @@ def test_checkout_session_requires_billing_configured(uow_factory) -> None:
         service.create_checkout_session("acme-co", "starter", "owner@example.com")
 
 
-def test_portal_session_requires_existing_customer(uow_factory) -> None:
+def test_portal_session_requires_existing_subscription(uow_factory) -> None:
     _make_business(uow_factory)
-    service = BillingService(uow_factory, _billing_settings(), stripe_client=FakeStripe())
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
     with pytest.raises(BillingAccountNotFoundError):
         service.create_portal_session("acme-co")
 
 
-def test_portal_session_returns_url_once_customer_exists(uow_factory) -> None:
+def test_portal_session_fetches_fresh_url_for_existing_subscription(uow_factory) -> None:
     _make_business(uow_factory)
-    fake = FakeStripe()
-    service = BillingService(uow_factory, _billing_settings(), stripe_client=fake)
+    fake = FakeLemonSqueezyClient()
+    service = BillingService(uow_factory, _billing_settings(), client=fake)
     with uow_factory() as unit_of_work:
         unit_of_work.businesses.update_billing(
             "acme-co",
-            stripe_customer_id="cus_existing",
-            stripe_subscription_id="sub_existing",
+            payment_customer_id="cus_existing",
+            payment_subscription_id="sub_existing",
             plan="starter",
             subscription_status="active",
             trial_ends_at=None,
             current_period_end=None,
-            cancel_at_period_end=False,
         )
         unit_of_work.commit()
 
     url = service.create_portal_session("acme-co")
 
-    assert url == "https://billing.stripe.test/portal"
-    assert fake.billing_portal.Session.calls[0]["customer"] == "cus_existing"
+    assert url == "https://portal.lemonsqueezy.test/manage"
+    # Fetched live, not stored -- Lemon Squeezy's portal URL is a signed link
+    # that expires after 24 hours, see BillingService.create_portal_session.
+    assert fake.portal_calls == ["sub_existing"]
 
 
 # --- BillingService: webhook handling ------------------------------------------------
 
 
-def test_webhook_checkout_completed_links_customer_and_sets_trialing(uow_factory) -> None:
+def test_webhook_subscription_created_links_business_and_sets_trial(uow_factory) -> None:
     _make_business(uow_factory)
-    fake = FakeStripe()
-    service = BillingService(uow_factory, _billing_settings(), stripe_client=fake)
-    payload = _event("checkout.session.completed", {
-        "customer": "cus_new",
-        "subscription": "sub_new",
-        "client_reference_id": "acme-co",
-        "metadata": {"business_id": "acme-co", "plan": "pro"},
-    })
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+    payload = _subscription_event(
+        "subscription_created",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_PRO,
+        status="on_trial",
+        trial_ends_at="2024-01-08T00:00:00.000000Z",
+        renews_at="2024-01-08T00:00:00.000000Z",
+        custom_data={"business_id": "acme-co", "plan": "pro"},
+    )
 
-    service.handle_webhook(payload, "valid-signature")
+    service.handle_webhook(payload, _sign(payload))
 
     business = service.get_status("acme-co")
-    assert business.stripe_customer_id == "cus_new"
-    assert business.stripe_subscription_id == "sub_new"
+    assert business.payment_customer_id == "cus_new"
+    assert business.payment_subscription_id == "sub_new"
     assert business.plan == "pro"
-    assert business.subscription_status == "trialing"
+    assert business.subscription_status == "on_trial"
     assert business.has_billing_access is True
 
 
 def test_webhook_subscription_updated_sets_status_and_dates(uow_factory) -> None:
     _make_business(uow_factory)
-    fake = FakeStripe()
-    service = BillingService(uow_factory, _billing_settings(), stripe_client=fake)
-    payload = _event("customer.subscription.updated", {
-        "id": "sub_new",
-        "customer": "cus_new",
-        "status": "active",
-        "metadata": {"business_id": "acme-co", "plan": "starter"},
-        "trial_end": 1_700_000_000,
-        "current_period_end": 1_702_000_000,
-        "cancel_at_period_end": True,
-    })
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+    payload = _subscription_event(
+        "subscription_updated",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="active",
+        renews_at="2024-02-01T00:00:00.000000Z",
+        custom_data={"business_id": "acme-co", "plan": "starter"},
+    )
 
-    service.handle_webhook(payload, "valid-signature")
+    service.handle_webhook(payload, _sign(payload))
 
     business = service.get_status("acme-co")
     assert business.subscription_status == "active"
-    assert business.cancel_at_period_end is True
-    assert business.trial_ends_at is not None
     assert business.current_period_end is not None
     assert business.has_billing_access is True
 
 
-def test_webhook_subscription_deleted_blocks_access(uow_factory) -> None:
+def test_webhook_subscription_cancelled_still_grants_access(uow_factory) -> None:
+    """Lemon Squeezy's `cancelled` means "the customer cancelled but the
+    subscription is paid through ends_at" -- distinct from Stripe, where a
+    separate cancel_at_period_end flag was needed. See ACTIVE_SUBSCRIPTION_STATUSES."""
     _make_business(uow_factory)
-    fake = FakeStripe()
-    service = BillingService(uow_factory, _billing_settings(), stripe_client=fake)
-    service.handle_webhook(_event("checkout.session.completed", {
-        "customer": "cus_new", "subscription": "sub_new",
-        "metadata": {"business_id": "acme-co", "plan": "starter"},
-    }), "valid-signature")
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+    created = _subscription_event(
+        "subscription_created",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="active",
+        custom_data={"business_id": "acme-co", "plan": "starter"},
+    )
+    service.handle_webhook(created, _sign(created))
 
-    service.handle_webhook(_event("customer.subscription.deleted", {
-        "id": "sub_new", "customer": "cus_new",
-        "metadata": {"business_id": "acme-co"},
-        "status": "active",  # Stripe sends the pre-cancellation status here; force_status wins
-    }), "valid-signature")
+    cancelled = _subscription_event(
+        "subscription_cancelled",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="cancelled",
+        ends_at="2024-03-01T00:00:00.000000Z",
+    )
+    service.handle_webhook(cancelled, _sign(cancelled))
 
     business = service.get_status("acme-co")
-    assert business.subscription_status == "canceled"
+    assert business.subscription_status == "cancelled"
+    assert business.has_billing_access is True
+    assert business.current_period_end is not None
+
+
+def test_webhook_subscription_expired_blocks_access(uow_factory) -> None:
+    _make_business(uow_factory)
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+    created = _subscription_event(
+        "subscription_created",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="active",
+        custom_data={"business_id": "acme-co", "plan": "starter"},
+    )
+    service.handle_webhook(created, _sign(created))
+
+    expired = _subscription_event(
+        "subscription_expired",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="expired",
+        ends_at="2024-01-15T00:00:00.000000Z",
+    )
+    service.handle_webhook(expired, _sign(expired))
+
+    business = service.get_status("acme-co")
+    assert business.subscription_status == "expired"
     assert business.has_billing_access is False
 
 
 def test_webhook_payment_failed_sets_past_due(uow_factory) -> None:
     _make_business(uow_factory)
-    fake = FakeStripe()
-    service = BillingService(uow_factory, _billing_settings(), stripe_client=fake)
-    service.handle_webhook(_event("checkout.session.completed", {
-        "customer": "cus_new", "subscription": "sub_new",
-        "metadata": {"business_id": "acme-co", "plan": "starter"},
-    }), "valid-signature")
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+    created = _subscription_event(
+        "subscription_created",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="active",
+        custom_data={"business_id": "acme-co", "plan": "starter"},
+    )
+    service.handle_webhook(created, _sign(created))
 
-    # invoice.payment_failed has no business_id metadata -- must resolve via
-    # the stripe_customer_id already linked on the business.
-    service.handle_webhook(_event("invoice.payment_failed", {
-        "customer": "cus_new",
-    }), "valid-signature")
+    # subscription_payment_failed carries no custom_data -- must resolve via
+    # the payment_customer_id already linked on the business.
+    failed = _payment_failed_event(subscription_id="sub_new", customer_id="cus_new")
+    service.handle_webhook(failed, _sign(failed))
 
     business = service.get_status("acme-co")
     assert business.subscription_status == "past_due"
@@ -306,19 +386,35 @@ def test_webhook_payment_failed_sets_past_due(uow_factory) -> None:
 
 def test_webhook_bad_signature_rejected(uow_factory) -> None:
     _make_business(uow_factory)
-    service = BillingService(uow_factory, _billing_settings(), stripe_client=FakeStripe())
-    payload = _event("checkout.session.completed", {"customer": "cus_x"})
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+    payload = _subscription_event("subscription_created", subscription_id="sub_x", customer_id="cus_x")
     with pytest.raises(WebhookSignatureError):
         service.handle_webhook(payload, "not-the-right-signature")
 
 
+def test_webhook_missing_signature_rejected(uow_factory) -> None:
+    _make_business(uow_factory)
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+    payload = _subscription_event("subscription_created", subscription_id="sub_x", customer_id="cus_x")
+    with pytest.raises(WebhookSignatureError):
+        service.handle_webhook(payload, None)
+
+
+def test_webhook_malformed_payload_rejected(uow_factory) -> None:
+    _make_business(uow_factory)
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+    payload = b"not json"
+    with pytest.raises(WebhookSignatureError):
+        service.handle_webhook(payload, _sign(payload))
+
+
 def test_webhook_unresolvable_business_is_a_noop(uow_factory) -> None:
     _make_business(uow_factory)
-    service = BillingService(uow_factory, _billing_settings(), stripe_client=FakeStripe())
-    payload = _event("customer.subscription.updated", {
-        "id": "sub_orphan", "customer": "cus_never_seen", "status": "active",
-    })
-    service.handle_webhook(payload, "valid-signature")  # must not raise
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+    payload = _subscription_event(
+        "subscription_updated", subscription_id="sub_orphan", customer_id="cus_never_seen", status="active"
+    )
+    service.handle_webhook(payload, _sign(payload))  # must not raise
 
     business = service.get_status("acme-co")
     assert business.subscription_status == "incomplete"  # untouched
@@ -326,9 +422,9 @@ def test_webhook_unresolvable_business_is_a_noop(uow_factory) -> None:
 
 def test_webhook_ignores_unhandled_event_types(uow_factory) -> None:
     _make_business(uow_factory)
-    service = BillingService(uow_factory, _billing_settings(), stripe_client=FakeStripe())
-    payload = _event("customer.updated", {"id": "cus_x"})
-    service.handle_webhook(payload, "valid-signature")  # must not raise
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+    payload = json.dumps({"meta": {"event_name": "order_created"}, "data": {"id": "order_1"}}).encode("utf-8")
+    service.handle_webhook(payload, _sign(payload))  # must not raise
 
 
 # --- HTTP layer: gate + reachability -------------------------------------------------
@@ -341,11 +437,11 @@ def billing_app(tmp_path: Path):
     Base.metadata.create_all(engine)
     settings = _billing_settings(database_url=database_url)
     application = create_app(settings=settings)
-    fake = FakeStripe()
+    fake = FakeLemonSqueezyClient()
 
     def _override_billing_service():
         container = application.state.container
-        return BillingService(container.unit_of_work_factory, container.settings, stripe_client=fake)
+        return BillingService(container.unit_of_work_factory, container.settings, client=fake)
 
     with TestClient(application, raise_server_exceptions=False) as client:
         application.dependency_overrides[get_billing_service] = _override_billing_service
@@ -392,7 +488,7 @@ def test_settings_reachable_without_subscription(billing_app) -> None:
 
 
 def test_dashboard_unblocked_after_checkout_webhook(billing_app) -> None:
-    client, fake = billing_app
+    client, _fake = billing_app
     token, business_id = _signup_and_onboard(client)
 
     checkout = client.post(
@@ -401,17 +497,22 @@ def test_dashboard_unblocked_after_checkout_webhook(billing_app) -> None:
         headers={"Authorization": f"Bearer {token}"},
     )
     assert checkout.status_code == 200
-    assert checkout.json()["checkout_url"] == "https://checkout.stripe.test/session"
+    assert checkout.json()["checkout_url"] == "https://checkout.lemonsqueezy.test/session"
 
-    webhook_payload = _event("checkout.session.completed", {
-        "customer": "cus_http_test",
-        "subscription": "sub_http_test",
-        "metadata": {"business_id": business_id, "plan": "starter"},
-    })
+    webhook_payload = _subscription_event(
+        "subscription_created",
+        subscription_id="sub_http_test",
+        customer_id="cus_http_test",
+        variant_id=_VARIANT_STARTER,
+        status="on_trial",
+        trial_ends_at="2024-01-08T00:00:00.000000Z",
+        renews_at="2024-01-08T00:00:00.000000Z",
+        custom_data={"business_id": business_id, "plan": "starter"},
+    )
     webhook_response = client.post(
         "/api/v1/billing/webhook",
         content=webhook_payload,
-        headers={"stripe-signature": "valid-signature"},
+        headers={"X-Signature": _sign(webhook_payload)},
     )
     assert webhook_response.status_code == 200
 
@@ -423,16 +524,17 @@ def test_dashboard_unblocked_after_checkout_webhook(billing_app) -> None:
     status_response = client.get(
         f"/api/v1/businesses/{business_id}/billing", headers={"Authorization": f"Bearer {token}"}
     )
-    assert status_response.json()["subscription_status"] == "trialing"
+    assert status_response.json()["subscription_status"] == "on_trial"
     assert status_response.json()["has_billing_access"] is True
 
 
 def test_webhook_rejects_bad_signature_over_http(billing_app) -> None:
     client, _fake = billing_app
+    payload = _subscription_event("subscription_created", subscription_id="sub_x", customer_id="cus_x")
     response = client.post(
         "/api/v1/billing/webhook",
-        content=_event("checkout.session.completed", {"customer": "cus_x"}),
-        headers={"stripe-signature": "wrong"},
+        content=payload,
+        headers={"X-Signature": "wrong"},
     )
     assert response.status_code == 400
 

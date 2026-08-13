@@ -37,16 +37,16 @@ class BusinessRow(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    stripe_customer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    payment_customer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    payment_subscription_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     plan: Mapped[str | None] = mapped_column(String(32), nullable=True)
     subscription_status: Mapped[str] = mapped_column(String(32), nullable=False, server_default="incomplete")
     trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
 
     __table_args__ = (
-        Index("uq_businesses_stripe_customer_id", "stripe_customer_id", unique=True),
+        Index("uq_businesses_payment_customer_id", "payment_customer_id", unique=True),
+        Index("ix_businesses_payment_subscription_id", "payment_subscription_id"),
     )
 
 

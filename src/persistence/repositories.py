@@ -31,18 +31,18 @@ class IdempotencyRecord:
 class BusinessRepository(Protocol):
     def add(self, business: Business) -> None: ...
     def get(self, business_id: str) -> Business | None: ...
-    def get_by_stripe_customer_id(self, stripe_customer_id: str) -> Business | None: ...
+    def get_by_payment_customer_id(self, payment_customer_id: str) -> Business | None: ...
+    def get_by_payment_subscription_id(self, payment_subscription_id: str) -> Business | None: ...
     def update_billing(
         self,
         business_id: str,
         *,
-        stripe_customer_id: str | None,
-        stripe_subscription_id: str | None,
+        payment_customer_id: str | None,
+        payment_subscription_id: str | None,
         plan: str | None,
         subscription_status: str,
         trial_ends_at: datetime | None,
         current_period_end: datetime | None,
-        cancel_at_period_end: bool,
     ) -> Business: ...
 
 

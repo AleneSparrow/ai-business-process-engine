@@ -20,20 +20,27 @@ class Settings:
     public_chat_rate_limit_window_seconds: int = 60
     public_conversation_token_ttl_hours: int = 720
     public_chat_message_max_chars: int = 2_000
-    stripe_secret_key: str | None = field(default=None, repr=False)
-    stripe_webhook_secret: str | None = field(default=None, repr=False)
-    stripe_price_starter: str | None = None
-    stripe_price_pro: str | None = None
+    # Billing runs through Lemon Squeezy (a Merchant of Record), not Stripe --
+    # Stripe doesn't support Vietnam-based sellers, which this business is.
+    # See BillingService for why an MoR changes the integration shape (no
+    # direct card handling, custom_data instead of arbitrary metadata,
+    # trial length configured on the product/variant in their dashboard
+    # rather than per-checkout).
+    lemonsqueezy_api_key: str | None = field(default=None, repr=False)
+    lemonsqueezy_webhook_secret: str | None = field(default=None, repr=False)
+    lemonsqueezy_store_id: str | None = None
+    lemonsqueezy_variant_starter: str | None = None
+    lemonsqueezy_variant_pro: str | None = None
     billing_trial_days: int = 7
     frontend_base_url: str | None = None
 
     @property
     def billing_configured(self) -> bool:
-        """Whether Stripe billing is wired up. Deliberately optional at the Settings
-        level (unlike ai_provider) so local dev and early deploys can boot without a
-        Stripe account -- BillingService raises a clear, specific error per-request
-        instead of failing the whole app at startup."""
-        return self.stripe_secret_key is not None
+        """Whether Lemon Squeezy billing is wired up. Deliberately optional at the
+        Settings level (unlike ai_provider) so local dev and early deploys can boot
+        without a billing account -- BillingService raises a clear, specific error
+        per-request instead of failing the whole app at startup."""
+        return self.lemonsqueezy_api_key is not None
 
     def __post_init__(self) -> None:
         if not self.database_url.strip():
@@ -67,16 +74,17 @@ class Settings:
             missing = [
                 name
                 for name, value in (
-                    ("STRIPE_WEBHOOK_SECRET", self.stripe_webhook_secret),
-                    ("STRIPE_PRICE_STARTER", self.stripe_price_starter),
-                    ("STRIPE_PRICE_PRO", self.stripe_price_pro),
+                    ("LEMONSQUEEZY_WEBHOOK_SECRET", self.lemonsqueezy_webhook_secret),
+                    ("LEMONSQUEEZY_STORE_ID", self.lemonsqueezy_store_id),
+                    ("LEMONSQUEEZY_VARIANT_STARTER", self.lemonsqueezy_variant_starter),
+                    ("LEMONSQUEEZY_VARIANT_PRO", self.lemonsqueezy_variant_pro),
                     ("FRONTEND_BASE_URL", self.frontend_base_url),
                 )
                 if not value or not value.strip()
             ]
             if missing:
                 raise ValueError(
-                    "STRIPE_SECRET_KEY is set, so billing is enabled -- also required: "
+                    "LEMONSQUEEZY_API_KEY is set, so billing is enabled -- also required: "
                     + ", ".join(missing)
                 )
 
@@ -126,10 +134,11 @@ class Settings:
                 public_chat_rate_limit_window_seconds=rate_limit_window,
                 public_conversation_token_ttl_hours=token_ttl,
                 public_chat_message_max_chars=message_max,
-                stripe_secret_key=os.getenv("STRIPE_SECRET_KEY"),
-                stripe_webhook_secret=os.getenv("STRIPE_WEBHOOK_SECRET"),
-                stripe_price_starter=os.getenv("STRIPE_PRICE_STARTER"),
-                stripe_price_pro=os.getenv("STRIPE_PRICE_PRO"),
+                lemonsqueezy_api_key=os.getenv("LEMONSQUEEZY_API_KEY"),
+                lemonsqueezy_webhook_secret=os.getenv("LEMONSQUEEZY_WEBHOOK_SECRET"),
+                lemonsqueezy_store_id=os.getenv("LEMONSQUEEZY_STORE_ID"),
+                lemonsqueezy_variant_starter=os.getenv("LEMONSQUEEZY_VARIANT_STARTER"),
+                lemonsqueezy_variant_pro=os.getenv("LEMONSQUEEZY_VARIANT_PRO"),
                 billing_trial_days=billing_trial_days,
                 frontend_base_url=frontend_base_url.rstrip("/") if frontend_base_url else None,
             )

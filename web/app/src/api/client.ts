@@ -250,17 +250,20 @@ export interface BusinessDNASettingsUpdate {
 
 export type BillingPlan = "starter" | "pro";
 
-/** subscription_status mirrors the Stripe Subscription `status` values this
- * app branches on (see BillingService), plus "incomplete" for a business that
- * has never started checkout. has_billing_access is the same check the
- * backend uses to gate the dashboard (Business.has_billing_access) --
- * trusting it here keeps the frontend and backend gates from ever disagreeing. */
+/** subscription_status mirrors the Lemon Squeezy Subscription `status` values
+ * this app branches on (see BillingService), plus "incomplete" for a business
+ * that has never started checkout. Note "cancelled" still means the business
+ * has billing access -- Lemon Squeezy's own semantics are "the customer
+ * cancelled, but access is paid through current_period_end" (see
+ * ACTIVE_SUBSCRIPTION_STATUSES in src/domain/tenancy.py); "expired" is the
+ * actual terminal state. has_billing_access is the same check the backend
+ * uses to gate the dashboard (Business.has_billing_access) -- trusting it
+ * here keeps the frontend and backend gates from ever disagreeing. */
 export interface BillingStatus {
   plan: BillingPlan | null;
-  subscription_status: "incomplete" | "trialing" | "active" | "past_due" | "unpaid" | "canceled";
+  subscription_status: "incomplete" | "on_trial" | "active" | "paused" | "past_due" | "unpaid" | "cancelled" | "expired";
   trial_ends_at: string | null;
   current_period_end: string | null;
-  cancel_at_period_end: boolean;
   has_billing_access: boolean;
 }
 

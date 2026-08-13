@@ -22,22 +22,26 @@ const PLANS: { id: BillingPlan; name: string; price: string; desc: string; featu
   },
 ];
 
-/** True once the business needs to (re)start Stripe Checkout rather than manage
- * an existing subscription via the Billing Portal -- either it never checked
- * out, or a previous subscription was fully cancelled (Stripe doesn't let a
- * cancelled subscription be revived through the Portal; a fresh Checkout is
- * required). See BillingService.create_checkout_session / create_portal_session. */
+/** True once the business needs to start a fresh Checkout rather than manage
+ * an existing subscription via the Customer Portal -- either it never
+ * checked out, or a previous subscription is fully `expired` (Lemon Squeezy
+ * doesn't let an expired subscription be revived through the Portal; a new
+ * Checkout is required). Deliberately excludes `cancelled` -- that status
+ * still has billing access and a real subscription to manage, see
+ * ACTIVE_SUBSCRIPTION_STATUSES in src/domain/tenancy.py. */
 function needsPlanSelection(status: BillingStatus): boolean {
-  return status.subscription_status === "incomplete" || status.subscription_status === "canceled";
+  return status.subscription_status === "incomplete" || status.subscription_status === "expired";
 }
 
 const STATUS_COPY: Record<BillingStatus["subscription_status"], { label: string; color: string; bg: string }> = {
   incomplete: { label: "No subscription yet", color: "#6B7280", bg: "#F1F1EF" },
-  trialing: { label: "Free trial", color: "#3A3EA6", bg: "#EEEEF9" },
+  on_trial: { label: "Free trial", color: "#3A3EA6", bg: "#EEEEF9" },
   active: { label: "Active", color: "#1E7B52", bg: "#E9F5EF" },
+  paused: { label: "Paused", color: "#6B7280", bg: "#F1F1EF" },
   past_due: { label: "Payment failed", color: "#C97A1F", bg: "#FBF0E2" },
   unpaid: { label: "Payment failed", color: "#C97A1F", bg: "#FBF0E2" },
-  canceled: { label: "Cancelled", color: "#B4483A", bg: "#FBEBE9" },
+  cancelled: { label: "Cancelled", color: "#B4483A", bg: "#FBEBE9" },
+  expired: { label: "Expired", color: "#B4483A", bg: "#FBEBE9" },
 };
 
 function formatDate(iso: string | null): string | null {
@@ -55,7 +59,7 @@ export default function Billing() {
   const [pendingPlan, setPendingPlan] = useState<BillingPlan | null>(null);
   const [openingPortal, setOpeningPortal] = useState(false);
 
-  const checkoutResult = searchParams.get("checkout"); // "success" | "cancelled" | null
+  const checkoutResult = searchParams.get("checkout"); // "success" | null
 
   useEffect(() => {
     let cancelled = false;
@@ -76,8 +80,9 @@ export default function Billing() {
     return () => {
       cancelled = true;
     };
-    // Re-check right after returning from Stripe Checkout so a completed trial
-    // shows up immediately rather than waiting on the next page load.
+    // Re-check right after returning from Checkout so a completed trial shows
+    // up immediately rather than waiting on the next page load -- the webhook
+    // that actually flips the status usually lands within a few seconds.
   }, [token, user?.business_id, checkoutResult]);
 
   const startCheckout = async (plan: BillingPlan) => {
@@ -130,15 +135,6 @@ export default function Billing() {
 
           {!loading && !loadError && status && (
             <>
-              {checkoutResult === "cancelled" && (
-                <div
-                  className="mb-6 px-4 py-3 rounded-lg text-sm flex items-center gap-2"
-                  style={{ backgroundColor: "#FBF0E2", color: "#8A5A17" }}
-                >
-                  <AlertTriangle size={15} /> Checkout was cancelled — pick a plan below whenever you're ready.
-                </div>
-              )}
-
               {actionError && (
                 <div className="mb-6 px-4 py-3 rounded-lg text-sm" style={{ backgroundColor: "#FBEBE9", color: "#8A3225" }}>
                   {actionError}
@@ -162,17 +158,21 @@ export default function Billing() {
                     </span>
                   </div>
 
-                  {status.subscription_status === "trialing" && status.trial_ends_at && (
+                  {status.subscription_status === "on_trial" && status.trial_ends_at && (
                     <p className="text-sm text-[#6B7280] mb-4">
                       Your free trial ends {formatDate(status.trial_ends_at)} — your card will be charged automatically unless you cancel first.
                     </p>
                   )}
                   {status.subscription_status === "active" && status.current_period_end && (
+                    <p className="text-sm text-[#6B7280] mb-4">Next charge {formatDate(status.current_period_end)}.</p>
+                  )}
+                  {status.subscription_status === "cancelled" && status.current_period_end && (
                     <p className="text-sm text-[#6B7280] mb-4">
-                      {status.cancel_at_period_end
-                        ? `Cancels at the end of the current period, ${formatDate(status.current_period_end)}.`
-                        : `Next charge ${formatDate(status.current_period_end)}.`}
+                      Your subscription is cancelled — the dashboard stays available until {formatDate(status.current_period_end)}.
                     </p>
+                  )}
+                  {status.subscription_status === "paused" && (
+                    <p className="text-sm text-[#6B7280] mb-4">Billing is paused on this subscription. Resume it below to restore access.</p>
                   )}
                   {(status.subscription_status === "past_due" || status.subscription_status === "unpaid") && (
                     <p className="text-sm mb-4" style={{ color: "#8A5A17" }}>
@@ -194,8 +194,8 @@ export default function Billing() {
 
               {needsPlanSelection(status) && (
                 <>
-                  {status.subscription_status === "canceled" && (
-                    <p className="text-sm text-[#6B7280] mb-6">Your subscription was cancelled. Choose a plan to start a new one.</p>
+                  {status.subscription_status === "expired" && (
+                    <p className="text-sm text-[#6B7280] mb-6">Your subscription has ended. Choose a plan to start a new one.</p>
                   )}
                   <div className="grid sm:grid-cols-2 gap-5">
                     {PLANS.map((p) => (

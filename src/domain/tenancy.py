@@ -6,16 +6,20 @@ from typing import Any, Mapping
 
 from .models import _freeze, _require_aware, _require_text
 
-# Mirrors the Stripe Subscription `status` values this app actually branches on
+# Mirrors the Lemon Squeezy Subscription `status` values this app branches on
 # (see BillingService) plus "incomplete", used locally for a business that has
-# never started checkout. Stripe also has "unpaid" and "paused" -- treated the
-# same as "past_due" (blocks dashboard access, doesn't nuke the record).
+# never started checkout. "cancelled" is Lemon Squeezy's own status for "the
+# customer cancelled, but the subscription remains valid until `ends_at`" --
+# distinct from "expired", which is the actual terminal end. See
+# https://docs.lemonsqueezy.com/api/subscriptions/the-subscription-object
 SUBSCRIPTION_STATUSES = frozenset({
-    "incomplete", "trialing", "active", "past_due", "unpaid", "canceled",
+    "incomplete", "on_trial", "active", "paused", "past_due", "unpaid", "cancelled", "expired",
 })
 # The only statuses that grant staff-dashboard access -- see
-# `require_active_subscription` in src/api/dependencies.py.
-ACTIVE_SUBSCRIPTION_STATUSES = frozenset({"trialing", "active"})
+# `require_active_subscription` in src/api/dependencies.py. "cancelled" is
+# included deliberately: the customer already paid for the current period,
+# access should last until Lemon Squeezy actually fires `subscription_expired`.
+ACTIVE_SUBSCRIPTION_STATUSES = frozenset({"on_trial", "active", "cancelled"})
 PLAN_IDS = frozenset({"starter", "pro"})
 
 
@@ -25,13 +29,12 @@ class Business:
     name: str
     created_at: datetime
     updated_at: datetime
-    stripe_customer_id: str | None = None
-    stripe_subscription_id: str | None = None
+    payment_customer_id: str | None = None
+    payment_subscription_id: str | None = None
     plan: str | None = None
     subscription_status: str = "incomplete"
     trial_ends_at: datetime | None = None
     current_period_end: datetime | None = None
-    cancel_at_period_end: bool = False
 
     def __post_init__(self) -> None:
         _require_text(self.business_id, "business_id")
