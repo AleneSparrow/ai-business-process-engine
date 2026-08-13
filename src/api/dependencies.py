@@ -14,6 +14,7 @@ from src.engine.intent_extractor import IntentExtractor
 from src.engine.customer_response_generator import CustomerResponseGenerator
 from src.engine.question_generator import QuestionGenerator
 from src.persistence.auth_service import AuthService, SessionInvalidError
+from src.persistence.billing_service import BillingService
 from src.persistence.business_provisioning_service import BusinessProvisioningService
 from src.persistence.lead_intake import PersistentLeadIntakeService
 from src.persistence.conversation_service import ConversationService
@@ -21,7 +22,7 @@ from src.persistence.business_dna_settings_service import BusinessDNASettingsSer
 from src.persistence.staff_action_service import StaffActionService
 from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork
 
-from .errors import ForbiddenError, ResourceNotFoundError, UnauthorizedError
+from .errors import ForbiddenError, PaymentRequiredError, ResourceNotFoundError, UnauthorizedError
 from .rate_limit import RateLimiter
 
 
@@ -111,6 +112,12 @@ def get_business_dna_settings_service(
     return BusinessDNASettingsService(container.unit_of_work_factory)
 
 
+def get_billing_service(
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+) -> BillingService:
+    return BillingService(container.unit_of_work_factory, container.settings)
+
+
 def get_current_staff_user(
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
     authorization: Annotated[str | None, Header()] = None,
@@ -155,3 +162,24 @@ def resolve_business(
     if business is None:
         raise ResourceNotFoundError("business_not_found", "Business was not found")
     return business
+
+
+def require_active_subscription(
+    business_id: BusinessIdPath,
+    user: Annotated[StaffUser, Depends(require_own_business)],
+    unit_of_work_factory: Annotated[UnitOfWorkFactory, Depends(get_unit_of_work_factory)],
+) -> StaffUser:
+    """Gates the staff dashboard (cases/conversations -- the product's actual
+    delivered value) on the business having billing access (see
+    `Business.has_billing_access`). Deliberately NOT applied to Settings/Business
+    DNA (the owner needs to reach billing to fix a lapsed subscription) or to
+    public lead-intake/widget routes (a payment problem on Atelier's side
+    shouldn't immediately break the automation a business's own customers are
+    already relying on)."""
+    with unit_of_work_factory() as unit_of_work:
+        business = unit_of_work.businesses.get(business_id)
+    if business is None:
+        raise ResourceNotFoundError("business_not_found", "Business was not found")
+    if not business.has_billing_access:
+        raise PaymentRequiredError()
+    return user

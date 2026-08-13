@@ -15,6 +15,8 @@ from src.persistence.business_provisioning_service import (
     InvalidBusinessDNAError,
 )
 from src.persistence.errors import (
+    BillingAccountNotFoundError,
+    BillingNotConfiguredError,
     CaseNotAwaitingApprovalError,
     ConversationClosedError,
     ConversationNotLinkedError,
@@ -22,9 +24,11 @@ from src.persistence.errors import (
     ConversationTokenExpiredError,
     IdempotencyCollisionError,
     IdempotencyInProgressError,
+    InvalidPlanError,
     MessageScopeError,
     StaffConversationNotFoundError,
     StaleCaseError,
+    WebhookSignatureError,
 )
 
 from .observability import log_event
@@ -62,6 +66,14 @@ class ForbiddenError(PublicApiError):
 class ConflictError(PublicApiError):
     def __init__(self, code: str, public_message: str) -> None:
         super().__init__(409, code, public_message)
+
+
+class PaymentRequiredError(PublicApiError):
+    def __init__(
+        self,
+        public_message: str = "This business's Atelier subscription needs attention before the dashboard is available",
+    ) -> None:
+        super().__init__(402, "subscription_inactive", public_message)
 
 
 def _request_id(request: Request) -> str:
@@ -286,6 +298,34 @@ def install_error_handlers(app: FastAPI) -> None:
             "That change would produce an invalid business configuration",
             details=[{"message": str(exc)}],
         )
+
+    @app.exception_handler(BillingNotConfiguredError)
+    async def billing_not_configured_handler(
+        request: Request, exc: BillingNotConfiguredError
+    ) -> JSONResponse:
+        code = "billing_not_configured"
+        _log_error(request, code, 503, type(exc).__name__)
+        return _response(request, 503, code, "Billing is not available on this deployment yet")
+
+    @app.exception_handler(InvalidPlanError)
+    async def invalid_plan_handler(request: Request, exc: InvalidPlanError) -> JSONResponse:
+        code = "invalid_plan"
+        _log_error(request, code, 422, type(exc).__name__)
+        return _response(request, 422, code, "That plan isn't available")
+
+    @app.exception_handler(BillingAccountNotFoundError)
+    async def billing_account_not_found_handler(
+        request: Request, exc: BillingAccountNotFoundError
+    ) -> JSONResponse:
+        code = "billing_account_not_found"
+        _log_error(request, code, 409, type(exc).__name__)
+        return _response(request, 409, code, "This business hasn't started a subscription yet")
+
+    @app.exception_handler(WebhookSignatureError)
+    async def webhook_signature_handler(request: Request, exc: WebhookSignatureError) -> JSONResponse:
+        code = "webhook_signature_invalid"
+        _log_error(request, code, 400, type(exc).__name__)
+        return _response(request, 400, code, "Webhook signature verification failed")
 
     @app.exception_handler(Exception)
     async def unexpected_error_handler(request: Request, exc: Exception) -> JSONResponse:

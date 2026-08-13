@@ -15,6 +15,9 @@
  *   POST /api/v1/businesses/{id}/conversations/{conversation_id}/resolve (staff resolve)
  *   GET  /api/v1/businesses/{id}/dna                            (live Business DNA settings)
  *   PUT  /api/v1/businesses/{id}/dna                            (live Business DNA settings)
+ *   GET  /api/v1/businesses/{id}/billing                        (subscription status)
+ *   POST /api/v1/businesses/{id}/billing/checkout-session       (self-serve Stripe Checkout)
+ *   POST /api/v1/businesses/{id}/billing/portal-session          (self-serve Stripe Billing Portal)
  *
  * reply/resolve only work while the case is actually NEEDS_HUMAN with a pending
  * transition (see StaffActionService) — resolve approves that exact pending
@@ -245,6 +248,30 @@ export interface BusinessDNASettingsUpdate {
   escalate_on_emergency: boolean;
 }
 
+export type BillingPlan = "starter" | "pro";
+
+/** subscription_status mirrors the Stripe Subscription `status` values this
+ * app branches on (see BillingService), plus "incomplete" for a business that
+ * has never started checkout. has_billing_access is the same check the
+ * backend uses to gate the dashboard (Business.has_billing_access) --
+ * trusting it here keeps the frontend and backend gates from ever disagreeing. */
+export interface BillingStatus {
+  plan: BillingPlan | null;
+  subscription_status: "incomplete" | "trialing" | "active" | "past_due" | "unpaid" | "canceled";
+  trial_ends_at: string | null;
+  current_period_end: string | null;
+  cancel_at_period_end: boolean;
+  has_billing_access: boolean;
+}
+
+export interface CheckoutSessionResponse {
+  checkout_url: string;
+}
+
+export interface PortalSessionResponse {
+  portal_url: string;
+}
+
 export const api = {
   signup: (email: string, password: string) =>
     request<SessionResponse>("/api/v1/auth/signup", {
@@ -312,6 +339,23 @@ export const api = {
     request<BusinessDNASettings>(
       `/api/v1/businesses/${businessId}/dna`,
       { method: "PUT", body: JSON.stringify(payload) },
+      token,
+    ),
+
+  getBillingStatus: (token: string, businessId: string) =>
+    request<BillingStatus>(`/api/v1/businesses/${businessId}/billing`, { method: "GET" }, token),
+
+  createCheckoutSession: (token: string, businessId: string, plan: BillingPlan) =>
+    request<CheckoutSessionResponse>(
+      `/api/v1/businesses/${businessId}/billing/checkout-session`,
+      { method: "POST", body: JSON.stringify({ plan }) },
+      token,
+    ),
+
+  createPortalSession: (token: string, businessId: string) =>
+    request<PortalSessionResponse>(
+      `/api/v1/businesses/${businessId}/billing/portal-session`,
+      { method: "POST", body: JSON.stringify({}) },
       token,
     ),
 };

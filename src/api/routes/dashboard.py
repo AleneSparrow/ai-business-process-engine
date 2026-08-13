@@ -18,6 +18,7 @@ from ..dependencies import (
     UnitOfWorkFactory,
     get_staff_action_service,
     get_unit_of_work_factory,
+    require_active_subscription,
     require_own_business,
 )
 from ..errors import ResourceNotFoundError
@@ -34,7 +35,15 @@ from ..schemas import (
 )
 
 
-router = APIRouter(prefix="/api/v1/businesses/{business_id}", tags=["dashboard"])
+# Gated on require_active_subscription: this is the actual delivered product
+# (cases and conversations), so it's what's blocked when a business's own
+# Atelier subscription lapses. Settings, billing itself, and public lead
+# intake stay reachable regardless -- see src/api/dependencies.py.
+router = APIRouter(
+    prefix="/api/v1/businesses/{business_id}",
+    tags=["dashboard"],
+    dependencies=[Depends(require_active_subscription)],
+)
 
 
 @router.get("/cases", response_model=DashboardCaseListResponse)

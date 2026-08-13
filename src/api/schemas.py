@@ -3,7 +3,7 @@
 from collections.abc import Mapping
 from datetime import datetime
 from decimal import Decimal
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     AwareDatetime,
@@ -144,6 +144,41 @@ class BusinessResponse(ApiModel):
             created_at=business.created_at,
             updated_at=business.updated_at,
         )
+
+
+# --- Billing: self-serve Stripe subscription for the business's own Atelier account ------
+
+
+class BillingStatusResponse(ApiModel):
+    plan: Literal["starter", "pro"] | None
+    subscription_status: str
+    trial_ends_at: datetime | None
+    current_period_end: datetime | None
+    cancel_at_period_end: bool
+    has_billing_access: bool
+
+    @classmethod
+    def from_domain(cls, business: Business) -> "BillingStatusResponse":
+        return cls(
+            plan=business.plan,
+            subscription_status=business.subscription_status,
+            trial_ends_at=business.trial_ends_at,
+            current_period_end=business.current_period_end,
+            cancel_at_period_end=business.cancel_at_period_end,
+            has_billing_access=business.has_billing_access,
+        )
+
+
+class CheckoutSessionRequest(ApiModel):
+    plan: Literal["starter", "pro"]
+
+
+class CheckoutSessionResponse(ApiModel):
+    checkout_url: str
+
+
+class PortalSessionResponse(ApiModel):
+    portal_url: str
 
 
 class HealthResponse(ApiModel):

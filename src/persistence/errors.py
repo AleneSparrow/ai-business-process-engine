@@ -57,3 +57,24 @@ class CaseNotAwaitingApprovalError(PersistenceError):
 
 class ConversationClosedError(PersistenceError):
     """A staff action was requested on a conversation that is already closed."""
+
+
+class BillingNotConfiguredError(PersistenceError):
+    """Stripe isn't configured (no STRIPE_SECRET_KEY) -- billing endpoints are
+    reachable but can't do anything yet. Distinct from a 500: this is an expected,
+    named deployment state (e.g. local dev, or before the Stripe account is set up)."""
+
+
+class InvalidPlanError(PersistenceError):
+    """A checkout was requested for a plan id that isn't `starter` or `pro`, or
+    whose corresponding STRIPE_PRICE_* env var isn't set."""
+
+
+class BillingAccountNotFoundError(PersistenceError):
+    """A portal session was requested for a business that never started
+    checkout, so it has no Stripe customer to manage yet."""
+
+
+class WebhookSignatureError(PersistenceError):
+    """A request to the Stripe webhook endpoint failed signature verification --
+    either not actually from Stripe, or signed with a different webhook secret."""

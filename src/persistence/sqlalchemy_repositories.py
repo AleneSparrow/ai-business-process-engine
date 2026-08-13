@@ -72,6 +72,22 @@ def _json_value(value: Any) -> Any:
     return value
 
 
+def _business_from_row(row: BusinessRow) -> Business:
+    return Business(
+        row.id,
+        row.name,
+        _aware(row.created_at),
+        _aware(row.updated_at),
+        stripe_customer_id=row.stripe_customer_id,
+        stripe_subscription_id=row.stripe_subscription_id,
+        plan=row.plan,
+        subscription_status=row.subscription_status,
+        trial_ends_at=_aware(row.trial_ends_at) if row.trial_ends_at else None,
+        current_period_end=_aware(row.current_period_end) if row.current_period_end else None,
+        cancel_at_period_end=row.cancel_at_period_end,
+    )
+
+
 class SQLAlchemyBusinessRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -82,13 +98,59 @@ class SQLAlchemyBusinessRepository:
             name=business.name,
             created_at=business.created_at,
             updated_at=business.updated_at,
+            stripe_customer_id=business.stripe_customer_id,
+            stripe_subscription_id=business.stripe_subscription_id,
+            plan=business.plan,
+            subscription_status=business.subscription_status,
+            trial_ends_at=business.trial_ends_at,
+            current_period_end=business.current_period_end,
+            cancel_at_period_end=business.cancel_at_period_end,
         ))
 
     def get(self, business_id: str) -> Business | None:
         row = self.session.get(BusinessRow, business_id)
         if row is None:
             return None
-        return Business(row.id, row.name, _aware(row.created_at), _aware(row.updated_at))
+        return _business_from_row(row)
+
+    def get_by_stripe_customer_id(self, stripe_customer_id: str) -> Business | None:
+        row = self.session.scalar(
+            select(BusinessRow).where(BusinessRow.stripe_customer_id == stripe_customer_id)
+        )
+        if row is None:
+            return None
+        return _business_from_row(row)
+
+    def update_billing(
+        self,
+        business_id: str,
+        *,
+        stripe_customer_id: str | None,
+        stripe_subscription_id: str | None,
+        plan: str | None,
+        subscription_status: str,
+        trial_ends_at: datetime | None,
+        current_period_end: datetime | None,
+        cancel_at_period_end: bool,
+    ) -> Business:
+        row = self.session.scalar(
+            select(BusinessRow).where(BusinessRow.id == business_id).with_for_update()
+        )
+        if row is None:
+            raise KeyError(f"unknown business_id: {business_id}")
+        if stripe_customer_id is not None:
+            row.stripe_customer_id = stripe_customer_id
+        if stripe_subscription_id is not None:
+            row.stripe_subscription_id = stripe_subscription_id
+        if plan is not None:
+            row.plan = plan
+        row.subscription_status = subscription_status
+        row.trial_ends_at = trial_ends_at
+        row.current_period_end = current_period_end
+        row.cancel_at_period_end = cancel_at_period_end
+        row.updated_at = utc_now()
+        self.session.flush()
+        return _business_from_row(row)
 
 
 class SQLAlchemyBusinessDNARepository:

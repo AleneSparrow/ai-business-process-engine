@@ -114,6 +114,14 @@ export function describeError(err: unknown): string {
         return "This case isn't waiting on your review anymore — someone may have already resolved it.";
       case "conversation_not_found":
         return "That conversation couldn't be found.";
+      case "billing_not_configured":
+        return "Billing isn't set up on this deployment yet.";
+      case "invalid_plan":
+        return "That plan isn't available right now.";
+      case "billing_account_not_found":
+        return "Start a subscription first — there's nothing to manage yet.";
+      case "subscription_inactive":
+        return "This business's subscription needs attention before the dashboard is available.";
       case "network_error":
         return err.message;
       default:

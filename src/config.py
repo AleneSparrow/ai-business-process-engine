@@ -20,6 +20,20 @@ class Settings:
     public_chat_rate_limit_window_seconds: int = 60
     public_conversation_token_ttl_hours: int = 720
     public_chat_message_max_chars: int = 2_000
+    stripe_secret_key: str | None = field(default=None, repr=False)
+    stripe_webhook_secret: str | None = field(default=None, repr=False)
+    stripe_price_starter: str | None = None
+    stripe_price_pro: str | None = None
+    billing_trial_days: int = 7
+    frontend_base_url: str | None = None
+
+    @property
+    def billing_configured(self) -> bool:
+        """Whether Stripe billing is wired up. Deliberately optional at the Settings
+        level (unlike ai_provider) so local dev and early deploys can boot without a
+        Stripe account -- BillingService raises a clear, specific error per-request
+        instead of failing the whole app at startup."""
+        return self.stripe_secret_key is not None
 
     def __post_init__(self) -> None:
         if not self.database_url.strip():
@@ -47,6 +61,24 @@ class Settings:
             raise ValueError("public conversation token TTL must be between 1 and 8760 hours")
         if not 100 <= self.public_chat_message_max_chars <= 10_000:
             raise ValueError("public chat message maximum must be between 100 and 10000")
+        if not 0 <= self.billing_trial_days <= 90:
+            raise ValueError("billing_trial_days must be between 0 and 90")
+        if self.billing_configured:
+            missing = [
+                name
+                for name, value in (
+                    ("STRIPE_WEBHOOK_SECRET", self.stripe_webhook_secret),
+                    ("STRIPE_PRICE_STARTER", self.stripe_price_starter),
+                    ("STRIPE_PRICE_PRO", self.stripe_price_pro),
+                    ("FRONTEND_BASE_URL", self.frontend_base_url),
+                )
+                if not value or not value.strip()
+            ]
+            if missing:
+                raise ValueError(
+                    "STRIPE_SECRET_KEY is set, so billing is enabled -- also required: "
+                    + ", ".join(missing)
+                )
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -69,6 +101,7 @@ class Settings:
             rate_limit_window = int(os.getenv("PUBLIC_CHAT_RATE_LIMIT_WINDOW_SECONDS", "60"))
             token_ttl = int(os.getenv("PUBLIC_CONVERSATION_TOKEN_TTL_HOURS", "720"))
             message_max = int(os.getenv("PUBLIC_CHAT_MESSAGE_MAX_CHARS", "2000"))
+            billing_trial_days = int(os.getenv("BILLING_TRIAL_DAYS", "7"))
         except ValueError as exc:
             raise RuntimeError("numeric application settings contain an invalid value") from exc
         origins = tuple(
@@ -76,6 +109,7 @@ class Settings:
             for value in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",")
             if value.strip()
         )
+        frontend_base_url = os.getenv("FRONTEND_BASE_URL")
         try:
             return cls(
                 database_url=database_url,
@@ -92,6 +126,12 @@ class Settings:
                 public_chat_rate_limit_window_seconds=rate_limit_window,
                 public_conversation_token_ttl_hours=token_ttl,
                 public_chat_message_max_chars=message_max,
+                stripe_secret_key=os.getenv("STRIPE_SECRET_KEY"),
+                stripe_webhook_secret=os.getenv("STRIPE_WEBHOOK_SECRET"),
+                stripe_price_starter=os.getenv("STRIPE_PRICE_STARTER"),
+                stripe_price_pro=os.getenv("STRIPE_PRICE_PRO"),
+                billing_trial_days=billing_trial_days,
+                frontend_base_url=frontend_base_url.rstrip("/") if frontend_base_url else None,
             )
         except ValueError as exc:
             raise RuntimeError(str(exc)) from exc

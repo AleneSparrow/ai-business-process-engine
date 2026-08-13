@@ -1,6 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
-import { RequireAuth, RequireBusiness, RequireNoBusiness } from "./components/RouteGuards";
+import { RequireActiveSubscription, RequireAuth, RequireBusiness, RequireNoBusiness } from "./components/RouteGuards";
 import Landing from "./pages/Landing";
 import Signup from "./pages/Signup";
 import Login from "./pages/Login";
@@ -8,6 +8,7 @@ import Onboarding from "./pages/Onboarding";
 import Dashboard from "./pages/Dashboard";
 import Conversation from "./pages/Conversation";
 import Settings from "./pages/Settings";
+import Billing from "./pages/Billing";
 
 export default function App() {
   return (
@@ -32,7 +33,9 @@ export default function App() {
             element={
               <RequireAuth>
                 <RequireBusiness>
-                  <Dashboard />
+                  <RequireActiveSubscription>
+                    <Dashboard />
+                  </RequireActiveSubscription>
                 </RequireBusiness>
               </RequireAuth>
             }
@@ -42,7 +45,9 @@ export default function App() {
             element={
               <RequireAuth>
                 <RequireBusiness>
-                  <Conversation />
+                  <RequireActiveSubscription>
+                    <Conversation />
+                  </RequireActiveSubscription>
                 </RequireBusiness>
               </RequireAuth>
             }
@@ -53,6 +58,16 @@ export default function App() {
               <RequireAuth>
                 <RequireBusiness>
                   <Settings />
+                </RequireBusiness>
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/app/billing"
+            element={
+              <RequireAuth>
+                <RequireBusiness>
+                  <Billing />
                 </RequireBusiness>
               </RequireAuth>
             }

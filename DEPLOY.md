@@ -81,7 +81,52 @@ you also want to allow a custom domain once you set one up, e.g.
 `https://your-app.vercel.app,https://app.yourdomain.com`). Save — Railway
 redeploys automatically on a variable change.
 
-## 4. Smoke test
+## 4. Billing (Stripe) — required before a real customer can subscribe
+
+Self-serve billing (`src/persistence/billing_service.py`) is fully built and
+wired in, but it's off until you do the account-side setup below — with no
+`STRIPE_SECRET_KEY` set, the backend boots fine and everything else works,
+but billing endpoints return a clear "not configured" error instead of a
+crash. Account creation and entering the secret keys are things only you can
+do.
+
+1. Sign up at [stripe.com](https://stripe.com) (this can stay in **test
+   mode** until you're ready to charge real cards — everything below works
+   identically in test and live mode, you just flip a toggle in the Stripe
+   dashboard and swap the keys).
+2. **Products → Add product**, twice:
+   - **Starter** — recurring, **$199.00/month**.
+   - **Pro** — recurring, **$499.00/month**.
+   For each, copy the **Price ID** it generates (`price_...`, not the
+   Product ID) — you'll need both in step 3.
+3. On the Railway backend service, add these Variables:
+   - `STRIPE_SECRET_KEY` — **Developers → API keys** in Stripe (`sk_test_...`
+     or `sk_live_...`). Goes directly into Railway, same as `OPENAI_API_KEY`.
+   - `STRIPE_PRICE_STARTER` / `STRIPE_PRICE_PRO` — the two Price IDs from
+     step 2.
+   - `FRONTEND_BASE_URL` — your deployed frontend's exact origin (e.g.
+     `https://your-app.vercel.app`, no trailing slash) — Stripe Checkout
+     redirects back here after payment.
+   - `BILLING_TRIAL_DAYS` — optional, defaults to `7`.
+   - `STRIPE_WEBHOOK_SECRET` — from step 4 below (you'll come back to this).
+4. **Developers → Webhooks → Add endpoint** in Stripe:
+   - Endpoint URL: `https://your-backend.up.railway.app/api/v1/billing/webhook`
+   - Events to send — select exactly these five (the app ignores everything
+     else, but Stripe only sends what you select):
+     `checkout.session.completed`, `customer.subscription.created`,
+     `customer.subscription.updated`, `customer.subscription.deleted`,
+     `invoice.payment_failed`.
+   - After creating it, Stripe shows a **Signing secret** (`whsec_...`) — set
+     that as `STRIPE_WEBHOOK_SECRET` in Railway (step 3) and redeploy.
+5. Smoke test billing specifically: sign up a test account through your live
+   frontend, go through onboarding, land on **Billing**, pick a plan, and
+   complete Checkout using [Stripe's test
+   card](https://docs.stripe.com/testing) `4242 4242 4242 4242` (any future
+   expiry, any CVC) if you're still in test mode. You should land back on
+   `/app/billing` and the dashboard should unlock within a few seconds (it's
+   waiting on the webhook, not the redirect, to actually flip the switch).
+
+## 5. Smoke test
 
 Once both are live:
 - Visit the frontend URL, sign up a real account, run through onboarding, and

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ComponentType } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { LayoutGrid, MessageSquare, Workflow, Settings as SettingsIcon, LogOut } from "lucide-react";
+import { LayoutGrid, MessageSquare, Workflow, CreditCard, LogOut } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { api } from "../api/client";
 
@@ -56,9 +56,11 @@ export function Sidebar() {
 
   const view = location.pathname.startsWith("/app/settings")
     ? "settings"
-    : location.pathname.startsWith("/app/conversations")
-      ? "conversation"
-      : "dashboard";
+    : location.pathname.startsWith("/app/billing")
+      ? "billing"
+      : location.pathname.startsWith("/app/conversations")
+        ? "conversation"
+        : "dashboard";
 
   async function handleLogout() {
     await logout();
@@ -94,7 +96,7 @@ export function Sidebar() {
             active={view === "settings"}
             onClick={() => navigate("/app/settings")}
           />
-          <NavItem icon={SettingsIcon} label="Settings" active={false} onClick={() => navigate("/app/settings")} />
+          <NavItem icon={CreditCard} label="Billing" active={view === "billing"} onClick={() => navigate("/app/billing")} />
         </nav>
       </div>
       <div>
