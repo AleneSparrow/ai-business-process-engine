@@ -70,6 +70,7 @@ const EVENT_TYPE_META: Record<string, { stage: string; label: string }> = {
   TRANSITION_REJECTED: { stage: "Result", label: "Transition rejected" },
   DUPLICATE_IGNORED: { stage: "Result", label: "Duplicate message ignored" },
   LEAD_QUALIFICATION_TRANSITION: { stage: "Decision", label: "Qualification stage updated" },
+  HUMAN_REPLY_SENT: { stage: "Action", label: "Staff replied to customer" },
 };
 
 export function describeEvent(eventType: string): { stage: string; label: string } {

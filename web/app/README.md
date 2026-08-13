@@ -17,16 +17,20 @@ TypeScript app that talks to the actual backend in `src/api` (not a mockup).
   `GET /api/v1/businesses/{id}/conversations` and `GET .../conversations/{conversation_id}`,
   plus the real audit trail (`ProcessEvent` history) for the linked case via
   `GET /api/v1/businesses/{id}/cases/{case_id}`.
+- **Replying to a customer** — `POST .../conversations/{conversation_id}/reply` sends a
+  real outbound message (role `human`), stored and shown in the thread immediately. Moves
+  the conversation to `human_takeover_active` if it was only `_requested`.
+- **Mark resolved** — `POST .../conversations/{conversation_id}/resolve` approves the
+  case's pending transition (the state the engine wanted to move to before it escalated to
+  `NEEDS_HUMAN` — see `StaffActionService` in `src/persistence/staff_action_service.py`)
+  and closes the conversation. Only enabled while the case is actually `NEEDS_HUMAN`.
 
-All of the above (Milestone 8 slice 2) are staff-authenticated and scoped to your own
-`business_id` server-side — a session token for one business cannot read another's data.
+All of the above (Milestone 8 slice 2 and its reply/resolve follow-up) are
+staff-authenticated and scoped to your own `business_id` server-side — a session token for
+one business cannot read or act on another's data.
 
 ## What's still not wired
 
-- **Replying and "mark resolved"** on the Conversation screen are visually present but
-  disabled — there's no backend action yet for staff to send a message or resolve a case
-  (the engine's `NEEDS_HUMAN` state currently has no defined transition out of it in
-  `src/domain/state_machine.py`, which is a real design question, not just missing plumbing).
 - **Settings** still renders the original prototype's static `SETTINGS_INITIAL` content —
   editing live Business DNA from the UI hasn't been built.
 

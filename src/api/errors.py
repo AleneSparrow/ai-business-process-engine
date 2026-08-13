@@ -14,11 +14,15 @@ from src.persistence.business_provisioning_service import (
     BusinessIdTakenError,
 )
 from src.persistence.errors import (
+    CaseNotAwaitingApprovalError,
+    ConversationClosedError,
+    ConversationNotLinkedError,
     ConversationTokenError,
     ConversationTokenExpiredError,
     IdempotencyCollisionError,
     IdempotencyInProgressError,
     MessageScopeError,
+    StaffConversationNotFoundError,
     StaleCaseError,
 )
 
@@ -154,6 +158,36 @@ def install_error_handlers(app: FastAPI) -> None:
         code = "concurrency_conflict"
         _log_error(request, code, 409, type(exc).__name__)
         return _response(request, 409, code, "The case changed concurrently; retry the request")
+
+    @app.exception_handler(StaffConversationNotFoundError)
+    async def staff_conversation_not_found_handler(
+        request: Request, exc: StaffConversationNotFoundError
+    ) -> JSONResponse:
+        code = "conversation_not_found"
+        _log_error(request, code, 404, type(exc).__name__)
+        return _response(request, 404, code, "Conversation was not found")
+
+    @app.exception_handler(ConversationNotLinkedError)
+    async def conversation_not_linked_handler(
+        request: Request, exc: ConversationNotLinkedError
+    ) -> JSONResponse:
+        code = "conversation_not_linked"
+        _log_error(request, code, 422, type(exc).__name__)
+        return _response(request, 422, code, str(exc))
+
+    @app.exception_handler(ConversationClosedError)
+    async def conversation_closed_handler(request: Request, exc: ConversationClosedError) -> JSONResponse:
+        code = "conversation_closed"
+        _log_error(request, code, 409, type(exc).__name__)
+        return _response(request, 409, code, "This conversation is already closed")
+
+    @app.exception_handler(CaseNotAwaitingApprovalError)
+    async def case_not_awaiting_approval_handler(
+        request: Request, exc: CaseNotAwaitingApprovalError
+    ) -> JSONResponse:
+        code = "case_not_awaiting_approval"
+        _log_error(request, code, 409, type(exc).__name__)
+        return _response(request, 409, code, "This case isn't waiting on human approval right now")
 
     @app.exception_handler(MessageScopeError)
     async def message_scope_handler(request: Request, exc: MessageScopeError) -> JSONResponse:

@@ -106,6 +106,14 @@ export function describeError(err: unknown): string {
         return "That business name is already taken — try a slightly different name.";
       case "validation_error":
         return "Please check the highlighted fields and try again.";
+      case "conversation_not_linked":
+        return "This conversation isn't linked to a case yet, so there's nothing to resolve.";
+      case "conversation_closed":
+        return "This conversation is already closed.";
+      case "case_not_awaiting_approval":
+        return "This case isn't waiting on your review anymore — someone may have already resolved it.";
+      case "conversation_not_found":
+        return "That conversation couldn't be found.";
       case "network_error":
         return err.message;
       default:

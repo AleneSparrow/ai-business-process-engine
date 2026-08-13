@@ -17,6 +17,7 @@ from src.persistence.auth_service import AuthService, SessionInvalidError
 from src.persistence.business_provisioning_service import BusinessProvisioningService
 from src.persistence.lead_intake import PersistentLeadIntakeService
 from src.persistence.conversation_service import ConversationService
+from src.persistence.staff_action_service import StaffActionService
 from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork
 
 from .errors import ForbiddenError, ResourceNotFoundError, UnauthorizedError
@@ -95,6 +96,12 @@ def get_business_provisioning_service(
     container: Annotated[ApplicationContainer, Depends(get_container)],
 ) -> BusinessProvisioningService:
     return BusinessProvisioningService(container.unit_of_work_factory)
+
+
+def get_staff_action_service(
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+) -> StaffActionService:
+    return StaffActionService(container.unit_of_work_factory)
 
 
 def get_current_staff_user(

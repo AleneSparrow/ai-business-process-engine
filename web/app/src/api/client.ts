@@ -11,9 +11,12 @@
  *   GET  /api/v1/businesses/{id}/cases/{case_id}                (Milestone 8 slice 2)
  *   GET  /api/v1/businesses/{id}/conversations                  (Milestone 8 slice 2)
  *   GET  /api/v1/businesses/{id}/conversations/{conversation_id} (Milestone 8 slice 2)
+ *   POST /api/v1/businesses/{id}/conversations/{conversation_id}/reply   (staff reply)
+ *   POST /api/v1/businesses/{id}/conversations/{conversation_id}/resolve (staff resolve)
  *
- * The dashboard endpoints above are read-only for now — there is no reply/mark-resolved
- * backend yet, so Settings and the reply box in Conversation still use preview data.
+ * reply/resolve only work while the case is actually NEEDS_HUMAN with a pending
+ * transition (see StaffActionService) — resolve approves that exact pending
+ * transition, it doesn't invent a new one. Settings still uses preview data.
  */
 
 export interface ApiErrorPayload {
@@ -193,6 +196,11 @@ export interface DashboardConversationDetail {
   messages: DashboardMessage[];
 }
 
+export interface StaffActionResponse {
+  conversation: DashboardConversationSummary;
+  case: DashboardCaseSummary | null;
+}
+
 export const api = {
   signup: (email: string, password: string) =>
     request<SessionResponse>("/api/v1/auth/signup", {
@@ -236,6 +244,20 @@ export const api = {
     request<DashboardConversationDetail>(
       `/api/v1/businesses/${businessId}/conversations/${conversationId}`,
       { method: "GET" },
+      token,
+    ),
+
+  replyToConversation: (token: string, businessId: string, conversationId: string, message: string) =>
+    request<StaffActionResponse>(
+      `/api/v1/businesses/${businessId}/conversations/${conversationId}/reply`,
+      { method: "POST", body: JSON.stringify({ message }) },
+      token,
+    ),
+
+  resolveConversation: (token: string, businessId: string, conversationId: string) =>
+    request<StaffActionResponse>(
+      `/api/v1/businesses/${businessId}/conversations/${conversationId}/resolve`,
+      { method: "POST", body: JSON.stringify({}) },
       token,
     ),
 };

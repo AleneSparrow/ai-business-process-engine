@@ -39,3 +39,21 @@ class ConversationTokenError(PersistenceError):
 
 class ConversationTokenExpiredError(ConversationTokenError):
     """An anonymous conversation token has expired or been revoked."""
+
+
+class StaffConversationNotFoundError(PersistenceError):
+    """A staff action referenced a conversation_id that doesn't exist for this business."""
+
+
+class ConversationNotLinkedError(PersistenceError):
+    """A staff action needs a case, but the conversation has none linked yet."""
+
+
+class CaseNotAwaitingApprovalError(PersistenceError):
+    """A staff resolve action was requested but the case has no pending human
+    approval to give -- it is not in NEEDS_HUMAN, or has no pending_transition
+    (see ProcessEngine.receive / DecisionRouter._escalation)."""
+
+
+class ConversationClosedError(PersistenceError):
+    """A staff action was requested on a conversation that is already closed."""

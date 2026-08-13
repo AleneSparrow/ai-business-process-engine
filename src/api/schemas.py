@@ -1,5 +1,6 @@
 """Pydantic request and response contracts for API v1."""
 
+from collections.abc import Mapping
 from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Any
@@ -470,6 +471,23 @@ class DashboardCaseListResponse(ApiModel):
     cases: tuple[DashboardCaseSummarySchema, ...]
 
 
+def _jsonable(value: Any) -> Any:
+    """Recursively unwrap the immutable containers `ProcessEvent.payload` is
+    frozen into (see `_freeze` in src/domain/models.py). `dict(event.payload)`
+    alone only unwraps the top level -- any nested dict/list/set value stays a
+    MappingProxyType/frozenset/tuple, and pydantic-core's JSON serializer
+    can't encode a MappingProxyType, so any event with a nested payload value
+    (e.g. DECISION_RECORDED's "metadata") 500s the dashboard case-detail
+    endpoint without this."""
+    if isinstance(value, Mapping):
+        return {key: _jsonable(item) for key, item in value.items()}
+    if isinstance(value, list | tuple):
+        return [_jsonable(item) for item in value]
+    if isinstance(value, set | frozenset):
+        return [_jsonable(item) for item in value]
+    return value
+
+
 class DashboardEventSchema(ApiModel):
     event_id: str
     event_type: str
@@ -484,7 +502,7 @@ class DashboardEventSchema(ApiModel):
             event_type=str(event.event_type),
             source=event.source,
             occurred_at=event.occurred_at,
-            payload=dict(event.payload),
+            payload=_jsonable(event.payload),
         )
 
 
@@ -555,3 +573,12 @@ class DashboardMessageSchema(ApiModel):
 class DashboardConversationDetailResponse(ApiModel):
     conversation: DashboardConversationSchema
     messages: tuple[DashboardMessageSchema, ...]
+
+
+class StaffReplyRequest(ApiModel):
+    message: Annotated[str, Field(min_length=1, max_length=10_000)]
+
+
+class StaffActionResponse(ApiModel):
+    conversation: DashboardConversationSchema
+    case: DashboardCaseSummarySchema | None

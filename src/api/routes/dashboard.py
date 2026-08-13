@@ -1,18 +1,25 @@
-"""Staff-facing dashboard API: real cases, conversations, and audit trail.
-
-Read-only for now (Milestone 8 slice 2). Every endpoint is scoped to the
-authenticated staff user's own business via `require_own_business` — no
-cross-tenant reads are possible even with a valid session token for a
-different business.
+"""Staff-facing dashboard API: real cases, conversations, audit trail, and
+the reply/resolve actions for a case that needs a human (Milestone 8 slice 2
+and its follow-up). Every endpoint is scoped to the authenticated staff
+user's own business via `require_own_business` — no cross-tenant reads or
+actions are possible even with a valid session token for a different
+business.
 """
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 
 from src.domain.auth import StaffUser
+from src.persistence.staff_action_service import StaffActionService
 
-from ..dependencies import BusinessIdPath, UnitOfWorkFactory, get_unit_of_work_factory, require_own_business
+from ..dependencies import (
+    BusinessIdPath,
+    UnitOfWorkFactory,
+    get_staff_action_service,
+    get_unit_of_work_factory,
+    require_own_business,
+)
 from ..errors import ResourceNotFoundError
 from ..schemas import (
     DashboardCaseDetailResponse,
@@ -22,6 +29,8 @@ from ..schemas import (
     DashboardConversationListResponse,
     DashboardConversationSchema,
     DashboardMessageSchema,
+    StaffActionResponse,
+    StaffReplyRequest,
 )
 
 
@@ -116,3 +125,53 @@ def get_conversation(
             for message in messages
         ),
     )
+
+
+def _staff_action_response(
+    unit_of_work_factory: UnitOfWorkFactory, business_id: str, result
+) -> StaffActionResponse:
+    lead_name = None
+    with unit_of_work_factory() as unit_of_work:
+        if result.conversation.lead_id is not None:
+            lead = unit_of_work.leads.get(business_id, result.conversation.lead_id)
+            lead_name = lead.name if lead is not None else None
+    return StaffActionResponse(
+        conversation=DashboardConversationSchema.from_domain(
+            result.conversation,
+            lead_name=lead_name,
+            case_state=result.case.current_state if result.case is not None else None,
+        ),
+        case=DashboardCaseSummarySchema.from_domain(result.case) if result.case is not None else None,
+    )
+
+
+@router.post(
+    "/conversations/{conversation_id}/reply",
+    response_model=StaffActionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def reply_to_conversation(
+    business_id: BusinessIdPath,
+    conversation_id: str,
+    body: StaffReplyRequest,
+    user: Annotated[StaffUser, Depends(require_own_business)],
+    staff_actions: Annotated[StaffActionService, Depends(get_staff_action_service)],
+    unit_of_work_factory: Annotated[UnitOfWorkFactory, Depends(get_unit_of_work_factory)],
+) -> StaffActionResponse:
+    result = staff_actions.reply(business_id, conversation_id, user, body.message)
+    return _staff_action_response(unit_of_work_factory, business_id, result)
+
+
+@router.post(
+    "/conversations/{conversation_id}/resolve",
+    response_model=StaffActionResponse,
+)
+def resolve_conversation_case(
+    business_id: BusinessIdPath,
+    conversation_id: str,
+    user: Annotated[StaffUser, Depends(require_own_business)],
+    staff_actions: Annotated[StaffActionService, Depends(get_staff_action_service)],
+    unit_of_work_factory: Annotated[UnitOfWorkFactory, Depends(get_unit_of_work_factory)],
+) -> StaffActionResponse:
+    result = staff_actions.resolve(business_id, conversation_id, user)
+    return _staff_action_response(unit_of_work_factory, business_id, result)

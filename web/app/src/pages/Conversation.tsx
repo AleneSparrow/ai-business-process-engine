@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Search, Send, Phone, Mail, Loader2 } from "lucide-react";
+import { ArrowLeft, Search, Send, Check, Phone, Mail, Loader2 } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { STAGES, StatePill, Stepper, mapProcessState, describeEvent, formatRelativeTime } from "../components/Shared";
 import { useAuth, describeError } from "../auth/AuthContext";
@@ -23,6 +23,38 @@ export default function Conversation() {
   const [caseDetail, setCaseDetail] = useState<DashboardCaseDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reply, setReply] = useState("");
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [resolving, setResolving] = useState(false);
+
+  const refreshList = useCallback(() => {
+    if (!token || !user?.business_id) return;
+    api
+      .listConversations(token, user.business_id)
+      .then((res) => setConversations(res.conversations))
+      .catch((err) => setError(describeError(err)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, user?.business_id]);
+
+  const refreshDetail = useCallback(
+    (conversationId: string) => {
+      if (!token || !user?.business_id) return Promise.resolve();
+      const businessId = user.business_id;
+      return api
+        .getConversation(token, businessId, conversationId)
+        .then((res) => {
+          setDetail(res);
+          if (res.conversation.case_id) {
+            return api
+              .getCase(token, businessId, res.conversation.case_id)
+              .then((c) => setCaseDetail(c))
+              .catch(() => undefined);
+          }
+          setCaseDetail(null);
+        });
+    },
+    [token, user?.business_id],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -48,31 +80,51 @@ export default function Conversation() {
     let cancelled = false;
     setDetail(null);
     setCaseDetail(null);
+    setActionError(null);
     if (!token || !user?.business_id || !selectedId) return;
-    const businessId = user.business_id;
-    api
-      .getConversation(token, businessId, selectedId)
-      .then((res) => {
-        if (cancelled) return;
-        setDetail(res);
-        if (res.conversation.case_id) {
-          return api
-            .getCase(token, businessId, res.conversation.case_id)
-            .then((c) => {
-              if (!cancelled) setCaseDetail(c);
-            })
-            .catch(() => undefined);
-        }
-      })
-      .catch((err) => {
-        if (!cancelled) setError(describeError(err));
-      });
+    refreshDetail(selectedId).catch((err) => {
+      if (!cancelled) setError(describeError(err));
+    });
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, user?.business_id, selectedId]);
 
   const stateInfo = useMemo(() => (caseDetail ? mapProcessState(caseDetail.current_state) : null), [caseDetail]);
+  const canReply = detail !== null && detail.conversation.status !== "closed";
+  const canResolve = caseDetail !== null && caseDetail.current_state === "NEEDS_HUMAN";
+
+  const handleSend = async () => {
+    if (!token || !user?.business_id || !selectedId || !reply.trim()) return;
+    setSending(true);
+    setActionError(null);
+    try {
+      await api.replyToConversation(token, user.business_id, selectedId, reply.trim());
+      setReply("");
+      await refreshDetail(selectedId);
+      refreshList();
+    } catch (err) {
+      setActionError(describeError(err));
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleResolve = async () => {
+    if (!token || !user?.business_id || !selectedId) return;
+    setResolving(true);
+    setActionError(null);
+    try {
+      await api.resolveConversation(token, user.business_id, selectedId);
+      await refreshDetail(selectedId);
+      refreshList();
+    } catch (err) {
+      setActionError(describeError(err));
+    } finally {
+      setResolving(false);
+    }
+  };
 
   return (
     <div className="min-h-screen w-full flex" style={{ backgroundColor: "#F7F6F2", fontFamily: "'Inter', sans-serif", color: "#171A21" }}>
@@ -170,20 +222,54 @@ export default function Conversation() {
                 </div>
 
                 <div className="border-t border-[#E7E5DE] p-4">
+                  {actionError && (
+                    <div className="mb-2.5 px-3 py-2 rounded-lg text-xs" style={{ backgroundColor: "#FBEBE9", color: "#8A3225" }}>
+                      {actionError}
+                    </div>
+                  )}
                   <div className="flex items-end gap-2">
                     <textarea
                       value={reply}
                       onChange={(e) => setReply(e.target.value)}
-                      placeholder="Reply as your business... (sending isn't wired to the engine yet)"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey) {
+                          e.preventDefault();
+                          if (canReply && !sending && reply.trim()) handleSend();
+                        }
+                      }}
+                      placeholder={canReply ? "Reply as your business..." : "This conversation is closed"}
                       rows={2}
-                      disabled
-                      className="flex-1 px-3.5 py-2.5 rounded-lg border border-[#E7E5DE] bg-[#FAFAF7] text-sm outline-none resize-none opacity-70"
+                      disabled={!canReply || sending}
+                      className="flex-1 px-3.5 py-2.5 rounded-lg border border-[#E7E5DE] bg-white text-sm outline-none resize-none disabled:opacity-60 disabled:bg-[#FAFAF7]"
                     />
-                    <button disabled title="Replying isn't wired to the engine yet" className="h-10 w-10 shrink-0 rounded-lg flex items-center justify-center text-white opacity-40 cursor-not-allowed" style={{ backgroundColor: "#171A21" }}>
-                      <Send size={15} />
+                    <button
+                      onClick={handleSend}
+                      disabled={!canReply || sending || !reply.trim()}
+                      title={canReply ? "Send reply" : "This conversation is closed"}
+                      className="h-10 w-10 shrink-0 rounded-lg flex items-center justify-center text-white disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{ backgroundColor: "#171A21" }}
+                    >
+                      {sending ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
                     </button>
                   </div>
-                  <p className="mt-2 text-xs text-[#9AA1AC]">Replying and mark-resolved aren't wired to the engine yet — this reads real conversation history.</p>
+                  <div className="mt-2.5 flex items-center justify-between">
+                    <p className="text-xs text-[#9AA1AC]">
+                      {canResolve
+                        ? "This case is waiting on your review."
+                        : caseDetail
+                          ? "Not currently waiting on human review."
+                          : "This conversation isn't linked to a case."}
+                    </p>
+                    <button
+                      onClick={handleResolve}
+                      disabled={!canResolve || resolving}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border disabled:opacity-40 disabled:cursor-not-allowed"
+                      style={{ borderColor: "#E7E5DE", color: "#171A21" }}
+                    >
+                      {resolving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+                      Mark resolved
+                    </button>
+                  </div>
                 </div>
               </>
             )}
