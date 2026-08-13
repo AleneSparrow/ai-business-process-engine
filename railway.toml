@@ -1,0 +1,13 @@
+# Optional; Railway auto-detects the Dockerfile without this file. It exists
+# only to wire up the health check Railway uses to decide whether a deploy is
+# live before routing traffic to it, and a sane restart policy. See DEPLOY.md.
+
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

@@ -110,6 +110,13 @@ curl -X POST http://localhost:8000/api/v1/businesses/acme-home-services/messages
 
 The response includes `business_id`, stable case and lead IDs, `current_state`, a replay indicator, any customer question, `requires_human`, and a qualification summary. Reusing the same message identity and content returns the stored result; changing its fingerprint returns HTTP 409.
 
+## Deploying to production
+
+See [`DEPLOY.md`](DEPLOY.md) for the actual steps (Railway for the backend +
+Postgres, Vercel/Cloudflare Pages for the `web/app` frontend). The
+`Dockerfile` already runs migrations on startup and exposes `/health`, so
+most of what's left is account setup and environment variables.
+
 ## Website conversations and widget
 
 Milestones 6 and 7 provide these anonymous public routes:
