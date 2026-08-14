@@ -19,6 +19,7 @@ from src.persistence.business_provisioning_service import BusinessProvisioningSe
 from src.persistence.lead_intake import PersistentLeadIntakeService
 from src.persistence.conversation_service import ConversationService
 from src.persistence.business_dna_settings_service import BusinessDNASettingsService
+from src.persistence.crm_webhook_service import CrmWebhookService
 from src.persistence.staff_action_service import StaffActionService
 from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork
 
@@ -110,6 +111,12 @@ def get_business_dna_settings_service(
     container: Annotated[ApplicationContainer, Depends(get_container)],
 ) -> BusinessDNASettingsService:
     return BusinessDNASettingsService(container.unit_of_work_factory)
+
+
+def get_crm_webhook_service(
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+) -> CrmWebhookService:
+    return CrmWebhookService(container.unit_of_work_factory)
 
 
 def get_billing_service(

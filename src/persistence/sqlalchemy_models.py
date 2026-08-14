@@ -73,6 +73,27 @@ class BusinessDNARow(Base):
     )
 
 
+class CrmWebhookConnectionRow(Base):
+    """One outbound webhook URL per business (e.g. a Clio/Zapier catch hook).
+
+    Deliberately its own table, not a Business DNA field -- Business DNA is
+    read into AI prompt context (BUSINESS_CONTEXT) in several places, and
+    this URL is effectively a bearer secret (Zapier/Make-style hooks embed a
+    token in the path). See `communication.compliance_disclaimer` for the
+    contrasting case: that IS safe in Business DNA because it's meant to be
+    customer-visible text, not a credential.
+    """
+
+    __tablename__ = "crm_webhook_connections"
+
+    business_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("businesses.id", ondelete="CASCADE"), primary_key=True
+    )
+    webhook_url: Mapped[str] = mapped_column(String(2048), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class StaffUserRow(Base):
     __tablename__ = "staff_users"
 

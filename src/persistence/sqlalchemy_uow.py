@@ -11,6 +11,7 @@ from .sqlalchemy_repositories import (
     SQLAlchemyBookingRepository,
     SQLAlchemyConversationMessageRepository,
     SQLAlchemyConversationRepository,
+    SQLAlchemyCrmWebhookConnectionRepository,
     SQLAlchemyIdempotencyRepository,
     SQLAlchemyLeadRepository,
     SQLAlchemyPaymentRequestRepository,
@@ -64,6 +65,7 @@ class SQLAlchemyUnitOfWork:
         self.payment_requests = SQLAlchemyPaymentRequestRepository(self.session)
         self.staff_users = SQLAlchemyStaffUserRepository(self.session)
         self.staff_sessions = SQLAlchemyStaffSessionRepository(self.session)
+        self.crm_webhook_connections = SQLAlchemyCrmWebhookConnectionRepository(self.session)
         return self
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:

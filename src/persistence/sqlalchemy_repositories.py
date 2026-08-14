@@ -46,6 +46,7 @@ from .sqlalchemy_models import (
     BookingRow,
     ConversationMessageRow,
     ConversationRow,
+    CrmWebhookConnectionRow,
     LeadRow,
     PaymentRequestRow,
     ProcessCaseRow,
@@ -210,6 +211,36 @@ class SQLAlchemyBusinessDNARepository:
         return BusinessDNAVersion(
             row.business_id, row.version, row.configuration, _aware(row.created_at), row.active
         )
+
+
+class SQLAlchemyCrmWebhookConnectionRepository:
+    """One outbound CRM webhook URL per business. See CrmWebhookConnectionRow
+    for why this is its own table rather than a Business DNA field."""
+
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def get_url(self, business_id: str) -> str | None:
+        row = self.session.get(CrmWebhookConnectionRow, business_id)
+        return row.webhook_url if row is not None else None
+
+    def upsert(self, business_id: str, webhook_url: str, *, now: datetime) -> None:
+        row = self.session.get(CrmWebhookConnectionRow, business_id)
+        if row is None:
+            self.session.add(CrmWebhookConnectionRow(
+                business_id=business_id,
+                webhook_url=webhook_url,
+                created_at=now,
+                updated_at=now,
+            ))
+        else:
+            row.webhook_url = webhook_url
+            row.updated_at = now
+
+    def delete(self, business_id: str) -> None:
+        row = self.session.get(CrmWebhookConnectionRow, business_id)
+        if row is not None:
+            self.session.delete(row)
 
 
 class SQLAlchemyStaffUserRepository:

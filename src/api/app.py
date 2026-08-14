@@ -30,6 +30,7 @@ from .routes import (
     businesses,
     dashboard,
     health,
+    integrations,
     lead_intake,
     onboarding,
     public_conversations,
@@ -162,6 +163,7 @@ def create_app(
     application.include_router(onboarding.router)
     application.include_router(dashboard.router)
     application.include_router(business_dna.router)
+    application.include_router(integrations.router)
     application.include_router(billing.router)
     application.include_router(billing.webhook_router)
     application.include_router(lead_intake.router)

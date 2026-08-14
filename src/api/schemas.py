@@ -146,6 +146,19 @@ class BusinessResponse(ApiModel):
         )
 
 
+# --- CRM webhook: optional outbound sync (e.g. Clio) on QUALIFIED/WON cases --
+# The URL itself is never returned by the API -- it's effectively a bearer
+# secret (Zapier/Make-style catch hooks embed a token in the path).
+
+
+class CrmWebhookStatusResponse(ApiModel):
+    configured: bool
+
+
+class CrmWebhookConfigureRequest(ApiModel):
+    webhook_url: str = Field(min_length=1, max_length=2048)
+
+
 # --- Billing: self-serve Lemon Squeezy subscription for the business's own Atelier account --
 
 

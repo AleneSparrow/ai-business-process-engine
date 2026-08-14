@@ -7,11 +7,13 @@ from fastapi import APIRouter, Depends, Path, Request
 
 from src.domain.tenancy import Business
 from src.persistence.conversation_service import ConversationService
+from src.persistence.crm_webhook_service import CrmWebhookService
 
 from ..dependencies import (
     ApplicationContainer,
     get_container,
     get_conversation_service,
+    get_crm_webhook_service,
     get_public_chat_rate_limiter,
     resolve_business,
 )
@@ -41,6 +43,26 @@ def _client_ip(request: Request) -> str:
 def _enforce_rate_limit(limiter: RateLimiter, key: str) -> None:
     if not limiter.allow(key):
         raise PublicApiError(429, "rate_limit_exceeded", "Too many chat requests; try again later")
+
+
+def _notify_crm_if_relevant(
+    crm_webhook_service: CrmWebhookService,
+    business_id: str,
+    result: object,
+) -> None:
+    """Fire the optional CRM webhook (see CrmWebhookService) *after* the state
+    transition below has already committed -- `result` here is always the
+    return value of a completed, committed service call, never state read
+    mid-transaction. Best-effort: `notify_if_configured` never raises."""
+    current_state = getattr(result, "current_state", None)
+    conversation_id = getattr(result, "internal_conversation_id", None)
+    if current_state is None or conversation_id is None:
+        return
+    crm_webhook_service.notify_if_configured(
+        business_id,
+        conversation_id=conversation_id,
+        state=current_state.value,
+    )
 
 
 def _validate_message_length(message: str, container: ApplicationContainer) -> None:
@@ -113,6 +135,7 @@ def create_conversation(
     service: Annotated[ConversationService, Depends(get_conversation_service)],
     limiter: Annotated[RateLimiter, Depends(get_public_chat_rate_limiter)],
     container: Annotated[ApplicationContainer, Depends(get_container)],
+    crm_webhook_service: Annotated[CrmWebhookService, Depends(get_crm_webhook_service)],
 ) -> PublicConversationResponse:
     _enforce_rate_limit(limiter, f"create:{business.business_id}:{_client_ip(request)}")
     if payload.message is not None:
@@ -127,6 +150,7 @@ def create_conversation(
     )
     request.state.conversation_id = result.internal_conversation_id
     request.state.resulting_state = result.current_state.value if result.current_state else None
+    _notify_crm_if_relevant(crm_webhook_service, business.business_id, result)
     return PublicConversationResponse.from_domain(result)
 
 
@@ -149,6 +173,7 @@ def send_conversation_message(
     service: Annotated[ConversationService, Depends(get_conversation_service)],
     limiter: Annotated[RateLimiter, Depends(get_public_chat_rate_limiter)],
     container: Annotated[ApplicationContainer, Depends(get_container)],
+    crm_webhook_service: Annotated[CrmWebhookService, Depends(get_crm_webhook_service)],
 ) -> PublicConversationResponse:
     token_key = hashlib.sha256(conversation_token.encode("utf-8")).hexdigest()
     _enforce_rate_limit(
@@ -166,6 +191,7 @@ def send_conversation_message(
     )
     request.state.conversation_id = result.internal_conversation_id
     request.state.resulting_state = result.current_state.value if result.current_state else None
+    _notify_crm_if_relevant(crm_webhook_service, business.business_id, result)
     return PublicConversationResponse.from_domain(result)
 
 
