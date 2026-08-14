@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flywheel — AI Intake for Solo Law Practices</title>
+<meta name="description" content="Flywheel answers, qualifies, and books every lead for your practice, 24/7 — built so the AI can only follow the script you approve. Not a policy. An architecture.">
+<style>
+  :root{
+    --graphite:#151515;
+    --graphite-soft:#3a362d;
+    --bronze:#B87333;
+    --bronze-dark:#96591f;
+    --paper:#F5F1EA;
+    --paper-2:#EEE8DC;
+    --amber:#D97B29;
+    --line:#e2dbcb;
+    --muted:#6b6558;
+    --font-display: 'Century Gothic','Futura','Trebuchet MS',sans-serif;
+    --font-serif: Georgia,'Times New Roman',serif;
+    --font-body: -apple-system,'Segoe UI',Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--graphite);font-family:var(--font-body);}
+  a{color:inherit;}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 32px;}
+  img,svg{display:block;}
+
+  /* ---------- nav ---------- */
+  header{position:sticky;top:0;z-index:50;background:rgba(245,241,234,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);}
+  .nav-inner{max-width:1100px;margin:0 auto;padding:18px 32px;display:flex;align-items:center;justify-content:space-between;}
+  .brand-lockup{display:flex;align-items:center;gap:10px;}
+  .brand-lockup span{font-family:var(--font-display);letter-spacing:.04em;font-size:18px;font-weight:700;}
+  header nav{display:flex;align-items:center;gap:30px;}
+  header nav a.link{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-decoration:none;}
+  .btn{display:inline-block;font-family:var(--font-body);font-weight:700;font-size:13px;letter-spacing:.03em;padding:12px 22px;border-radius:4px;text-decoration:none;text-transform:uppercase;}
+  .btn-primary{background:var(--amber);color:#1c1206;}
+  .btn-ghost{border:1px solid var(--graphite);color:var(--graphite);}
+
+  /* ---------- hero ---------- */
+  .hero{padding:88px 0 64px;text-align:center;}
+  .kicker{font-size:12px;letter-spacing:.26em;text-transform:uppercase;color:var(--bronze-dark);margin-bottom:22px;font-weight:700;}
+  .hero h1{font-family:var(--font-display);font-size:52px;line-height:1.08;margin:0 auto 22px;letter-spacing:-.01em;max-width:760px;}
+  .hero .sub{font-size:17px;line-height:1.6;color:var(--graphite-soft);max-width:560px;margin:0 auto 34px;}
+  .hero .sub b{color:var(--graphite);}
+  .hero-cta{display:flex;gap:14px;justify-content:center;align-items:center;flex-wrap:wrap;}
+  .hero-note{font-size:12px;color:var(--muted);margin-top:14px;}
+  .hero-wheel{margin:60px auto 0;}
+  .hero-wheel svg{margin:0 auto;}
+
+  /* ---------- disclosure ribbon ---------- */
+  .ribbon{background:var(--graphite);color:var(--paper);padding:11px 0;text-align:center;font-size:12.5px;letter-spacing:.02em;}
+  .ribbon b{color:var(--paper);}
+  .ribbon span{color:#b9b2a2;}
+
+  section{padding:88px 0;}
+  section.tight{padding:64px 0;}
+  .section-head{max-width:640px;margin:0 auto 44px;text-align:center;}
+  .section-head .eyebrow{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--bronze-dark);font-weight:700;margin-bottom:14px;}
+  .section-head h2{font-family:var(--font-display);font-size:32px;line-height:1.2;margin:0 0 14px;}
+  .section-head p{color:var(--graphite-soft);font-size:15.5px;line-height:1.6;margin:0;}
+
+  /* ---------- stat row ---------- */
+  .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;}
+  .stat-card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:26px 22px;}
+  .stat-card .num{font-family:var(--font-display);font-size:30px;color:var(--bronze-dark);margin-bottom:6px;}
+  .stat-card .lbl{font-size:13px;color:var(--muted);line-height:1.5;}
+
+  /* ---------- compare ---------- */
+  .compare{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+  .compare .col{border-radius:8px;padding:30px 28px;}
+  .compare .col.bad{background:#EEE8DC;border:1px solid var(--line);}
+  .compare .col.good{background:var(--graphite);color:var(--paper);}
+  .compare h3{font-family:var(--font-display);font-size:15px;letter-spacing:.04em;text-transform:uppercase;margin:0 0 18px;}
+  .compare .col.bad h3{color:var(--graphite-soft);}
+  .compare .col.good h3{color:var(--bronze);}
+  .compare ul{margin:0;padding:0;list-style:none;}
+  .compare li{font-size:14.5px;line-height:1.6;padding:10px 0;border-top:1px solid rgba(0,0,0,.06);}
+  .compare .col.good li{border-top:1px solid rgba(245,241,234,.12);color:#e7e2d5;}
+  .compare li:first-child{border-top:none;}
+
+  /* ---------- feature list ---------- */
+  .features{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+  .feature{background:var(--paper);padding:28px 26px;}
+  .feature .mark{color:var(--bronze-dark);font-family:var(--font-display);font-size:13px;margin-bottom:10px;}
+  .feature h4{font-family:var(--font-display);font-size:16px;margin:0 0 8px;}
+  .feature p{font-size:14px;color:var(--graphite-soft);line-height:1.55;margin:0;}
+
+  /* ---------- pricing ---------- */
+  .price-card{max-width:440px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:10px;padding:44px 40px;text-align:center;box-shadow:0 30px 60px rgba(21,21,21,.06);}
+  .price-card .tier{font-family:var(--font-display);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--bronze-dark);margin-bottom:14px;}
+  .price-card .amount{font-family:var(--font-display);font-size:52px;color:var(--graphite);}
+  .price-card .amount span{font-size:16px;color:var(--muted);font-family:var(--font-body);}
+  .price-card .desc{font-size:14px;color:var(--graphite-soft);margin:14px 0 28px;}
+  .price-card ul{text-align:left;list-style:none;padding:0;margin:0 0 30px;}
+  .price-card li{font-size:14px;padding:9px 0;border-top:1px solid var(--line);color:var(--graphite-soft);}
+  .price-card li:first-child{border-top:none;}
+  .price-card li b{color:var(--graphite);}
+
+  /* ---------- faq ---------- */
+  .faq{max-width:760px;margin:0 auto;}
+  .faq-item{border-top:1px solid var(--line);padding:26px 0;}
+  .faq-item:last-child{border-bottom:1px solid var(--line);}
+  .faq-item h4{font-family:var(--font-display);font-size:16px;margin:0 0 10px;}
+  .faq-item p{font-size:14.5px;color:var(--graphite-soft);line-height:1.6;margin:0;}
+
+  /* ---------- footer cta ---------- */
+  .final-cta{background:var(--graphite);color:var(--paper);text-align:center;padding:90px 0;}
+  .final-cta h2{font-family:var(--font-display);font-size:34px;margin:0 0 16px;}
+  .final-cta p{color:#b9b2a2;font-size:15px;margin:0 0 30px;}
+
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:36px 0;letter-spacing:.03em;background:var(--paper-2);}
+
+  @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+  .spin-med{animation:spin 7s linear infinite;transform-origin:100px 100px;}
+
+  @media(max-width:860px){
+    .stat-row{grid-template-columns:repeat(2,1fr);}
+    .compare{grid-template-columns:1fr;}
+    .features{grid-template-columns:1fr;}
+    .hero h1{font-size:36px;}
+    .section-head h2{font-size:26px;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav-inner">
+    <div class="brand-lockup">
+      <svg width="26" height="26" viewBox="0 0 200 200">
+        <circle cx="100" cy="100" r="80" fill="none" stroke="#B87333" stroke-width="13"/>
+        <circle cx="100" cy="100" r="14" fill="#B87333"/>
+        <g stroke="#B87333" stroke-width="11" stroke-linecap="round">
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(8 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(80 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(152 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(224 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(296 100 100)"/>
+        </g>
+      </svg>
+      <span>FLYWHEEL</span>
+    </div>
+    <nav>
+      <a class="link" href="#how">How it works</a>
+      <a class="link" href="#pricing">Pricing</a>
+      <a class="link" href="#faq">FAQ</a>
+      <a class="btn btn-primary" href="#pricing">Start free trial</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero wrap">
+  <div class="kicker">AI Intake for Solo Law Practices</div>
+  <h1>The AI intake assistant that legally can't overstep.</h1>
+  <p class="sub">Flywheel answers and qualifies every lead for your practice, 24/7 — built so the AI can only follow the script you approve. <b>Not a policy. An architecture.</b></p>
+  <div class="hero-cta">
+    <a class="btn btn-primary" href="#pricing">Start your 7-day free trial</a>
+    <a class="btn btn-ghost" href="#how">See how it works</a>
+  </div>
+  <div class="hero-note">$199/mo after trial · no setup call · live in about 20 minutes</div>
+
+  <div class="hero-wheel">
+    <svg width="180" height="180" viewBox="0 0 200 200">
+      <g stroke="#B87333" stroke-linecap="round" fill="none" opacity="0.35">
+        <circle cx="100" cy="100" r="90" stroke-width="2" stroke-dasharray="76 480" transform="rotate(190 100 100)" opacity="0.5"/>
+        <circle cx="100" cy="100" r="98" stroke-width="2" stroke-dasharray="67 540" transform="rotate(192 100 100)" opacity="0.3"/>
+      </g>
+      <g class="spin-med">
+        <circle cx="100" cy="100" r="80" fill="none" stroke="#B87333" stroke-width="7"/>
+        <circle cx="100" cy="100" r="13" fill="#B87333"/>
+        <g stroke="#B87333" stroke-width="6" stroke-linecap="round">
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(15 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(87 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(159 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(231 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(303 100 100)"/>
+        </g>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<div class="ribbon">
+  <span class="wrap"><b>Discloses itself as AI, every time</b> <span>— built for the standard California (SB 243) and New York (Article 47) already require.</span></span>
+</div>
+
+<section class="wrap" id="problem">
+  <div class="section-head">
+    <div class="eyebrow">The Problem</div>
+    <h2>Every missed call is a lead you already paid for.</h2>
+    <p>The average cost per lead in legal services runs close to $649 — and most callers who hit voicemail never call back. A full-time intake specialist costs $55,000–$80,000 a year fully loaded, and even a great one can't answer at 11pm on a Sunday.</p>
+  </div>
+  <div class="stat-row">
+    <div class="stat-card"><div class="num">$649</div><div class="lbl">average cost per lead in legal services</div></div>
+    <div class="stat-card"><div class="num">37.8%</div><div class="lbl">of inbound calls are answered by a live person, industry-wide</div></div>
+    <div class="stat-card"><div class="num">85%</div><div class="lbl">of callers who hit voicemail never call back</div></div>
+    <div class="stat-card"><div class="num">$55–80K</div><div class="lbl">fully loaded cost of one intake specialist, per year</div></div>
+  </div>
+</section>
+
+<section class="wrap" id="how">
+  <div class="section-head">
+    <div class="eyebrow">How Flywheel Is Different</div>
+    <h2>Most AI intake tools run on a prompt. Flywheel runs on a script.</h2>
+    <p>Prompts can be argued with, jailbroken, or drift over a long conversation — for a law firm, that's not a UX risk, it's a bar-complaint risk.</p>
+  </div>
+  <div class="compare">
+    <div class="col bad">
+      <h3>A chatbot on a prompt</h3>
+      <ul>
+        <li>The AI decides what to say, guided by instructions</li>
+        <li>Can be talked into estimating a case or promising an outcome</li>
+        <li>Compliance depends on the prompt holding up under pressure</li>
+        <li>Disclosure is whatever the prompt remembers to say</li>
+      </ul>
+    </div>
+    <div class="col good">
+      <h3>Flywheel</h3>
+      <ul>
+        <li>The AI only rewrites the wording of a script you approve</li>
+        <li>Has no path to invent legal analysis or promise a result</li>
+        <li>Compliance is a hard limit in the message pipeline, not a prompt</li>
+        <li>Identifies itself as AI from the first message, every time</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="wrap tight">
+  <div class="section-head">
+    <div class="eyebrow">What It Does</div>
+    <h2>Everything intake, nothing it isn't allowed to say.</h2>
+  </div>
+  <div class="features">
+    <div class="feature"><div class="mark">01</div><h4>Answers inbound leads</h4><p>On your website, day or night — no missed calls, no after-hours voicemail.</p></div>
+    <div class="feature"><div class="mark">02</div><h4>Qualifies against your criteria</h4><p>Practice area, urgency, location — set once, applied every time.</p></div>
+    <div class="feature"><div class="mark">03</div><h4>Books consultations</h4><p>Directly onto your calendar, no back-and-forth.</p></div>
+    <div class="feature"><div class="mark">04</div><h4>Escalates on your rules</h4><p>To you or your staff, exactly when your script says to.</p></div>
+    <div class="feature"><div class="mark">05</div><h4>Never gives legal advice</h4><p>Or estimates outcomes, or promises a result — by design, not by request.</p></div>
+    <div class="feature"><div class="mark">06</div><h4>Built for one attorney</h4><p>Set up in about 20 minutes — no developer or IT help needed.</p></div>
+  </div>
+</section>
+
+<section class="wrap" id="pricing">
+  <div class="section-head">
+    <div class="eyebrow">Pricing</div>
+    <h2>One tier, built for solo practice.</h2>
+    <p>No setup fee. No usage tiers to track. Cancel anytime.</p>
+  </div>
+  <div class="price-card">
+    <div class="tier">Starter</div>
+    <div class="amount">$199<span>/month</span></div>
+    <div class="desc">7-day free trial. Card required at signup, no charge until the trial ends.</div>
+    <ul>
+      <li>Built for <b>one attorney, one jurisdiction</b></li>
+      <li>24/7 lead answering and qualification</li>
+      <li>Direct calendar booking</li>
+      <li>Compliance disclosure built in, not configured</li>
+      <li>~20 minute setup, no developer needed</li>
+    </ul>
+    <a class="btn btn-primary" href="#" style="width:100%;">Start your 7-day free trial</a>
+  </div>
+</section>
+
+<section class="wrap tight" id="faq">
+  <div class="section-head">
+    <div class="eyebrow">FAQ</div>
+    <h2>What firms ask before they start</h2>
+  </div>
+  <div class="faq">
+    <div class="faq-item">
+      <h4>Is this actually compliant with my state's bar rules?</h4>
+      <p>Flywheel is built to support the disclosure requirements already in effect in states like California (SB 243) and New York (Article 47) — the AI identifies itself clearly, includes a "not legal advice" notice, and always offers a path to a human. Bar rules vary by state, so we'd still recommend a quick read of your own state's guidance before launch — we're not your compliance counsel.</p>
+    </div>
+    <div class="faq-item">
+      <h4>Can the AI give legal advice by accident?</h4>
+      <p>No — that's the point. The AI only rewrites wording inside the script you approve. It has no path to invent legal analysis, estimate outcomes, or promise results, because that capability isn't built into the message pipeline at all.</p>
+    </div>
+    <div class="faq-item">
+      <h4>How long does setup take?</h4>
+      <p>About 20 minutes for a single-attorney practice. No developer needed.</p>
+    </div>
+    <div class="faq-item">
+      <h4>What if I want more than one attorney on the account?</h4>
+      <p>Multi-attorney support is on our roadmap — reach out and we'll let you know when it's ready for your firm.</p>
+    </div>
+  </div>
+</section>
+
+<div class="final-cta">
+  <div class="wrap">
+    <h2>Start your 7-day free trial.</h2>
+    <p>$199/month after trial · no setup call · live in about 20 minutes</p>
+    <a class="btn btn-primary" href="#pricing">Start free trial</a>
+  </div>
+</div>
+
+<footer>
+  © 2026 Flywheel · Not legal advice · <a href="#" style="text-decoration:underline;">Privacy</a> · <a href="#" style="text-decoration:underline;">Terms</a>
+</footer>
+
+</body>
+</html>

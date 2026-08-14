@@ -30,11 +30,11 @@ import { FlywheelMark } from "../components/Shared";
 
 function StatChip({ n, label }: { n: string; label: string }) {
   return (
-    <div className="flex flex-col">
-      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }} className="text-2xl">
+    <div className="bg-white rounded-xl border border-[#E7E5DE] p-4">
+      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, color: "#B87333" }} className="text-2xl mb-1">
         {n}
       </div>
-      <div className="text-xs text-[#6B6459] mt-0.5">{label}</div>
+      <div className="text-xs text-[#6B6459] leading-snug">{label}</div>
     </div>
   );
 }
@@ -67,12 +67,12 @@ export default function LawyersLanding() {
     <div style={{ backgroundColor: "#F5F1EA", fontFamily: "'Inter', sans-serif", color: "#151515" }} className="min-h-screen w-full">
       <header className="sticky top-0 z-20 backdrop-blur-sm" style={{ backgroundColor: "#F5F1EAEE", borderBottom: "1px solid #E7E5DE" }}>
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <button onClick={() => navigate("/lawyers")} className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: "#B87333" }}>
               <FlywheelMark size={16} />
             </div>
             <span className="font-semibold text-sm" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Flywheel</span>
-          </div>
+          </button>
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-[#6B6459]">
             <a href="#different" className="hover:text-[#151515] transition-colors">How it's different</a>
             <a href="#pricing" className="hover:text-[#151515] transition-colors">Pricing</a>
@@ -119,7 +119,7 @@ export default function LawyersLanding() {
           Flywheel answers and qualifies every lead for your practice, 24/7 — built so the AI can only
           follow the script you approve. Not a policy. An architecture.
         </p>
-        <div className="flex flex-wrap items-center justify-center gap-3 mb-12">
+        <div className="flex flex-wrap items-center justify-center gap-3">
           <button
             onClick={() => navigate(primaryCtaTarget)}
             className="text-sm font-medium text-white px-5 py-3 rounded-lg flex items-center gap-2"
@@ -129,16 +129,11 @@ export default function LawyersLanding() {
           </button>
           <span className="text-xs text-[#9C9488]">$199/mo after trial · card required, no charge until trial ends</span>
         </div>
-        <div className="flex flex-wrap items-center justify-center gap-10">
-          <StatChip n="$649" label="Avg. cost per lead, legal services" />
-          <StatChip n="$55–80K" label="Fully-loaded intake specialist, per year" />
-          <StatChip n="24/7" label="Never misses an after-hours call" />
-        </div>
       </section>
 
       <section className="border-y border-[#E7E5DE] bg-white">
         <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-center gap-3 text-sm text-[#9C9488] text-center">
-          <ShieldCheck size={15} className="shrink-0" /> Discloses itself as AI from the first message, every time — the standard California and New York already require, built in from day one.
+          <ShieldCheck size={15} className="shrink-0" /> Discloses itself as AI, every time — built for the standard California (SB 243) and New York (Article 47) already require.
         </div>
       </section>
 
@@ -148,11 +143,17 @@ export default function LawyersLanding() {
         <h2 className="text-2xl md:text-3xl mt-2 mb-5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>
           Every missed call is a lead you already paid for.
         </h2>
-        <p className="text-base text-[#6B6459] leading-relaxed max-w-2xl">
+        <p className="text-base text-[#6B6459] leading-relaxed max-w-2xl mb-8">
           The average cost per lead in legal services runs close to $649 — and most callers who hit
           voicemail never call back. A full-time intake specialist costs $55,000–$80,000 a year fully
           loaded, and even a great one can't answer at 11pm on a Sunday.
         </p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatChip n="$649" label="Avg. cost per lead, legal services" />
+          <StatChip n="37.8%" label="Of inbound calls answered by a live person, industry-wide" />
+          <StatChip n="85%" label="Of callers who hit voicemail never call back" />
+          <StatChip n="$55–80K" label="Fully-loaded intake specialist, per year" />
+        </div>
       </section>
 
       {/* ============ HOW IT'S DIFFERENT ============ */}
@@ -173,6 +174,26 @@ export default function LawyersLanding() {
             rules, and what the assistant is and isn't allowed to say all live in the underlying engine,
             not in a prompt the AI could talk itself out of.
           </p>
+          <div className="grid sm:grid-cols-2 gap-4 mb-8">
+            <div className="rounded-xl border border-[#E7E5DE] bg-[#F5F1EA] p-6">
+              <div className="text-xs font-semibold uppercase tracking-wide text-[#6B6459] mb-4">A chatbot on a prompt</div>
+              <ul className="flex flex-col gap-3 text-sm text-[#6B6459]">
+                <li className="pt-3 border-t border-[#E7E5DE] first:pt-0 first:border-0">The AI decides what to say, guided by instructions</li>
+                <li className="pt-3 border-t border-[#E7E5DE]">Can be talked into estimating a case or promising an outcome</li>
+                <li className="pt-3 border-t border-[#E7E5DE]">Compliance depends on the prompt holding up under pressure</li>
+                <li className="pt-3 border-t border-[#E7E5DE]">Disclosure is whatever the prompt remembers to say</li>
+              </ul>
+            </div>
+            <div className="rounded-xl p-6" style={{ backgroundColor: "#151515" }}>
+              <div className="text-xs font-semibold uppercase tracking-wide mb-4" style={{ color: "#D89456" }}>Flywheel</div>
+              <ul className="flex flex-col gap-3 text-sm" style={{ color: "#E7E2D5" }}>
+                <li className="pt-3 border-t first:pt-0 first:border-0" style={{ borderColor: "#33302B" }}>The AI only rewrites the wording of a script you approve</li>
+                <li className="pt-3 border-t" style={{ borderColor: "#33302B" }}>Has no path to invent legal analysis or promise a result</li>
+                <li className="pt-3 border-t" style={{ borderColor: "#33302B" }}>Compliance is a hard limit in the message pipeline, not a prompt</li>
+                <li className="pt-3 border-t" style={{ borderColor: "#33302B" }}>Identifies itself as AI from the first message, every time</li>
+              </ul>
+            </div>
+          </div>
           <div className="grid sm:grid-cols-3 gap-4">
             <div className="rounded-xl border border-[#E7E5DE] p-5">
               <FileWarning size={18} color="#B87333" className="mb-3" />
@@ -263,7 +284,7 @@ export default function LawyersLanding() {
           <div>
             <FaqItem
               q="Is this actually compliant with my state's bar rules?"
-              a={`Flywheel is built to support the disclosure requirements already in effect in states like California and New York — the AI identifies itself clearly, includes a "not legal advice" notice, and always offers a path to a human. That said, bar rules vary by state, and we'd always recommend a quick read of your own state's guidance before launch — we're not your compliance counsel.`}
+              a={`Flywheel is built to support the disclosure requirements already in effect in states like California (SB 243) and New York (Article 47) — the AI identifies itself clearly, includes a "not legal advice" notice, and always offers a path to a human. That said, bar rules vary by state, and we'd always recommend a quick read of your own state's guidance before launch — we're not your compliance counsel.`}
             />
             <FaqItem
               q="Can the AI give legal advice by accident?"

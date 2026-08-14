@@ -61,7 +61,7 @@ Copy is short and confident, with no superlatives: the product doesn't "disrupt 
 ## Design Project Examples
 
 - **Wordmark lockup \+ monogram**\: the wheel next to the name on light and dark backgrounds; a single\-line version for embossing.
-- **App icon**\: a wheel with three spokes and a motion trail, legible at 16×16 px.
+- **App icon**\: a wheel with five spokes and a motion trail, legible at 16×16 px.
 - **Landing page hero**\: graphite background, a large bronze wheel with a motion blur on the diagonal, a short manifesto headline ("Once running, it keeps running") with a concrete value line beneath it.
 - **Business DNA setup screen**\: the wheel as a progress indicator — spokes draw in as the business script assembles, then the wheel starts spinning once it's ready.
 - **Pitch deck title slide**\: the mark centered on graphite, with the legend as a standalone manifesto slide before the market\-numbers section.
@@ -83,3 +83,17 @@ The brand is built to be tuned for each new vertical or country, not rebuilt:
 - **Dark vs. light mode by audience.** The graphite version is for the product and for SaaS contexts generally; a light version (bronze on warm white) suits conservative professional verticals where reading as an established practice matters more than reading as a startup (lawyers, financial advisors). The logo and legend work in both without changes.
 - **The legend is authored in English — the launch market's language — from the start.** When the brand moves into a new language market, the legend should be rewritten to carry the same meaning in that language, not translated word for word.
 - **The emblem is deliberately culture\-neutral.** The wheel carries no specific mythology or religious association (unlike an earlier concept built around the Ouroboros, which was set aside for exactly this reason) — a deliberate choice for the plan to expand across many niches and countries, so no audience is narrowed by the imagery from the outset.
+
+## Wave 1 in Practice — Legal Vertical (Solo Attorneys)
+
+The GTM strategy names Wave 1 explicitly: solo attorneys, family law and general practice, starting in California and New York. This section is where the brand system above gets pointed at that specific launch, not a new set of rules.
+
+**Mode: light, not dark.** Per the Scaling section, lawyers are exactly the conservative professional audience the light variant (bronze `#B87333` on warm white `#F5F1EA`) is built for — it should read as an established practice, not a startup demo. The landing page and outreach materials for this wave use light mode as the default, not an alternate.
+
+**The brand idea and the compliance pitch are the same sentence.** The GTM positioning line — *"an AI that's architecturally incapable of overstepping, because it can only follow the script you approve"* — isn't a separate claim from the brand idea. It's the brand idea (a fixed script the product turns on its own, never improvising past what's written) applied to the one thing this audience actually fears: an AI that says something a bar association would flag. The wheel emblem's own construction rule — a strict, fixed structure that still reads as always in motion — is a visual echo of the same thing: discipline and momentum together, not one traded for the other.
+
+**Legend stays off the sales surface.** Per Brand Voice, the legend belongs on the About page and deck openers, not in outreach or landing copy aimed at a buyer mid\-decision. Wave 1 materials lead with specifics that this audience already tracks in dollars: intake specialist cost ($55K–80K/yr fully loaded), cost per lead in legal services (\\\~$649), and the disclosure rules already in force in California (SB 243) and New York (Article 47) — not with "once running, it keeps running."
+
+**Starter only, for now.** Product reality (solo practices are the only segment Starter fully serves today) becomes a brand discipline too: Wave 1 materials sell the $199/month Starter tier and don't dress Pro up as team\-ready. Saying less than the full price ladder is more consistent with "confident, no superlatives" than overselling a tier that isn't there yet.
+
+Landing page and outreach copy for this wave live in companion files: `flywheel-landing-legal.html` (the Wave 1 landing page) and "Flywheel — Wave 1 Outreach & Ad Materials (Legal Vertical)" (LinkedIn, cold email, and short ad copy).

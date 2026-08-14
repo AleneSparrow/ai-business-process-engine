@@ -125,7 +125,7 @@ export default function Landing() {
     <div style={{ backgroundColor: "#F5F1EA", fontFamily: "'Inter', sans-serif", color: "#151515" }} className="min-h-screen w-full">
       <header className="sticky top-0 z-20 backdrop-blur-sm" style={{ backgroundColor: "#F5F1EAEE", borderBottom: "1px solid #E7E5DE" }}>
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <button onClick={() => navigate("/lawyers")} className="flex items-center gap-2">
             <div
               className="w-7 h-7 rounded-lg flex items-center justify-center text-white"
               style={{ backgroundColor: "#B87333" }}
@@ -135,7 +135,7 @@ export default function Landing() {
             <span className="font-semibold text-sm" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
               Flywheel
             </span>
-          </div>
+          </button>
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-[#6B6459]">
             <a href="#how" className="hover:text-[#151515] transition-colors">How it works</a>
             <a href="#features" className="hover:text-[#151515] transition-colors">Features</a>
