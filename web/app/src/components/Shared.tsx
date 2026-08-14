@@ -25,10 +25,13 @@ export const STATE_META: Record<CaseState, { label: string; color: string; bg: s
 };
 
 /**
- * The Flywheel emblem, simplified for UI use -- a rim, three spokes, and a
- * short motion-trail arc (per the brand book's app-icon construction: "rim
- * and three spokes, minimal nodes -- legible at 16x16px"). Renders in
- * `currentColor` so it inherits whatever text color its container sets.
+ * The Flywheel emblem, simplified for UI use -- a rim, five spokes, a small
+ * hub node, and a short motion-trail arc (per the brand-book revision: five
+ * spokes, not three or four -- three in a ring reads instantly as a
+ * well-known automotive badge, a collision the book deliberately designs
+ * away from; five keeps the silhouette unmistakably a wheel while staying
+ * clear of that association at every size, "legible at 16x16px"). Renders
+ * in `currentColor` so it inherits whatever text color its container sets.
  */
 export function FlywheelMark({ size = 16, className }: { size?: number; className?: string }) {
   return (
@@ -38,16 +41,19 @@ export function FlywheelMark({ size = 16, className }: { size?: number; classNam
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth="1.5"
       strokeLinecap="round"
       aria-hidden="true"
       className={className}
     >
       <circle cx="12" cy="12" r="8" />
-      <path d="M12 12 L12 4.5" />
-      <path d="M12 12 L18.9 15.8" />
-      <path d="M12 12 L5.1 15.8" />
-      <path d="M20.3 9.3 A9 9 0 0 1 21.2 12.6" strokeWidth="1.4" opacity="0.55" />
+      <circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none" />
+      <path d="M12 12 L13.9 4.8" />
+      <path d="M12 12 L19.5 11.6" />
+      <path d="M12 12 L14.7 19" />
+      <path d="M12 12 L6.2 16.7" />
+      <path d="M12 12 L5.7 7.9" />
+      <path d="M20.3 9.3 A9 9 0 0 1 21.2 12.6" strokeWidth="1.2" opacity="0.55" />
     </svg>
   );
 }

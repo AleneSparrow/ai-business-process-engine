@@ -20,11 +20,13 @@ A flywheel is a part you spin up once; after that it holds its own rotation and 
 
 The primary mark is a wheel/flywheel, drawn not as a static, symmetrical circle but as a shape caught in motion: the spokes sit at a slight offset from strict symmetry, as if the wheel were photographed mid\-turn, and one side of the rim carries a short blurred stroke read as a motion trail. Construction rule: the wheel is never drawn at rest — every version should hint that it keeps turning on its own.
 
+The mark uses five spokes, not three or four. Three spokes in a ring reads instantly as a well\-known automotive badge — a collision we deliberately design away from. Five spokes keeps the silhouette unmistakably a wheel (cart wheel, ship's wheel, gear) while staying clear of that association at every size.
+
 | Version | Use | Notes |
 | --- | --- | --- |
-| Primary mark | Covers, decks, the brand book | The full wheel, spokes and motion trail |
+| Primary mark | Covers, decks, the brand book | The full wheel, five spokes and motion trail |
 | Monogram | Next to the wordmark, site header | The wheel simplified to a form read as an "F" |
-| App icon | App icon, favicon, loading spinner | Rim and three spokes, minimal nodes — legible at 16×16 px |
+| App icon | App icon, favicon, loading spinner | Rim and five spokes, minimal nodes — legible at 16×16 px |
 | Monochrome / emboss | Single\-color print, merch | Outline only, no fill — for embossing and one\-color print |
 
 ## Brand Legend
