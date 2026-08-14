@@ -5,8 +5,8 @@ import { api } from "../api/client";
 
 function FullscreenLoader() {
   return (
-    <div className="min-h-screen w-full flex items-center justify-center" style={{ backgroundColor: "#F7F6F2" }}>
-      <span className="text-sm text-[#6B7280]">Loading…</span>
+    <div className="min-h-screen w-full flex items-center justify-center" style={{ backgroundColor: "#F5F1EA" }}>
+      <span className="text-sm text-[#6B6459]">Loading…</span>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api, ApiError, type StaffUser } from "../api/client";
 
-const TOKEN_STORAGE_KEY = "atelier.session_token";
+const TOKEN_STORAGE_KEY = "flywheel.session_token";
 
 interface AuthContextValue {
   user: StaffUser | null;

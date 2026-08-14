@@ -1,10 +1,10 @@
-"""Self-serve Lemon Squeezy subscription billing for a business's own Atelier
+"""Self-serve Lemon Squeezy subscription billing for a business's own Flywheel
 account.
 
 Not to be confused with `src/domain/commercial.py` / `commercial_service.py`,
 which handle a *business's own customers* paying *that business* (quotes,
 bookings, payment requests) -- this module is the other side of the
-marketplace: a business paying Atelier for the product itself.
+marketplace: a business paying Flywheel for the product itself.
 
 Runs on **Lemon Squeezy**, not Stripe: Stripe's supported-country list does
 not include Vietnam, where this business (and its Stripe/Lemon Squeezy

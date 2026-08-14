@@ -71,7 +71,7 @@ class ConflictError(PublicApiError):
 class PaymentRequiredError(PublicApiError):
     def __init__(
         self,
-        public_message: str = "This business's Atelier subscription needs attention before the dashboard is available",
+        public_message: str = "This business's Flywheel subscription needs attention before the dashboard is available",
     ) -> None:
         super().__init__(402, "subscription_inactive", public_message)
 

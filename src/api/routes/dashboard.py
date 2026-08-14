@@ -37,7 +37,7 @@ from ..schemas import (
 
 # Gated on require_active_subscription: this is the actual delivered product
 # (cases and conversations), so it's what's blocked when a business's own
-# Atelier subscription lapses. Settings, billing itself, and public lead
+# Flywheel subscription lapses. Settings, billing itself, and public lead
 # intake stay reachable regardless -- see src/api/dependencies.py.
 router = APIRouter(
     prefix="/api/v1/businesses/{business_id}",

@@ -159,7 +159,7 @@ class CrmWebhookConfigureRequest(ApiModel):
     webhook_url: str = Field(min_length=1, max_length=2048)
 
 
-# --- Billing: self-serve Lemon Squeezy subscription for the business's own Atelier account --
+# --- Billing: self-serve Lemon Squeezy subscription for the business's own Flywheel account --
 
 
 class BillingStatusResponse(ApiModel):

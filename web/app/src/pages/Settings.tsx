@@ -181,13 +181,13 @@ export default function Settings() {
   };
 
   return (
-    <div className="min-h-screen w-full flex" style={{ backgroundColor: "#F7F6F2", fontFamily: "'Inter', sans-serif", color: "#171A21" }}>
+    <div className="min-h-screen w-full flex" style={{ backgroundColor: "#F5F1EA", fontFamily: "'Inter', sans-serif", color: "#151515" }}>
       <Sidebar />
       <main className="flex-1 min-w-0 flex flex-col">
         <header className="flex items-center justify-between px-6 md:px-8 py-4 border-b border-[#E7E5DE]">
           <div>
             <h1 className="text-xl" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>Business DNA</h1>
-            <p className="text-sm text-[#6B7280] mt-0.5" style={{ fontFamily: dirty ? "'Inter', sans-serif" : "'IBM Plex Mono', monospace" }}>
+            <p className="text-sm text-[#6B6459] mt-0.5" style={{ fontFamily: dirty ? "'Inter', sans-serif" : "'IBM Plex Mono', monospace" }}>
               {dirty
                 ? "Unsaved changes"
                 : updatedAt
@@ -203,7 +203,7 @@ export default function Settings() {
         </header>
 
         {loading && (
-          <div className="flex items-center gap-2 text-sm text-[#6B7280] py-16 justify-center">
+          <div className="flex items-center gap-2 text-sm text-[#6B6459] py-16 justify-center">
             <Loader2 size={16} className="animate-spin" /> Loading…
           </div>
         )}
@@ -225,10 +225,10 @@ export default function Settings() {
                     key={t.key}
                     onClick={() => setTab(t.key)}
                     className="px-3.5 py-2.5 text-sm whitespace-nowrap relative -mb-px"
-                    style={{ color: tab === t.key ? "#171A21" : "#9AA1AC", fontWeight: tab === t.key ? 600 : 500 }}
+                    style={{ color: tab === t.key ? "#151515" : "#9C9488", fontWeight: tab === t.key ? 600 : 500 }}
                   >
                     {t.label}
-                    {tab === t.key && <span className="absolute left-0 right-0 -bottom-px h-0.5" style={{ backgroundColor: "#171A21" }} />}
+                    {tab === t.key && <span className="absolute left-0 right-0 -bottom-px h-0.5" style={{ backgroundColor: "#151515" }} />}
                   </button>
                 ))}
               </div>
@@ -258,14 +258,14 @@ export default function Settings() {
                   <div className="flex flex-wrap gap-2 mb-3">
                     {state.services.map((s) => (
                       <span key={s.key} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm bg-[#F1F1EF] border border-[#E7E5DE]">
-                        {s.name} <X size={12} className="cursor-pointer text-[#9AA1AC]" onClick={() => removeService(s.key)} />
+                        {s.name} <X size={12} className="cursor-pointer text-[#9C9488]" onClick={() => removeService(s.key)} />
                       </span>
                     ))}
-                    {state.services.length === 0 && <span className="text-xs text-[#9AA1AC]">No services yet — add at least one.</span>}
+                    {state.services.length === 0 && <span className="text-xs text-[#9C9488]">No services yet — add at least one.</span>}
                   </div>
                   <div className="flex gap-2">
                     <input className={inputCls} placeholder="Add a service" value={newService} onChange={(e) => setNewService(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addService())} />
-                    <button onClick={addService} className="px-4 rounded-lg text-white text-sm font-medium flex items-center gap-1.5 shrink-0" style={{ backgroundColor: "#171A21" }}>
+                    <button onClick={addService} className="px-4 rounded-lg text-white text-sm font-medium flex items-center gap-1.5 shrink-0" style={{ backgroundColor: "#151515" }}>
                       <Plus size={14} /> Add
                     </button>
                   </div>
@@ -301,15 +301,15 @@ export default function Settings() {
 
               {tab === "questions" && (
                 <div>
-                  <p className="text-sm text-[#6B7280] mb-6">Per service, the questions your engine confirms before booking.</p>
-                  {state.services.length === 0 && <p className="text-sm text-[#9AA1AC]">Add a service on the Services tab first.</p>}
+                  <p className="text-sm text-[#6B6459] mb-6">Per service, the questions your engine confirms before booking.</p>
+                  {state.services.length === 0 && <p className="text-sm text-[#9C9488]">Add a service on the Services tab first.</p>}
                   {state.services.map((svc) => (
                     <div key={svc.key} className="mb-5 pb-5 border-b border-[#F0EFE9] last:border-0">
                       <div className="text-sm font-semibold mb-2.5">{svc.name}</div>
                       <div className="flex flex-col gap-2">
                         {svc.questions.map((q, i) => (
                           <div key={i} className="flex items-center gap-2">
-                            <span className="text-xs text-[#9AA1AC] w-5 shrink-0" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{i + 1}</span>
+                            <span className="text-xs text-[#9C9488] w-5 shrink-0" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{i + 1}</span>
                             <input
                               className={inputCls}
                               value={q}
@@ -322,7 +322,7 @@ export default function Settings() {
                             />
                             <X
                               size={14}
-                              className="cursor-pointer text-[#9AA1AC] shrink-0"
+                              className="cursor-pointer text-[#9C9488] shrink-0"
                               onClick={() => {
                                 const services = state.services.map((s) =>
                                   s.key === svc.key ? { ...s, questions: s.questions.filter((_, qi) => qi !== i) } : s,
@@ -333,7 +333,7 @@ export default function Settings() {
                           </div>
                         ))}
                         <button
-                          className="text-xs font-medium text-[#3A3EA6] flex items-center gap-1 mt-0.5 ml-7"
+                          className="text-xs font-medium text-[#B87333] flex items-center gap-1 mt-0.5 ml-7"
                           onClick={() => {
                             const services = state.services.map((s) => (s.key === svc.key ? { ...s, questions: [...s.questions, ""] } : s));
                             setState({ ...state, services });
@@ -349,22 +349,22 @@ export default function Settings() {
 
               {tab === "escalation" && (
                 <div className="flex flex-col gap-3">
-                  <p className="text-sm text-[#6B7280] mb-1">The engine never guesses past these lines — it stops and asks.</p>
+                  <p className="text-sm text-[#6B6459] mb-1">The engine never guesses past these lines — it stops and asks.</p>
                   {ESCALATION_OPTIONS.map(([key, title, desc]) => (
                     <label
                       key={key}
                       className="flex items-start gap-3 p-4 rounded-xl border cursor-pointer"
-                      style={{ borderColor: state.escalation[key] ? "#3A3EA6" : "#E7E5DE", backgroundColor: state.escalation[key] ? "#EEEEF9" : "#fff" }}
+                      style={{ borderColor: state.escalation[key] ? "#B87333" : "#E7E5DE", backgroundColor: state.escalation[key] ? "#F5E7D6" : "#fff" }}
                     >
                       <input
                         type="checkbox"
                         checked={state.escalation[key]}
                         onChange={() => setState({ ...state, escalation: { ...state.escalation, [key]: !state.escalation[key] } })}
-                        className="mt-0.5 accent-[#3A3EA6]"
+                        className="mt-0.5 accent-[#B87333]"
                       />
                       <div>
                         <div className="text-sm font-medium">{title}</div>
-                        <div className="text-xs text-[#6B7280] mt-0.5">{desc}</div>
+                        <div className="text-xs text-[#6B6459] mt-0.5">{desc}</div>
                       </div>
                     </label>
                   ))}
@@ -374,14 +374,14 @@ export default function Settings() {
 
             {dirty && (
               <div className="sticky bottom-0 border-t border-[#E7E5DE] bg-white px-6 md:px-8 py-4 flex items-center justify-between gap-4">
-                <span className="text-xs text-[#6B7280]">
+                <span className="text-xs text-[#6B6459]">
                   {saveError ?? "This won't change how existing conversations behave — only new ones."}
                 </span>
                 <div className="flex items-center gap-2 shrink-0">
                   <button onClick={discard} disabled={saving} className="text-sm font-medium px-4 py-2.5 rounded-lg border border-[#E7E5DE] flex items-center gap-1.5 disabled:opacity-50">
                     <RotateCcw size={13} /> Discard
                   </button>
-                  <button onClick={save} disabled={!canSave || saving} className="text-sm font-medium text-white px-5 py-2.5 rounded-lg flex items-center gap-1.5 disabled:opacity-50" style={{ backgroundColor: "#171A21" }}>
+                  <button onClick={save} disabled={!canSave || saving} className="text-sm font-medium text-white px-5 py-2.5 rounded-lg flex items-center gap-1.5 disabled:opacity-50" style={{ backgroundColor: "#151515" }}>
                     {saving && <Loader2 size={13} className="animate-spin" />}
                     Save changes
                   </button>

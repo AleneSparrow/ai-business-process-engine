@@ -1,4 +1,4 @@
-# Deploying Atelier to production
+# Deploying Flywheel to production
 
 This is a precise, minimal path to get the real app (not `localhost`) live on
 the internet. The backend already has everything it needs (`Dockerfile`,

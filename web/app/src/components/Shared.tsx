@@ -2,7 +2,8 @@ import type { ComponentType, ReactNode } from "react";
 import type { ProcessState } from "../api/client";
 
 /**
- * Design-system primitives ported directly from the prototype (atelierprototype.jsx),
+ * Design-system primitives ported directly from the prototype (atelierprototype.jsx --
+ * a historical filename from before the Flywheel rebrand, not a brand reference),
  * kept pixel-for-pixel so Dashboard/Conversation/Settings still read as one product.
  */
 
@@ -10,14 +11,45 @@ export const STAGES = ["Trigger", "Context", "Decision", "Action", "Result"];
 
 export type CaseState = "NEW" | "QUALIFYING" | "NEEDS_HUMAN" | "BOOKED" | "LOST" | "COMPLETED";
 
+// QUALIFYING deliberately uses the brand's functional accent (amber, not the
+// bronze brand accent) -- per the brand book, amber is reserved for
+// "active, in motion" product states, and a case being actively qualified
+// is exactly that. Every other state here is a resting/terminal state.
 export const STATE_META: Record<CaseState, { label: string; color: string; bg: string }> = {
-  NEW: { label: "New", color: "#6B7280", bg: "#F1F1EF" },
-  QUALIFYING: { label: "Qualifying", color: "#3A3EA6", bg: "#EEEEF9" },
+  NEW: { label: "New", color: "#6B6459", bg: "#F1F1EF" },
+  QUALIFYING: { label: "Qualifying", color: "#D97B29", bg: "#FBF0E2" },
   NEEDS_HUMAN: { label: "Needs you", color: "#C97A1F", bg: "#FBF0E2" },
   BOOKED: { label: "Booked", color: "#1E7B52", bg: "#E9F5EF" },
   LOST: { label: "Lost", color: "#B4483A", bg: "#FBEBE9" },
-  COMPLETED: { label: "Completed", color: "#171A21", bg: "#F1F1EF" },
+  COMPLETED: { label: "Completed", color: "#151515", bg: "#F1F1EF" },
 };
+
+/**
+ * The Flywheel emblem, simplified for UI use -- a rim, three spokes, and a
+ * short motion-trail arc (per the brand book's app-icon construction: "rim
+ * and three spokes, minimal nodes -- legible at 16x16px"). Renders in
+ * `currentColor` so it inherits whatever text color its container sets.
+ */
+export function FlywheelMark({ size = 16 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="8" />
+      <path d="M12 12 L12 4.5" />
+      <path d="M12 12 L18.9 15.8" />
+      <path d="M12 12 L5.1 15.8" />
+      <path d="M20.3 9.3 A9 9 0 0 1 21.2 12.6" strokeWidth="1.4" opacity="0.55" />
+    </svg>
+  );
+}
 
 /**
  * The real engine has more states than the UI's simplified five-bucket view
@@ -91,7 +123,7 @@ export function formatRelativeTime(iso: string): string {
   return `${diffDays}d ago`;
 }
 
-export function Stepper({ stage, color = "#3A3EA6" }: { stage: number; color?: string }) {
+export function Stepper({ stage, color = "#B87333" }: { stage: number; color?: string }) {
   return (
     <div className="flex items-center gap-1.5">
       {STAGES.map((label, i) => (
@@ -137,14 +169,14 @@ export function Field({
   return (
     <div className="mb-5">
       <label className="block text-sm font-medium mb-1.5">{label}</label>
-      {hint && <p className="text-xs text-[#9AA1AC] mb-2">{hint}</p>}
+      {hint && <p className="text-xs text-[#9C9488] mb-2">{hint}</p>}
       {children}
     </div>
   );
 }
 
 export const inputCls =
-  "w-full px-3.5 py-2.5 rounded-lg border border-[#E7E5DE] bg-white text-sm outline-none focus:ring-2 focus:ring-[#3A3EA633] focus:border-[#3A3EA6] transition-shadow";
+  "w-full px-3.5 py-2.5 rounded-lg border border-[#E7E5DE] bg-white text-sm outline-none focus:ring-2 focus:ring-[#B8733333] focus:border-[#B87333] transition-shadow";
 
 /** Used on both Onboarding's "Who can you serve?" step and Settings' "Service
  * area" tab, so a remote/local choice looks and behaves identically wherever
@@ -171,17 +203,17 @@ export function AreaOption({
       type="button"
       onClick={onClick}
       className="text-left p-4 rounded-xl border transition-colors flex flex-col gap-2.5"
-      style={{ borderColor: active ? "#3A3EA6" : "#E7E5DE", backgroundColor: active ? "#EEEEF9" : "#fff" }}
+      style={{ borderColor: active ? "#B87333" : "#E7E5DE", backgroundColor: active ? "#F5E7D6" : "#fff" }}
     >
       <div
         className="w-8 h-8 rounded-lg flex items-center justify-center"
-        style={{ backgroundColor: active ? "#3A3EA6" : "#F1F1EF", color: active ? "#fff" : "#6B7280" }}
+        style={{ backgroundColor: active ? "#B87333" : "#F1F1EF", color: active ? "#fff" : "#6B6459" }}
       >
         <Icon size={15} />
       </div>
       <div>
         <div className="text-sm font-medium mb-0.5">{label}</div>
-        <div className="text-xs text-[#6B7280] leading-relaxed">{desc}</div>
+        <div className="text-xs text-[#6B6459] leading-relaxed">{desc}</div>
       </div>
     </button>
   );
@@ -203,10 +235,10 @@ export function ToneOption({
       type="button"
       onClick={onClick}
       className="text-left px-4 py-3 rounded-xl border transition-colors"
-      style={{ borderColor: active ? "#3A3EA6" : "#E7E5DE", backgroundColor: active ? "#EEEEF9" : "#fff" }}
+      style={{ borderColor: active ? "#B87333" : "#E7E5DE", backgroundColor: active ? "#F5E7D6" : "#fff" }}
     >
       <div className="text-sm font-medium mb-0.5">{label}</div>
-      <div className="text-xs text-[#6B7280]">{desc}</div>
+      <div className="text-xs text-[#6B6459]">{desc}</div>
     </button>
   );
 }

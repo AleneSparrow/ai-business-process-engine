@@ -180,7 +180,7 @@ def require_active_subscription(
     delivered value) on the business having billing access (see
     `Business.has_billing_access`). Deliberately NOT applied to Settings/Business
     DNA (the owner needs to reach billing to fix a lapsed subscription) or to
-    public lead-intake/widget routes (a payment problem on Atelier's side
+    public lead-intake/widget routes (a payment problem on Flywheel's side
     shouldn't immediately break the automation a business's own customers are
     already relying on)."""
     with unit_of_work_factory() as unit_of_work:

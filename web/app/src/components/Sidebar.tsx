@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { LayoutGrid, MessageSquare, Workflow, CreditCard, LogOut } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { api } from "../api/client";
+import { FlywheelMark } from "./Shared";
 
 function NavItem({
   icon: Icon,
@@ -22,8 +23,8 @@ function NavItem({
       onClick={onClick}
       className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-left"
       style={{
-        color: active ? "#171A21" : "#6B7280",
-        backgroundColor: active ? "#EEEEF9" : "transparent",
+        color: active ? "#151515" : "#6B6459",
+        backgroundColor: active ? "#F5E7D6" : "transparent",
         fontWeight: active ? 600 : 500,
       }}
     >
@@ -74,14 +75,14 @@ export function Sidebar() {
       <div>
         <button onClick={() => navigate("/app")} className="flex items-center gap-2 px-2 mb-8">
           <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold"
-            style={{ backgroundColor: "#3A3EA6", fontFamily: "'Space Grotesk', sans-serif" }}
+            className="w-7 h-7 rounded-lg flex items-center justify-center text-white"
+            style={{ backgroundColor: "#B87333" }}
           >
-            A
+            <FlywheelMark size={16} />
           </div>
           <div className="text-left">
             <div className="text-sm font-semibold leading-tight">{businessName ?? "Your business"}</div>
-            <div className="text-[11px] text-[#6B7280] leading-tight">{user?.email}</div>
+            <div className="text-[11px] text-[#6B6459] leading-tight">{user?.email}</div>
           </div>
         </button>
         <nav className="flex flex-col gap-1">
@@ -104,11 +105,11 @@ export function Sidebar() {
       <div>
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-[#6B7280] hover:text-[#171A21] transition-colors"
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-[#6B6459] hover:text-[#151515] transition-colors"
         >
           <LogOut size={16} strokeWidth={2} /> Sign out
         </button>
-        <div className="px-2 mt-3 text-[11px] text-[#9AA1AC] leading-relaxed">
+        <div className="px-2 mt-3 text-[11px] text-[#9C9488] leading-relaxed">
           Every step your engine takes — logged, reversible, never silent.
         </div>
       </div>

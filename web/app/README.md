@@ -1,4 +1,4 @@
-# Atelier web app
+# Flywheel web app
 
 The real, buildable frontend for the AI Business Process Engine — a Vite + React +
 TypeScript app that talks to the actual backend in `src/api` (not a mockup).

@@ -38,7 +38,7 @@ function ProgressRail({ current }: { current: number }) {
             <div className="flex flex-col items-center">
               <div
                 className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors"
-                style={{ backgroundColor: done ? "#1E7B52" : active ? "#171A21" : "#F1F1EF", color: done || active ? "#fff" : "#9AA1AC" }}
+                style={{ backgroundColor: done ? "#1E7B52" : active ? "#151515" : "#F1F1EF", color: done || active ? "#fff" : "#9C9488" }}
               >
                 {done ? <Check size={14} /> : <Icon size={14} />}
               </div>
@@ -47,7 +47,7 @@ function ProgressRail({ current }: { current: number }) {
               )}
             </div>
             <div className="pt-1.5 pb-4">
-              <div className="text-sm" style={{ color: active || done ? "#171A21" : "#9AA1AC", fontWeight: active ? 600 : 500 }}>
+              <div className="text-sm" style={{ color: active || done ? "#151515" : "#9C9488", fontWeight: active ? 600 : 500 }}>
                 {s.label}
               </div>
             </div>
@@ -174,13 +174,13 @@ export default function Onboarding() {
   }
 
   return (
-    <div style={{ backgroundColor: "#F7F6F2", fontFamily: "'Inter', sans-serif", color: "#171A21" }} className="min-h-screen w-full">
+    <div style={{ backgroundColor: "#F5F1EA", fontFamily: "'Inter', sans-serif", color: "#151515" }} className="min-h-screen w-full">
       <header className="border-b border-[#E7E5DE] bg-white">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div
               className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold"
-              style={{ backgroundColor: "#3A3EA6", fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ backgroundColor: "#B87333", fontFamily: "'Space Grotesk', sans-serif" }}
             >
               A
             </div>
@@ -188,7 +188,7 @@ export default function Onboarding() {
               Setting up your Business DNA
             </span>
           </div>
-          <span className="text-xs text-[#9AA1AC]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+          <span className="text-xs text-[#9C9488]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
             Step {step + 1} / {OB_STEPS.length}
           </span>
         </div>
@@ -204,7 +204,7 @@ export default function Onboarding() {
                 {step === 0 && (
                   <>
                     <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>Tell us about your business</h2>
-                    <p className="text-sm text-[#6B7280] mb-7">This shapes how your engine talks to every customer — works for any kind of business.</p>
+                    <p className="text-sm text-[#6B6459] mb-7">This shapes how your engine talks to every customer — works for any kind of business.</p>
                     <Field label="Business name">
                       <input className={inputCls} placeholder="e.g. Acme Studio" value={business.name} onChange={(e) => setBusiness({ ...business, name: e.target.value })} />
                       {attemptedContinue && !business.name.trim() && <p className="text-xs mt-1.5" style={{ color: "#B4483A" }}>Give it a name to continue.</p>}
@@ -237,16 +237,16 @@ export default function Onboarding() {
                 {step === 1 && (
                   <>
                     <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>What do you offer?</h2>
-                    <p className="text-sm text-[#6B7280] mb-7">
+                    <p className="text-sm text-[#6B6459] mb-7">
                       Every service starts routed to you for review — nothing auto-books or auto-quotes until you turn that on later.
                     </p>
                     <div className="flex flex-wrap gap-2 mb-4">
                       {services.map((s) => (
                         <span key={s} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm bg-[#F1F1EF] border border-[#E7E5DE]">
-                          {s} <X size={12} className="cursor-pointer text-[#9AA1AC]" onClick={() => setServices(services.filter((x) => x !== s))} />
+                          {s} <X size={12} className="cursor-pointer text-[#9C9488]" onClick={() => setServices(services.filter((x) => x !== s))} />
                         </span>
                       ))}
-                      {services.length === 0 && <span className="text-xs text-[#9AA1AC]">No services yet — add at least one below.</span>}
+                      {services.length === 0 && <span className="text-xs text-[#9C9488]">No services yet — add at least one below.</span>}
                     </div>
                     <div className="flex gap-2">
                       <input
@@ -256,7 +256,7 @@ export default function Onboarding() {
                         onChange={(e) => setNewService(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addService())}
                       />
-                      <button type="button" onClick={addService} className="px-4 rounded-lg text-white text-sm font-medium flex items-center gap-1.5 shrink-0" style={{ backgroundColor: "#171A21" }}>
+                      <button type="button" onClick={addService} className="px-4 rounded-lg text-white text-sm font-medium flex items-center gap-1.5 shrink-0" style={{ backgroundColor: "#151515" }}>
                         <Plus size={14} /> Add
                       </button>
                     </div>
@@ -267,7 +267,7 @@ export default function Onboarding() {
                 {step === 2 && (
                   <>
                     <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>Who can you serve?</h2>
-                    <p className="text-sm text-[#6B7280] mb-7">This decides which leads book automatically and which ones escalate to you instead.</p>
+                    <p className="text-sm text-[#6B6459] mb-7">This decides which leads book automatically and which ones escalate to you instead.</p>
                     <div className="grid sm:grid-cols-2 gap-3">
                       <AreaOption
                         icon={Globe}
@@ -299,14 +299,14 @@ export default function Onboarding() {
                 {step === 3 && (
                   <>
                     <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>What does it need to ask?</h2>
-                    <p className="text-sm text-[#6B7280] mb-7">Per service, the questions your engine confirms before qualifying a lead.</p>
+                    <p className="text-sm text-[#6B6459] mb-7">Per service, the questions your engine confirms before qualifying a lead.</p>
                     {services.map((svc) => (
                       <div key={svc} className="mb-5 pb-5 border-b border-[#F0EFE9] last:border-0">
                         <div className="text-sm font-semibold mb-2.5">{svc}</div>
                         <div className="flex flex-col gap-2">
                           {(questions[svc] || DEFAULT_QUESTION_SEED).map((q, i) => (
                             <div key={i} className="flex items-center gap-2">
-                              <span className="text-xs text-[#9AA1AC] w-5 shrink-0" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{i + 1}</span>
+                              <span className="text-xs text-[#9C9488] w-5 shrink-0" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{i + 1}</span>
                               <input
                                 className={inputCls}
                                 value={q}
@@ -320,7 +320,7 @@ export default function Onboarding() {
                           ))}
                           <button
                             type="button"
-                            className="text-xs font-medium text-[#3A3EA6] flex items-center gap-1 mt-0.5 ml-7"
+                            className="text-xs font-medium text-[#B87333] flex items-center gap-1 mt-0.5 ml-7"
                             onClick={() => setQuestions({ ...questions, [svc]: [...(questions[svc] || DEFAULT_QUESTION_SEED), ""] })}
                           >
                             <Plus size={12} /> Add question
@@ -334,26 +334,26 @@ export default function Onboarding() {
                 {step === 4 && (
                   <>
                     <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>When should it hand off to you?</h2>
-                    <p className="text-sm text-[#6B7280] mb-7">The engine never guesses past these lines — it stops and asks.</p>
+                    <p className="text-sm text-[#6B6459] mb-7">The engine never guesses past these lines — it stops and asks.</p>
                     <div className="flex flex-col gap-3">
                       {ESCALATION_OPTIONS.map(([key, title, desc]) => (
                         <label
                           key={key}
                           className="flex items-start gap-3 p-4 rounded-xl border cursor-pointer"
                           style={{
-                            borderColor: escalation[key] ? "#3A3EA6" : "#E7E5DE",
-                            backgroundColor: escalation[key] ? "#EEEEF9" : "#fff",
+                            borderColor: escalation[key] ? "#B87333" : "#E7E5DE",
+                            backgroundColor: escalation[key] ? "#F5E7D6" : "#fff",
                           }}
                         >
                           <input
                             type="checkbox"
                             checked={escalation[key]}
                             onChange={() => setEscalation({ ...escalation, [key]: !escalation[key] })}
-                            className="mt-0.5 accent-[#3A3EA6]"
+                            className="mt-0.5 accent-[#B87333]"
                           />
                           <div>
                             <div className="text-sm font-medium">{title}</div>
-                            <div className="text-xs text-[#6B7280] mt-0.5">{desc}</div>
+                            <div className="text-xs text-[#6B6459] mt-0.5">{desc}</div>
                           </div>
                         </label>
                       ))}
@@ -364,17 +364,17 @@ export default function Onboarding() {
                 {step === 5 && (
                   <>
                     <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>Ready to go live</h2>
-                    <p className="text-sm text-[#6B7280] mb-7">Here's the Business DNA your engine will run on.</p>
-                    <div className="rounded-xl bg-[#F7F6F2] border border-[#E7E5DE] p-5 flex flex-col gap-4 text-sm">
-                      <div className="flex justify-between"><span className="text-[#6B7280]">Business</span><span className="font-medium">{business.name || "Untitled business"} · {business.industry}</span></div>
-                      <div className="flex justify-between"><span className="text-[#6B7280]">Voice</span><span className="font-medium">{business.tone}</span></div>
-                      <div className="flex justify-between"><span className="text-[#6B7280]">Services</span><span className="font-medium text-right">{services.join(", ")}</span></div>
+                    <p className="text-sm text-[#6B6459] mb-7">Here's the Business DNA your engine will run on.</p>
+                    <div className="rounded-xl bg-[#F5F1EA] border border-[#E7E5DE] p-5 flex flex-col gap-4 text-sm">
+                      <div className="flex justify-between"><span className="text-[#6B6459]">Business</span><span className="font-medium">{business.name || "Untitled business"} · {business.industry}</span></div>
+                      <div className="flex justify-between"><span className="text-[#6B6459]">Voice</span><span className="font-medium">{business.tone}</span></div>
+                      <div className="flex justify-between"><span className="text-[#6B6459]">Services</span><span className="font-medium text-right">{services.join(", ")}</span></div>
                       <div className="flex justify-between">
-                        <span className="text-[#6B7280]">Service area</span>
+                        <span className="text-[#6B6459]">Service area</span>
                         <span className="font-medium">{areaMode === "remote" ? "Anywhere (remote)" : `${zipList.length} zip code${zipList.length === 1 ? "" : "s"}`}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-[#6B7280]">Escalates to you on</span>
+                        <span className="text-[#6B6459]">Escalates to you on</span>
                         <span className="font-medium text-right">
                           {[escalation.highUrgency && "High urgency", escalation.emergency && "Emergency"].filter(Boolean).join(", ") || "Nothing — never escalates automatically"}
                         </span>
@@ -393,11 +393,11 @@ export default function Onboarding() {
               </div>
 
               <div className="flex items-center justify-between pt-6 mt-6 border-t border-[#F0EFE9]">
-                <button onClick={back} disabled={step === 0} className="text-sm font-medium px-4 py-2.5 rounded-lg flex items-center gap-1.5 disabled:opacity-0" style={{ color: "#6B7280" }}>
+                <button onClick={back} disabled={step === 0} className="text-sm font-medium px-4 py-2.5 rounded-lg flex items-center gap-1.5 disabled:opacity-0" style={{ color: "#6B6459" }}>
                   <ArrowLeft size={14} /> Back
                 </button>
                 {step < OB_STEPS.length - 1 ? (
-                  <button onClick={next} className="text-sm font-medium text-white px-5 py-2.5 rounded-lg flex items-center gap-1.5" style={{ backgroundColor: "#171A21" }}>
+                  <button onClick={next} className="text-sm font-medium text-white px-5 py-2.5 rounded-lg flex items-center gap-1.5" style={{ backgroundColor: "#151515" }}>
                     Continue <ArrowRight size={14} />
                   </button>
                 ) : (
@@ -420,11 +420,11 @@ export default function Onboarding() {
               <h2 className="text-2xl mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>
                 {business.name || "Your business"} is live.
               </h2>
-              <p className="text-sm text-[#6B7280] mb-7 max-w-sm">It's answering new leads right now, using exactly what you just set up.</p>
+              <p className="text-sm text-[#6B6459] mb-7 max-w-sm">It's answering new leads right now, using exactly what you just set up.</p>
               <button
                 onClick={() => navigate("/app")}
                 className="text-sm font-medium text-white px-5 py-2.5 rounded-lg flex items-center gap-1.5"
-                style={{ backgroundColor: "#171A21" }}
+                style={{ backgroundColor: "#151515" }}
               >
                 Go to dashboard <ArrowRight size={14} />
               </button>
