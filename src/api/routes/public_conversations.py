@@ -88,6 +88,11 @@ def get_chat_config(
             if isinstance(communication, Mapping)
             else "English"
         ),
+        ai_disclosure_text=(
+            str(widget.get("ai_disclosure_text", ""))
+            if isinstance(widget, Mapping)
+            else ""
+        ),
     )
 
 

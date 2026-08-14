@@ -220,6 +220,11 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
             "language": "English",
             "tone": tone_copy,
             "quiet_hours": {"starts": "21:00", "ends": "08:00"},
+            # Empty by default -- no behavior change for businesses that don't
+            # need one. An owner (or a regulated-industry onboarding path)
+            # fills this in via Settings; see compliance_disclaimer in the
+            # schema for how it's enforced.
+            "compliance_disclaimer": "",
         },
         "chat_widget": {
             "enabled": True,
@@ -227,6 +232,7 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
             "welcome_message": "Hi! Tell us what you need help with.",
             "qualified_message": "Thanks — we have what we need. Our team will follow up with next steps.",
             "closed_message": "This conversation is complete. Please reach out again if you need more help.",
+            "ai_disclosure_text": "",
         },
         "ai_permissions": {
             "allowed": ["classify_intent", "extract_customer_details", "draft_message"],

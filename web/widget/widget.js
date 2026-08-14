@@ -44,6 +44,8 @@
 
   const header = document.createElement("header");
   header.className = "aibp-chat__header";
+  const titleRow = document.createElement("div");
+  titleRow.className = "aibp-chat__title-row";
   const title = document.createElement("h2");
   title.textContent = "Chat";
   const close = document.createElement("button");
@@ -51,7 +53,15 @@
   close.className = "aibp-chat__close";
   close.textContent = "Close";
   close.setAttribute("aria-label", "Close chat");
-  header.append(title, close);
+  titleRow.append(title, close);
+  // Persistent AI-disclosure badge -- stays visible in the header for the
+  // entire session, not just a one-time greeting line that scrolls away.
+  // Populated from Business DNA (chat_widget.ai_disclosure_text); hidden
+  // entirely when a business hasn't configured one.
+  const disclosureBadge = document.createElement("p");
+  disclosureBadge.className = "aibp-chat__disclosure";
+  disclosureBadge.hidden = true;
+  header.append(titleRow, disclosureBadge);
 
   const history = document.createElement("div");
   history.className = "aibp-chat__history";
@@ -257,6 +267,10 @@
       config = value;
       title.textContent = value.chat_title;
       launcher.hidden = !value.enabled;
+      if (value.ai_disclosure_text) {
+        disclosureBadge.textContent = value.ai_disclosure_text;
+        disclosureBadge.hidden = false;
+      }
     })
     .catch(function () {
       launcher.hidden = true;

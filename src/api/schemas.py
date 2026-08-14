@@ -286,6 +286,7 @@ class PublicChatConfigResponse(ApiModel):
     chat_title: str
     welcome_message: str
     language: str
+    ai_disclosure_text: str
 
 
 class PublicBookingSchema(ApiModel):

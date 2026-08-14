@@ -36,16 +36,22 @@
 
 .aibp-chat__header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  justify-content: center;
+  gap: .15rem;
   min-height: 3.5rem;
-  padding: 0 1rem;
+  padding: .5rem 1rem;
   color: #fff;
   background: var(--aibp-color);
 }
 
+.aibp-chat__title-row { display: flex; align-items: center; justify-content: space-between; }
 .aibp-chat__header h2 { margin: 0; font-size: 1rem; }
 .aibp-chat__close { border: 0; color: inherit; background: transparent; cursor: pointer; }
+/* Persistent AI-disclosure badge -- stays visible for the whole session,
+   see chat_widget.ai_disclosure_text in the Business DNA schema. Hidden via
+   the [hidden] attribute when a business hasn't configured one. */
+.aibp-chat__disclosure { margin: 0; font-size: .72rem; opacity: .85; }
 .aibp-chat__history { height: calc(100% - 10rem); padding: 1rem; overflow-y: auto; background: #f6f8fc; }
 .aibp-chat__message { width: fit-content; max-width: 85%; margin: .25rem 0 .75rem; padding: .65rem .8rem; border-radius: .8rem; white-space: pre-wrap; overflow-wrap: anywhere; }
 .aibp-chat__message--customer { margin-left: auto; color: #fff; background: var(--aibp-color); }
