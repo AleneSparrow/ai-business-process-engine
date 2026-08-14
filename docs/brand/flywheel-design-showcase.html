@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flywheel — Design Showcase</title>
+<style>
+  :root{
+    --graphite:#151515;
+    --graphite-2:#1c1c1c;
+    --graphite-3:#232323;
+    --bronze:#B87333;
+    --bronze-light:#D89456;
+    --paper:#F5F1EA;
+    --amber:#D97B29;
+    --line:#33302b;
+    --font-display: 'Century Gothic','Futura','Trebuchet MS',sans-serif;
+    --font-serif: Georgia,'Times New Roman',serif;
+    --font-body: -apple-system,'Segoe UI',Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--graphite);color:var(--paper);font-family:var(--font-body);}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 32px 120px;}
+
+  /* ---------- top nav ---------- */
+  .topbar{position:sticky;top:0;z-index:50;background:rgba(21,21,21,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);}
+  .topbar-inner{max-width:1180px;margin:0 auto;padding:16px 32px;display:flex;align-items:center;justify-content:space-between;}
+  .brand-lockup{display:flex;align-items:center;gap:10px;}
+  .brand-lockup span{font-family:var(--font-display);letter-spacing:.04em;font-size:18px;font-weight:700;}
+  .topbar nav{display:flex;gap:28px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#9c968a;}
+
+  /* ---------- hero ---------- */
+  .hero{padding:96px 0 72px;text-align:center;position:relative;overflow:hidden;}
+  .hero .kicker{font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--bronze-light);margin-bottom:22px;}
+  .hero h1{font-family:var(--font-display);font-size:56px;line-height:1.05;margin:0 0 20px;letter-spacing:-.01em;}
+  .hero p{font-family:var(--font-serif);font-style:italic;color:#c9c3b6;max-width:520px;margin:0 auto;font-size:19px;line-height:1.5;}
+  .hero-wheel{margin:56px auto 0;}
+
+  section{margin-top:104px;}
+  .section-head{display:flex;align-items:baseline;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:40px;}
+  .section-head h2{font-family:var(--font-display);font-size:14px;letter-spacing:.18em;text-transform:uppercase;margin:0;color:var(--paper);}
+  .section-head .num{font-family:var(--font-serif);font-style:italic;color:#736c5f;font-size:14px;}
+
+  /* ---------- logo grid ---------- */
+  .logo-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;}
+  .logo-card{background:var(--graphite-2);border:1px solid var(--line);border-radius:6px;padding:32px 20px 22px;display:flex;flex-direction:column;align-items:center;gap:18px;}
+  .logo-card.light{background:var(--paper);}
+  .logo-card .cap{font-size:12px;letter-spacing:.06em;color:#9c968a;text-align:center;}
+  .logo-card.light .cap{color:#6b6558;}
+  .logo-card .name{font-family:var(--font-display);font-size:13px;letter-spacing:.05em;text-transform:uppercase;}
+
+  /* ---------- palette ---------- */
+  .palette{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;}
+  .swatch{border-radius:6px;overflow:hidden;border:1px solid var(--line);}
+  .swatch-color{height:96px;}
+  .swatch-info{background:var(--graphite-2);padding:14px 16px;}
+  .swatch-info .name{font-family:var(--font-display);font-size:13px;text-transform:uppercase;letter-spacing:.04em;}
+  .swatch-info .hex{font-size:12px;color:#9c968a;margin-top:4px;font-family:monospace;}
+
+  /* ---------- type specimen ---------- */
+  .type-specimen{display:grid;grid-template-columns:1fr 1fr;gap:40px;}
+  .type-block{background:var(--graphite-2);border:1px solid var(--line);border-radius:6px;padding:32px;}
+  .type-block .label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--bronze-light);margin-bottom:18px;}
+  .type-block.display .sample{font-family:var(--font-display);font-size:34px;line-height:1.15;}
+  .type-block.serif .sample{font-family:var(--font-serif);font-style:italic;font-size:20px;line-height:1.55;color:#d8d2c4;}
+  .type-block.body .sample{font-family:var(--font-body);font-size:15px;line-height:1.65;color:#cfc9bc;}
+
+  /* ---------- browser mock ---------- */
+  .browser{border-radius:10px;overflow:hidden;border:1px solid var(--line);box-shadow:0 30px 80px rgba(0,0,0,.5);}
+  .browser-bar{background:#0f0f0f;padding:10px 14px;display:flex;align-items:center;gap:8px;}
+  .browser-bar .dot{width:10px;height:10px;border-radius:50%;background:#3a3630;}
+  .browser-url{margin-left:14px;background:#1c1c1c;border-radius:4px;padding:4px 12px;font-size:11px;color:#736c5f;font-family:monospace;}
+  .landing{background:linear-gradient(180deg,#141414,#1a1a1a);padding:0;}
+  .landing-nav{display:flex;align-items:center;justify-content:space-between;padding:22px 40px;border-bottom:1px solid var(--line);}
+  .landing-nav .links{display:flex;gap:26px;font-size:12px;color:#9c968a;letter-spacing:.04em;}
+  .landing-hero{display:grid;grid-template-columns:1.1fr .9fr;align-items:center;gap:20px;padding:70px 40px 90px;}
+  .landing-hero h3{font-family:var(--font-display);font-size:38px;line-height:1.12;margin:0 0 18px;}
+  .landing-hero p{color:#a8a296;font-size:14.5px;line-height:1.6;max-width:380px;margin:0 0 28px;}
+  .cta{display:inline-block;background:var(--amber);color:#151107;font-weight:700;font-size:13px;letter-spacing:.04em;padding:13px 26px;border-radius:4px;text-transform:uppercase;}
+  .landing-hero .art{display:flex;justify-content:center;}
+
+  /* ---------- app icon row ---------- */
+  .icon-row{display:flex;align-items:flex-end;gap:36px;flex-wrap:wrap;}
+  .icon-tile{background:linear-gradient(155deg,#1c1c1c,#0f0f0f);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;}
+  .icon-cap{text-align:center;font-size:11px;color:#9c968a;margin-top:10px;}
+
+  /* ---------- onboarding mock ---------- */
+  .device{width:340px;margin:0 auto;background:#0d0d0d;border:1px solid var(--line);border-radius:22px;padding:44px 28px;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.5);}
+  .device .status{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--bronze-light);margin-top:26px;}
+  .device .sub{font-size:12px;color:#736c5f;margin-top:8px;}
+
+  /* ---------- cards ---------- */
+  .card-stage{display:flex;gap:40px;justify-content:center;flex-wrap:wrap;padding:20px 0 10px;}
+  .biz-card{width:340px;height:196px;border-radius:10px;position:relative;box-shadow:0 24px 50px rgba(0,0,0,.45);}
+  .biz-card.front{background:linear-gradient(155deg,#1a1a1a,#0e0e0e);border:1px solid #35312a;display:flex;align-items:center;justify-content:center;}
+  .biz-card.back{background:var(--paper);color:var(--graphite);padding:26px;display:flex;flex-direction:column;justify-content:space-between;}
+  .biz-card.back .nm{font-family:var(--font-display);font-size:16px;letter-spacing:.02em;}
+  .biz-card.back .role{font-size:11px;color:#6b6558;margin-top:4px;letter-spacing:.04em;text-transform:uppercase;}
+  .biz-card.back .meta{font-size:11px;color:#736c5f;line-height:1.7;}
+
+  /* ---------- og card ---------- */
+  .og-card{aspect-ratio:1200/630;width:100%;border-radius:8px;border:1px solid var(--line);background:radial-gradient(circle at 78% 30%, #241a10 0%, #141414 55%);display:flex;align-items:center;padding:60px;position:relative;overflow:hidden;}
+  .og-card h4{font-family:var(--font-display);font-size:30px;margin:0 0 12px;max-width:520px;line-height:1.15;}
+  .og-card p{color:#9c968a;font-size:13px;max-width:440px;line-height:1.5;}
+
+  /* ---------- footer ---------- */
+  footer{text-align:center;color:#5c584e;font-size:12px;margin-top:120px;letter-spacing:.04em;}
+
+  @media(max-width:860px){
+    .logo-grid,.palette{grid-template-columns:repeat(2,1fr);}
+    .type-specimen{grid-template-columns:1fr;}
+    .landing-hero{grid-template-columns:1fr;}
+    .hero h1{font-size:38px;}
+  }
+
+  /* ---------- spin animations ---------- */
+  @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+  .spin-slow{animation:spin 18s linear infinite;transform-origin:100px 100px;}
+  .spin-med{animation:spin 6s linear infinite;transform-origin:100px 100px;}
+  .rim-draw{stroke-dasharray:503;stroke-dashoffset:503;animation:draw 2.4s ease forwards;}
+  @keyframes draw{to{stroke-dashoffset:0;}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand-lockup">
+      <svg width="26" height="26" viewBox="0 0 200 200"><g class="spin-slow">
+        <circle cx="100" cy="100" r="80" fill="none" stroke="#B87333" stroke-width="10"/>
+        <circle cx="100" cy="100" r="12" fill="#B87333"/>
+        <g stroke="#B87333" stroke-width="9" stroke-linecap="round">
+          <line x1="100" y1="100" x2="100" y2="24" transform="rotate(15 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="24" transform="rotate(135 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="24" transform="rotate(255 100 100)"/>
+        </g>
+      </g></svg>
+      <span>FLYWHEEL</span>
+    </div>
+    <nav><span>Brand</span><span>Product</span><span>Legend</span><span>Kit</span></nav>
+  </div>
+</div>
+
+<div class="wrap">
+
+  <div class="hero">
+    <div class="kicker">Design Showcase · Rebrand Atelier → Flywheel</div>
+    <h1>Once running,<br>it keeps running.</h1>
+    <p>“The first wheel started motion. This one starts an era.”</p>
+    <div class="hero-wheel">
+      <svg width="220" height="220" viewBox="0 0 200 200">
+        <g stroke="#B87333" stroke-linecap="round" fill="none" opacity="0.55">
+          <circle cx="100" cy="100" r="88" stroke-width="2" stroke-dasharray="76 480" transform="rotate(190 100 100)" opacity="0.5"/>
+          <circle cx="100" cy="100" r="96" stroke-width="2" stroke-dasharray="67 540" transform="rotate(192 100 100)" opacity="0.3"/>
+          <circle cx="100" cy="100" r="104" stroke-width="2" stroke-dasharray="55 600" transform="rotate(194 100 100)" opacity="0.15"/>
+        </g>
+        <g class="spin-med">
+          <circle cx="100" cy="100" r="80" fill="none" stroke="#D89456" stroke-width="7"/>
+          <circle cx="100" cy="100" r="13" fill="#D89456"/>
+          <g stroke="#D89456" stroke-width="6" stroke-linecap="round">
+            <line x1="100" y1="100" x2="100" y2="26" transform="rotate(15 100 100)"/>
+            <line x1="100" y1="100" x2="100" y2="26" transform="rotate(135 100 100)"/>
+            <line x1="100" y1="100" x2="100" y2="26" transform="rotate(255 100 100)"/>
+          </g>
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ============ LOGO SYSTEM ============ -->
+  <section>
+    <div class="section-head"><h2>The Emblem — The Wheel</h2><span class="num">01</span></div>
+    <div class="logo-grid">
+
+      <div class="logo-card">
+        <svg width="100" height="100" viewBox="0 0 200 200">
+          <g stroke="#B87333" stroke-linecap="round" fill="none">
+            <circle cx="100" cy="100" r="88" stroke-width="2" stroke-dasharray="76 480" transform="rotate(196 100 100)" opacity="0.45"/>
+            <circle cx="100" cy="100" r="96" stroke-width="2" stroke-dasharray="60 540" transform="rotate(198 100 100)" opacity="0.25"/>
+          </g>
+          <circle cx="100" cy="100" r="80" fill="none" stroke="#B87333" stroke-width="8"/>
+          <circle cx="100" cy="100" r="13" fill="#B87333"/>
+          <g stroke="#B87333" stroke-width="7" stroke-linecap="round">
+            <line x1="100" y1="100" x2="100" y2="24" transform="rotate(15 100 100)"/>
+            <line x1="100" y1="100" x2="100" y2="24" transform="rotate(135 100 100)"/>
+            <line x1="100" y1="100" x2="100" y2="24" transform="rotate(255 100 100)"/>
+          </g>
+        </svg>
+        <div class="name">Primary Mark</div>
+        <div class="cap">Covers, decks, the brand book — the full wheel with a motion trail</div>
+      </div>
+
+      <div class="logo-card">
+        <svg width="100" height="100" viewBox="0 0 200 200">
+          <circle cx="100" cy="100" r="78" fill="none" stroke="#B87333" stroke-width="14"/>
+          <circle cx="100" cy="100" r="16" fill="#B87333"/>
+          <g stroke="#B87333" stroke-width="13" stroke-linecap="round">
+            <line x1="100" y1="100" x2="100" y2="30" transform="rotate(8 100 100)"/>
+            <line x1="100" y1="100" x2="100" y2="30" transform="rotate(128 100 100)"/>
+            <line x1="100" y1="100" x2="100" y2="30" transform="rotate(248 100 100)"/>
+          </g>
+        </svg>
+        <div class="name">Monogram</div>
+        <div class="cap">Next to the wordmark, site header, favicon — a tight, minimal mark</div>
+      </div>
+
+      <div class="logo-card">
+        <div class="icon-tile" style="width:100px;height:100px;border-radius:22px;">
+          <svg width="60" height="60" viewBox="0 0 200 200">
+            <circle cx="100" cy="100" r="76" fill="none" stroke="#F5F1EA" stroke-width="16"/>
+            <circle cx="100" cy="100" r="18" fill="#F5F1EA"/>
+            <g stroke="#F5F1EA" stroke-width="15" stroke-linecap="round">
+              <line x1="100" y1="100" x2="100" y2="34" transform="rotate(10 100 100)"/>
+              <line x1="100" y1="100" x2="100" y2="34" transform="rotate(130 100 100)"/>
+              <line x1="100" y1="100" x2="100" y2="34" transform="rotate(250 100 100)"/>
+            </g>
+          </svg>
+        </div>
+        <div class="name">App Icon</div>
+        <div class="cap">App icon, favicon, loading spinner — legible down to 16×16 px</div>
+      </div>
+
+      <div class="logo-card light">
+        <svg width="100" height="100" viewBox="0 0 200 200">
+          <circle cx="100" cy="100" r="80" fill="none" stroke="#151515" stroke-width="7"/>
+          <circle cx="100" cy="100" r="12" fill="none" stroke="#151515" stroke-width="6"/>
+          <g stroke="#151515" stroke-width="6" stroke-linecap="round">
+            <line x1="100" y1="100" x2="100" y2="24" transform="rotate(15 100 100)"/>
+            <line x1="100" y1="100" x2="100" y2="24" transform="rotate(135 100 100)"/>
+            <line x1="100" y1="100" x2="100" y2="24" transform="rotate(255 100 100)"/>
+          </g>
+        </svg>
+        <div class="name">Monochrome / Emboss</div>
+        <div class="cap">Single-color print, embossing, merch — outline only, no fill</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ PALETTE ============ -->
+  <section>
+    <div class="section-head"><h2>Palette</h2><span class="num">02</span></div>
+    <div class="palette">
+      <div class="swatch"><div class="swatch-color" style="background:#151515;"></div><div class="swatch-info"><div class="name">Graphite</div><div class="hex">#151515 — background / base</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#B87333;"></div><div class="swatch-info"><div class="name">Bronze</div><div class="hex">#B87333 — line / accent</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#F5F1EA;"></div><div class="swatch-info"><div class="name">Warm White</div><div class="hex">#F5F1EA — text / paper</div></div></div>
+      <div class="swatch"><div class="swatch-color" style="background:#D97B29;"></div><div class="swatch-info"><div class="name">Amber</div><div class="hex">#D97B29 — "active" status</div></div></div>
+    </div>
+  </section>
+
+  <!-- ============ TYPOGRAPHY ============ -->
+  <section>
+    <div class="section-head"><h2>Typography</h2><span class="num">03</span></div>
+    <div class="type-specimen">
+      <div class="type-block display">
+        <div class="label">Wordmark / headings — geometric sans</div>
+        <div class="sample">Once running,<br>it keeps running</div>
+      </div>
+      <div class="type-block serif">
+        <div class="label">Legend / manifesto — contrasting serif</div>
+        <div class="sample">“Before the wheel, everything moved only because someone pushed it, dragged it, carried it — every time, from the start.”</div>
+      </div>
+      <div class="type-block body" style="grid-column:1/-1;">
+        <div class="label">Product & documentation body — neutral grotesk</div>
+        <div class="sample">Business DNA defines the script Flywheel uses to take a lead from first contact to closed deal. The AI never decides and never promises beyond that script — it only helps with the wording. Nothing falls through.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LANDING MOCKUP ============ -->
+  <section>
+    <div class="section-head"><h2>Landing Page — Hero</h2><span class="num">04</span></div>
+    <div class="browser">
+      <div class="browser-bar">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        <div class="browser-url">flywheelhq.com</div>
+      </div>
+      <div class="landing">
+        <div class="landing-nav">
+          <div class="brand-lockup">
+            <svg width="20" height="20" viewBox="0 0 200 200">
+              <circle cx="100" cy="100" r="80" fill="none" stroke="#B87333" stroke-width="10"/>
+              <circle cx="100" cy="100" r="12" fill="#B87333"/>
+              <g stroke="#B87333" stroke-width="9" stroke-linecap="round">
+                <line x1="100" y1="100" x2="100" y2="24" transform="rotate(15 100 100)"/>
+                <line x1="100" y1="100" x2="100" y2="24" transform="rotate(135 100 100)"/>
+                <line x1="100" y1="100" x2="100" y2="24" transform="rotate(255 100 100)"/>
+              </g>
+            </svg>
+            <span style="font-family:var(--font-display);font-size:14px;letter-spacing:.04em;">FLYWHEEL</span>
+          </div>
+          <div class="links"><span>Product</span><span>Pricing</span><span>About</span></div>
+        </div>
+        <div class="landing-hero">
+          <div>
+            <h3>The lead-to-sale<br>engine that sells<br>itself.</h3>
+            <p>A deterministic AI takes every lead from first contact to closed deal on a fixed script. Nothing falls through. Nothing is promised beyond your Business DNA.</p>
+            <span class="cta">Start free trial</span>
+          </div>
+          <div class="art">
+            <svg width="230" height="230" viewBox="0 0 200 200">
+              <g stroke="#B87333" stroke-linecap="round" fill="none">
+                <circle cx="100" cy="100" r="88" stroke-width="2" stroke-dasharray="76 480" transform="rotate(190 100 100)" opacity="0.4"/>
+                <circle cx="100" cy="100" r="98" stroke-width="2" stroke-dasharray="60 540" transform="rotate(193 100 100)" opacity="0.2"/>
+              </g>
+              <g class="spin-slow">
+                <circle cx="100" cy="100" r="80" fill="none" stroke="#D89456" stroke-width="6"/>
+                <circle cx="100" cy="100" r="12" fill="#D89456"/>
+                <g stroke="#D89456" stroke-width="5" stroke-linecap="round">
+                  <line x1="100" y1="100" x2="100" y2="26" transform="rotate(15 100 100)"/>
+                  <line x1="100" y1="100" x2="100" y2="26" transform="rotate(135 100 100)"/>
+                  <line x1="100" y1="100" x2="100" y2="26" transform="rotate(255 100 100)"/>
+                </g>
+              </g>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ APP ICON ============ -->
+  <section>
+    <div class="section-head"><h2>App Icon</h2><span class="num">05</span></div>
+    <div class="icon-row">
+      <div>
+        <div class="icon-tile" style="width:128px;height:128px;border-radius:28px;">
+          <svg width="76" height="76" viewBox="0 0 200 200">
+            <circle cx="100" cy="100" r="76" fill="none" stroke="#F5F1EA" stroke-width="16"/>
+            <circle cx="100" cy="100" r="18" fill="#F5F1EA"/>
+            <g stroke="#F5F1EA" stroke-width="15" stroke-linecap="round">
+              <line x1="100" y1="100" x2="100" y2="34" transform="rotate(10 100 100)"/>
+              <line x1="100" y1="100" x2="100" y2="34" transform="rotate(130 100 100)"/>
+              <line x1="100" y1="100" x2="100" y2="34" transform="rotate(250 100 100)"/>
+            </g>
+          </svg>
+        </div>
+        <div class="icon-cap">128 px</div>
+      </div>
+      <div>
+        <div class="icon-tile" style="width:80px;height:80px;border-radius:18px;">
+          <svg width="48" height="48" viewBox="0 0 200 200">
+            <circle cx="100" cy="100" r="76" fill="none" stroke="#F5F1EA" stroke-width="18"/>
+            <circle cx="100" cy="100" r="20" fill="#F5F1EA"/>
+            <g stroke="#F5F1EA" stroke-width="17" stroke-linecap="round">
+              <line x1="100" y1="100" x2="100" y2="34" transform="rotate(10 100 100)"/>
+              <line x1="100" y1="100" x2="100" y2="34" transform="rotate(130 100 100)"/>
+              <line x1="100" y1="100" x2="100" y2="34" transform="rotate(250 100 100)"/>
+            </g>
+          </svg>
+        </div>
+        <div class="icon-cap">80 px</div>
+      </div>
+      <div>
+        <div class="icon-tile" style="width:48px;height:48px;border-radius:11px;">
+          <svg width="30" height="30" viewBox="0 0 200 200">
+            <circle cx="100" cy="100" r="74" fill="none" stroke="#F5F1EA" stroke-width="22"/>
+            <circle cx="100" cy="100" r="22" fill="#F5F1EA"/>
+            <g stroke="#F5F1EA" stroke-width="20" stroke-linecap="round">
+              <line x1="100" y1="100" x2="100" y2="34" transform="rotate(10 100 100)"/>
+              <line x1="100" y1="100" x2="100" y2="34" transform="rotate(130 100 100)"/>
+              <line x1="100" y1="100" x2="100" y2="34" transform="rotate(250 100 100)"/>
+            </g>
+          </svg>
+        </div>
+        <div class="icon-cap">48 px</div>
+      </div>
+      <div>
+        <div class="icon-tile" style="width:24px;height:24px;border-radius:6px;">
+          <svg width="16" height="16" viewBox="0 0 200 200">
+            <circle cx="100" cy="100" r="70" fill="none" stroke="#F5F1EA" stroke-width="28"/>
+            <circle cx="100" cy="100" r="26" fill="#F5F1EA"/>
+          </svg>
+        </div>
+        <div class="icon-cap">16 px</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ONBOARDING ============ -->
+  <section>
+    <div class="section-head"><h2>Business DNA Setup Screen</h2><span class="num">06</span></div>
+    <div class="device">
+      <svg width="140" height="140" viewBox="0 0 200 200">
+        <circle cx="100" cy="100" r="80" fill="none" stroke="#33302b" stroke-width="7"/>
+        <circle class="rim-draw" cx="100" cy="100" r="80" fill="none" stroke="#B87333" stroke-width="7" transform="rotate(-90 100 100)"/>
+        <g class="spin-med">
+          <circle cx="100" cy="100" r="13" fill="#D97B29"/>
+          <g stroke="#D97B29" stroke-width="6" stroke-linecap="round">
+            <line x1="100" y1="100" x2="100" y2="26" transform="rotate(15 100 100)"/>
+            <line x1="100" y1="100" x2="100" y2="26" transform="rotate(135 100 100)"/>
+            <line x1="100" y1="100" x2="100" y2="26" transform="rotate(255 100 100)"/>
+          </g>
+        </g>
+      </svg>
+      <div class="status">Building Business DNA</div>
+      <div class="sub">Your script is spinning up — from here, the cycle runs itself</div>
+    </div>
+  </section>
+
+  <!-- ============ BUSINESS CARD ============ -->
+  <section>
+    <div class="section-head"><h2>Design Partner Business Card</h2><span class="num">07</span></div>
+    <div class="card-stage">
+      <div class="biz-card front">
+        <svg width="70" height="70" viewBox="0 0 200 200">
+          <circle cx="100" cy="100" r="80" fill="none" stroke="#B87333" stroke-width="8"/>
+          <circle cx="100" cy="100" r="12" fill="none" stroke="#B87333" stroke-width="7"/>
+          <g stroke="#B87333" stroke-width="7" stroke-linecap="round">
+            <line x1="100" y1="100" x2="100" y2="24" transform="rotate(15 100 100)"/>
+            <line x1="100" y1="100" x2="100" y2="24" transform="rotate(135 100 100)"/>
+            <line x1="100" y1="100" x2="100" y2="24" transform="rotate(255 100 100)"/>
+          </g>
+        </svg>
+      </div>
+      <div class="biz-card back">
+        <div>
+          <div class="nm">FLYWHEEL</div>
+          <div class="role">Design Partner Programme</div>
+        </div>
+        <div class="meta">hello@flywheelhq.com<br>flywheelhq.com</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ OG CARD ============ -->
+  <section>
+    <div class="section-head"><h2>Social / OG Card</h2><span class="num">08</span></div>
+    <div class="og-card">
+      <svg width="180" height="180" viewBox="0 0 200 200" style="position:absolute;right:-20px;top:50%;transform:translateY(-50%);opacity:.9;">
+        <circle cx="100" cy="100" r="80" fill="none" stroke="#B87333" stroke-width="7"/>
+        <circle cx="100" cy="100" r="12" fill="#B87333"/>
+        <g stroke="#B87333" stroke-width="6" stroke-linecap="round">
+          <line x1="100" y1="100" x2="100" y2="24" transform="rotate(15 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="24" transform="rotate(135 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="24" transform="rotate(255 100 100)"/>
+        </g>
+      </svg>
+      <div>
+        <h4>The lead-to-sale engine that sells itself.</h4>
+        <p>flywheelhq.com — the deterministic AI that takes every lead from first contact to closed deal.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>Flywheel Brand Kit · v1 · August 14, 2026</footer>
+
+</div>
+</body>
+</html>

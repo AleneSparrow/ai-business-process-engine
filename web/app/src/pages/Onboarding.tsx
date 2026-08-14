@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useAuth, describeError } from "../auth/AuthContext";
 import { api, type OnboardingServicePayload } from "../api/client";
-import { AreaOption, Field, inputCls, ToneOption } from "../components/Shared";
+import { AreaOption, Field, FlywheelMark, inputCls, ToneOption } from "../components/Shared";
 
 /**
  * Adaptive to any business, not just a fixed vertical -- see
@@ -179,10 +179,10 @@ export default function Onboarding() {
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold"
-              style={{ backgroundColor: "#B87333", fontFamily: "'Space Grotesk', sans-serif" }}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-white"
+              style={{ backgroundColor: "#B87333" }}
             >
-              A
+              <FlywheelMark size={16} />
             </div>
             <span className="font-semibold text-sm" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
               Setting up your Business DNA
@@ -407,7 +407,11 @@ export default function Onboarding() {
                     className="text-sm font-medium text-white px-5 py-2.5 rounded-lg flex items-center gap-1.5 disabled:opacity-60"
                     style={{ backgroundColor: "#1E7B52" }}
                   >
-                    {submitting ? "Launching…" : "Launch engine"} <Sparkles size={14} />
+                    {submitting ? "Launching…" : "Launch engine"}
+                    {/* The wheel as a progress indicator while the Business DNA
+                        assembles -- per the brand book's onboarding example --
+                        settling back to the static Sparkles mark once ready. */}
+                    {submitting ? <FlywheelMark size={14} className="animate-spin" /> : <Sparkles size={14} />}
                   </button>
                 )}
               </div>

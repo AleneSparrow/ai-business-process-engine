@@ -30,7 +30,7 @@ export const STATE_META: Record<CaseState, { label: string; color: string; bg: s
  * and three spokes, minimal nodes -- legible at 16x16px"). Renders in
  * `currentColor` so it inherits whatever text color its container sets.
  */
-export function FlywheelMark({ size = 16 }: { size?: number }) {
+export function FlywheelMark({ size = 16, className }: { size?: number; className?: string }) {
   return (
     <svg
       width={size}
@@ -41,6 +41,7 @@ export function FlywheelMark({ size = 16 }: { size?: number }) {
       strokeWidth="1.8"
       strokeLinecap="round"
       aria-hidden="true"
+      className={className}
     >
       <circle cx="12" cy="12" r="8" />
       <path d="M12 12 L12 4.5" />
