@@ -22,7 +22,7 @@ function StatCard({ label, value, sub, tone }: { label: string; value: string | 
     <div className="bg-white rounded-2xl border border-[#E7E5DE] px-5 py-4 flex-1 min-w-[150px]">
       <div className="text-xs font-medium text-[#6B6459] mb-1.5">{label}</div>
       <div className="flex items-baseline gap-2">
-        <span className="text-[26px] leading-none" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>{value}</span>
+        <span className="text-[26px] leading-none" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>{value}</span>
         {sub && <span className="text-xs font-medium" style={{ color: tone || "#6B6459" }}>{sub}</span>}
       </div>
     </div>
@@ -86,12 +86,12 @@ export default function Dashboard() {
   }, [decorated]);
 
   return (
-    <div className="min-h-screen w-full flex" style={{ backgroundColor: "#F5F1EA", fontFamily: "'Inter', sans-serif", color: "#151515" }}>
+    <div className="min-h-screen w-full flex" style={{ backgroundColor: "#F5F1EA", fontFamily: "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif", color: "#151515" }}>
       <Sidebar />
       <main className="flex-1 min-w-0 flex flex-col">
         <header className="flex items-center justify-between px-6 md:px-8 py-4 border-b border-[#E7E5DE]">
           <div>
-            <h1 className="text-xl" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>Leads & cases</h1>
+            <h1 className="text-xl" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Leads & cases</h1>
             <p className="text-sm text-[#6B6459] mt-0.5">Every conversation your engine has handled</p>
           </div>
           <div className="flex items-center gap-3">

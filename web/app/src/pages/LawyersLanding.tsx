@@ -31,7 +31,7 @@ import { FlywheelMark } from "../components/Shared";
 function StatChip({ n, label }: { n: string; label: string }) {
   return (
     <div className="bg-white rounded-xl border border-[#E7E5DE] p-4">
-      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600, color: "#B87333" }} className="text-2xl mb-1">
+      <div style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600, color: "#B87333" }} className="text-2xl mb-1">
         {n}
       </div>
       <div className="text-xs text-[#6B6459] leading-snug">{label}</div>
@@ -64,16 +64,16 @@ export default function LawyersLanding() {
   const primaryCtaTarget = user ? (user.business_id ? "/app" : "/onboarding") : "/signup";
 
   return (
-    <div style={{ backgroundColor: "#F5F1EA", fontFamily: "'Inter', sans-serif", color: "#151515" }} className="min-h-screen w-full">
+    <div style={{ backgroundColor: "#F5F1EA", fontFamily: "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif", color: "#151515" }} className="min-h-screen w-full">
       <header className="sticky top-0 z-20 backdrop-blur-sm" style={{ backgroundColor: "#F5F1EAEE", borderBottom: "1px solid #E7E5DE" }}>
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <button onClick={() => navigate("/lawyers")} className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: "#B87333" }}>
               <FlywheelMark size={16} />
             </div>
-            <span className="font-semibold text-sm" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Flywheel</span>
+            <span className="font-semibold text-sm" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif" }}>Flywheel</span>
           </button>
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-[#6B6459]">
+          <nav className="hidden md:flex items-center gap-8 text-xs font-medium uppercase tracking-wider text-[#6B6459]">
             <a href="#different" className="hover:text-[#151515] transition-colors">How it's different</a>
             <a href="#pricing" className="hover:text-[#151515] transition-colors">Pricing</a>
             <a href="#faq" className="hover:text-[#151515] transition-colors">FAQ</a>
@@ -84,8 +84,8 @@ export default function LawyersLanding() {
             )}
             <button
               onClick={() => navigate(primaryCtaTarget)}
-              className="text-sm font-medium text-white px-4 py-2 rounded-lg flex items-center gap-1.5"
-              style={{ backgroundColor: "#151515" }}
+              className="text-xs font-bold uppercase tracking-wide px-4 py-2 rounded flex items-center gap-1.5"
+              style={{ backgroundColor: "#D97B29", color: "#1C1206" }}
             >
               Start free trial <ArrowRight size={14} />
             </button>
@@ -95,12 +95,12 @@ export default function LawyersLanding() {
           </button>
         </div>
         {menuOpen && (
-          <div className="md:hidden px-6 pb-4 flex flex-col gap-3 text-sm font-medium text-[#6B6459]">
+          <div className="md:hidden px-6 pb-4 flex flex-col gap-3 text-xs font-medium uppercase tracking-wider text-[#6B6459]">
             <a href="#different">How it's different</a>
             <a href="#pricing">Pricing</a>
             <a href="#faq">FAQ</a>
             {!user && <button onClick={() => navigate("/login")} className="text-left">Sign in</button>}
-            <button onClick={() => navigate(primaryCtaTarget)} className="text-white px-4 py-2 rounded-lg mt-1" style={{ backgroundColor: "#151515" }}>
+            <button onClick={() => navigate(primaryCtaTarget)} className="font-bold px-4 py-2 rounded mt-1" style={{ backgroundColor: "#D97B29", color: "#1C1206" }}>
               Start free trial
             </button>
           </div>
@@ -112,7 +112,7 @@ export default function LawyersLanding() {
         <div className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full mb-6" style={{ backgroundColor: "#F5E7D6", color: "#B87333" }}>
           <Scale size={12} /> Built for solo & small practices — California &amp; New York
         </div>
-        <h1 className="text-4xl md:text-5xl leading-[1.1] mb-5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>
+        <h1 className="text-4xl md:text-5xl leading-[1.1] mb-5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
           The AI intake assistant that legally can't overstep.
         </h1>
         <p className="text-base md:text-lg text-[#6B6459] leading-relaxed mb-8 max-w-2xl mx-auto">
@@ -122,13 +122,16 @@ export default function LawyersLanding() {
         <div className="flex flex-wrap items-center justify-center gap-3">
           <button
             onClick={() => navigate(primaryCtaTarget)}
-            className="text-sm font-medium text-white px-5 py-3 rounded-lg flex items-center gap-2"
-            style={{ backgroundColor: "#151515" }}
+            className="text-sm font-bold uppercase tracking-wide px-5 py-3 rounded flex items-center gap-2"
+            style={{ backgroundColor: "#D97B29", color: "#1C1206" }}
           >
             Start your 7-day free trial <ArrowRight size={15} />
           </button>
-          <span className="text-xs text-[#9C9488]">$199/mo after trial · card required, no charge until trial ends</span>
+          <a href="#different" className="text-sm font-medium px-5 py-3 rounded-lg border border-[#151515]">
+            See how it works
+          </a>
         </div>
+        <span className="block text-xs text-[#9C9488] mt-4">$199/mo after trial · card required, no charge until trial ends</span>
       </section>
 
       <section className="border-y border-[#E7E5DE] bg-white">
@@ -140,7 +143,7 @@ export default function LawyersLanding() {
       {/* ============ THE PROBLEM ============ */}
       <section className="max-w-4xl mx-auto px-6 py-16 md:py-20">
         <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "#B87333" }}>The problem</span>
-        <h2 className="text-2xl md:text-3xl mt-2 mb-5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>
+        <h2 className="text-2xl md:text-3xl mt-2 mb-5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
           Every missed call is a lead you already paid for.
         </h2>
         <p className="text-base text-[#6B6459] leading-relaxed max-w-2xl mb-8">
@@ -160,7 +163,7 @@ export default function LawyersLanding() {
       <section id="different" className="bg-white border-y border-[#E7E5DE]">
         <div className="max-w-4xl mx-auto px-6 py-16 md:py-20">
           <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "#B87333" }}>How Flywheel is different</span>
-          <h2 className="text-2xl md:text-3xl mt-2 mb-6" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>
+          <h2 className="text-2xl md:text-3xl mt-2 mb-6" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
             An architecture, not a prompt.
           </h2>
           <p className="text-base text-[#6B6459] leading-relaxed mb-6 max-w-2xl">
@@ -217,7 +220,7 @@ export default function LawyersLanding() {
       {/* ============ WHAT IT DOES ============ */}
       <section className="max-w-4xl mx-auto px-6 py-16 md:py-20">
         <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "#B87333" }}>What it does</span>
-        <h2 className="text-2xl md:text-3xl mt-2 mb-7" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>
+        <h2 className="text-2xl md:text-3xl mt-2 mb-7" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
           One script, applied the same way every time.
         </h2>
         <ul className="flex flex-col gap-3.5 max-w-lg">
@@ -233,7 +236,7 @@ export default function LawyersLanding() {
       <section className="bg-white border-y border-[#E7E5DE]">
         <div className="max-w-4xl mx-auto px-6 py-14 md:py-16 flex flex-col md:flex-row items-start md:items-center gap-6 justify-between">
           <div>
-            <h2 className="text-xl mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>Built for solo practices</h2>
+            <h2 className="text-xl mb-2" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Built for solo practices</h2>
             <p className="text-sm text-[#6B6459] leading-relaxed max-w-lg">
               Flywheel Starter is built for exactly one attorney, one jurisdiction — set up in about
               20 minutes, no developer or IT help needed.
@@ -248,13 +251,13 @@ export default function LawyersLanding() {
       {/* ============ PRICING ============ */}
       <section id="pricing" className="max-w-2xl mx-auto px-6 py-16 md:py-20 text-center">
         <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "#B87333" }}>Pricing</span>
-        <h2 className="text-2xl md:text-3xl mt-2 mb-8" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>
+        <h2 className="text-2xl md:text-3xl mt-2 mb-8" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
           One plan, built for one attorney.
         </h2>
         <div className="bg-white rounded-2xl border border-[#E7E5DE] p-8 md:p-10 text-left">
           <div className="flex items-baseline justify-between mb-1">
-            <span className="text-sm font-semibold" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Starter</span>
-            <span className="text-3xl" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>$199<span className="text-sm text-[#6B6459] font-normal">/mo</span></span>
+            <span className="text-sm font-semibold" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif" }}>Starter</span>
+            <span className="text-3xl" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>$199<span className="text-sm text-[#6B6459] font-normal">/mo</span></span>
           </div>
           <p className="text-sm text-[#6B6459] mb-6">7-day free trial. Card required at signup, no charge until the trial ends. Cancel anytime.</p>
           <ul className="flex flex-col gap-2.5 mb-7">
@@ -265,8 +268,8 @@ export default function LawyersLanding() {
           </ul>
           <button
             onClick={() => navigate(primaryCtaTarget)}
-            className="w-full text-sm font-medium text-white px-5 py-3 rounded-lg flex items-center justify-center gap-2"
-            style={{ backgroundColor: "#151515" }}
+            className="w-full text-sm font-bold uppercase tracking-wide px-5 py-3 rounded flex items-center justify-center gap-2"
+            style={{ backgroundColor: "#D97B29", color: "#1C1206" }}
           >
             Start your 7-day free trial <ArrowRight size={15} />
           </button>
@@ -280,7 +283,7 @@ export default function LawyersLanding() {
       <section id="faq" className="bg-white border-t border-[#E7E5DE]">
         <div className="max-w-2xl mx-auto px-6 py-16 md:py-20">
           <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "#B87333" }}>FAQ</span>
-          <h2 className="text-2xl md:text-3xl mt-2 mb-6" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>Questions attorneys ask first</h2>
+          <h2 className="text-2xl md:text-3xl mt-2 mb-6" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Questions attorneys ask first</h2>
           <div>
             <FaqItem
               q="Is this actually compliant with my state's bar rules?"
@@ -302,14 +305,14 @@ export default function LawyersLanding() {
       {/* ============ FINAL CTA ============ */}
       <section className="max-w-4xl mx-auto px-6 py-20 md:py-28 text-center">
         <MessageSquare size={28} color="#B87333" className="mx-auto mb-5" />
-        <h2 className="text-3xl md:text-4xl mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>
+        <h2 className="text-3xl md:text-4xl mb-4" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
           Someone is calling your firm right now.
         </h2>
         <p className="text-[#6B6459] mb-8 max-w-md mx-auto">7-day free trial, live in about 20 minutes, no setup call required.</p>
         <button
           onClick={() => navigate(primaryCtaTarget)}
-          className="text-sm font-medium text-white px-6 py-3.5 rounded-lg inline-flex items-center gap-2"
-          style={{ backgroundColor: "#151515" }}
+          className="text-sm font-bold uppercase tracking-wide px-6 py-3.5 rounded inline-flex items-center gap-2"
+          style={{ backgroundColor: "#D97B29", color: "#1C1206" }}
         >
           Start your 7-day free trial <ArrowRight size={15} />
         </button>

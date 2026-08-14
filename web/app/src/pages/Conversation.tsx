@@ -127,7 +127,7 @@ export default function Conversation() {
   };
 
   return (
-    <div className="min-h-screen w-full flex" style={{ backgroundColor: "#F5F1EA", fontFamily: "'Inter', sans-serif", color: "#151515" }}>
+    <div className="min-h-screen w-full flex" style={{ backgroundColor: "#F5F1EA", fontFamily: "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif", color: "#151515" }}>
       <Sidebar />
       <main className="flex-1 min-w-0 flex flex-col">
         <div className="flex-1 min-w-0 flex">

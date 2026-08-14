@@ -174,7 +174,7 @@ export default function Onboarding() {
   }
 
   return (
-    <div style={{ backgroundColor: "#F5F1EA", fontFamily: "'Inter', sans-serif", color: "#151515" }} className="min-h-screen w-full">
+    <div style={{ backgroundColor: "#F5F1EA", fontFamily: "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif", color: "#151515" }} className="min-h-screen w-full">
       <header className="border-b border-[#E7E5DE] bg-white">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -184,7 +184,7 @@ export default function Onboarding() {
             >
               <FlywheelMark size={16} />
             </div>
-            <span className="font-semibold text-sm" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            <span className="font-semibold text-sm" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif" }}>
               Setting up your Business DNA
             </span>
           </div>
@@ -203,7 +203,7 @@ export default function Onboarding() {
               <div className="flex-1 dna-fade" key={step}>
                 {step === 0 && (
                   <>
-                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>Tell us about your business</h2>
+                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Tell us about your business</h2>
                     <p className="text-sm text-[#6B6459] mb-7">This shapes how your engine talks to every customer — works for any kind of business.</p>
                     <Field label="Business name">
                       <input className={inputCls} placeholder="e.g. Acme Studio" value={business.name} onChange={(e) => setBusiness({ ...business, name: e.target.value })} />
@@ -236,7 +236,7 @@ export default function Onboarding() {
 
                 {step === 1 && (
                   <>
-                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>What do you offer?</h2>
+                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>What do you offer?</h2>
                     <p className="text-sm text-[#6B6459] mb-7">
                       Every service starts routed to you for review — nothing auto-books or auto-quotes until you turn that on later.
                     </p>
@@ -266,7 +266,7 @@ export default function Onboarding() {
 
                 {step === 2 && (
                   <>
-                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>Who can you serve?</h2>
+                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Who can you serve?</h2>
                     <p className="text-sm text-[#6B6459] mb-7">This decides which leads book automatically and which ones escalate to you instead.</p>
                     <div className="grid sm:grid-cols-2 gap-3">
                       <AreaOption
@@ -298,7 +298,7 @@ export default function Onboarding() {
 
                 {step === 3 && (
                   <>
-                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>What does it need to ask?</h2>
+                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>What does it need to ask?</h2>
                     <p className="text-sm text-[#6B6459] mb-7">Per service, the questions your engine confirms before qualifying a lead.</p>
                     {services.map((svc) => (
                       <div key={svc} className="mb-5 pb-5 border-b border-[#F0EFE9] last:border-0">
@@ -333,7 +333,7 @@ export default function Onboarding() {
 
                 {step === 4 && (
                   <>
-                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>When should it hand off to you?</h2>
+                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>When should it hand off to you?</h2>
                     <p className="text-sm text-[#6B6459] mb-7">The engine never guesses past these lines — it stops and asks.</p>
                     <div className="flex flex-col gap-3">
                       {ESCALATION_OPTIONS.map(([key, title, desc]) => (
@@ -363,7 +363,7 @@ export default function Onboarding() {
 
                 {step === 5 && (
                   <>
-                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>Ready to go live</h2>
+                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Ready to go live</h2>
                     <p className="text-sm text-[#6B6459] mb-7">Here's the Business DNA your engine will run on.</p>
                     <div className="rounded-xl bg-[#F5F1EA] border border-[#E7E5DE] p-5 flex flex-col gap-4 text-sm">
                       <div className="flex justify-between"><span className="text-[#6B6459]">Business</span><span className="font-medium">{business.name || "Untitled business"} · {business.industry}</span></div>
@@ -421,7 +421,7 @@ export default function Onboarding() {
               <div className="w-12 h-12 rounded-full flex items-center justify-center mb-5" style={{ backgroundColor: "#E9F5EF" }}>
                 <Check size={22} color="#1E7B52" />
               </div>
-              <h2 className="text-2xl mb-2" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>
+              <h2 className="text-2xl mb-2" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
                 {business.name || "Your business"} is live.
               </h2>
               <p className="text-sm text-[#6B6459] mb-7 max-w-sm">It's answering new leads right now, using exactly what you just set up.</p>

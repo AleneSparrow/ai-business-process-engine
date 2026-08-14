@@ -66,7 +66,7 @@ function ChatBubble() {
 function StatBlock({ n, label }: { n: string; label: string }) {
   return (
     <div>
-      <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }} className="text-3xl mb-1">
+      <div style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }} className="text-3xl mb-1">
         {n}
       </div>
       <div className="text-sm text-[#6B6459]">{label}</div>
@@ -100,7 +100,7 @@ function StepRow({ n, title, body, last }: { n: string; title: string; body: str
       <div className="flex flex-col items-center">
         <div
           className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold shrink-0"
-          style={{ backgroundColor: "#151515", color: "#fff", fontFamily: "'Space Grotesk', sans-serif" }}
+          style={{ backgroundColor: "#151515", color: "#fff", fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif" }}
         >
           {n}
         </div>
@@ -122,7 +122,7 @@ export default function Landing() {
   const primaryCtaTarget = user ? (user.business_id ? "/app" : "/onboarding") : "/signup";
 
   return (
-    <div style={{ backgroundColor: "#F5F1EA", fontFamily: "'Inter', sans-serif", color: "#151515" }} className="min-h-screen w-full">
+    <div style={{ backgroundColor: "#F5F1EA", fontFamily: "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif", color: "#151515" }} className="min-h-screen w-full">
       <header className="sticky top-0 z-20 backdrop-blur-sm" style={{ backgroundColor: "#F5F1EAEE", borderBottom: "1px solid #E7E5DE" }}>
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <button onClick={() => navigate("/lawyers")} className="flex items-center gap-2">
@@ -132,11 +132,11 @@ export default function Landing() {
             >
               <FlywheelMark size={16} />
             </div>
-            <span className="font-semibold text-sm" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>
+            <span className="font-semibold text-sm" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif" }}>
               Flywheel
             </span>
           </button>
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-[#6B6459]">
+          <nav className="hidden md:flex items-center gap-8 text-xs font-medium uppercase tracking-wider text-[#6B6459]">
             <a href="#how" className="hover:text-[#151515] transition-colors">How it works</a>
             <a href="#features" className="hover:text-[#151515] transition-colors">Features</a>
             <a href="#trust" className="hover:text-[#151515] transition-colors">Trust & audit</a>
@@ -149,8 +149,8 @@ export default function Landing() {
             )}
             <button
               onClick={() => navigate(primaryCtaTarget)}
-              className="text-sm font-medium text-white px-4 py-2 rounded-lg flex items-center gap-1.5"
-              style={{ backgroundColor: "#151515" }}
+              className="text-xs font-bold uppercase tracking-wide px-4 py-2 rounded flex items-center gap-1.5"
+              style={{ backgroundColor: "#D97B29", color: "#1C1206" }}
             >
               {user ? "Go to dashboard" : "Get started"} <ArrowRight size={14} />
             </button>
@@ -160,14 +160,14 @@ export default function Landing() {
           </button>
         </div>
         {menuOpen && (
-          <div className="md:hidden px-6 pb-4 flex flex-col gap-3 text-sm font-medium text-[#6B6459]">
+          <div className="md:hidden px-6 pb-4 flex flex-col gap-3 text-xs font-medium uppercase tracking-wider text-[#6B6459]">
             <a href="#how">How it works</a>
             <a href="#features">Features</a>
             <a href="#trust">Trust & audit</a>
             {!user && (
               <button onClick={() => navigate("/login")} className="text-left">Sign in</button>
             )}
-            <button onClick={() => navigate(primaryCtaTarget)} className="text-white px-4 py-2 rounded-lg mt-1" style={{ backgroundColor: "#151515" }}>
+            <button onClick={() => navigate(primaryCtaTarget)} className="font-bold px-4 py-2 rounded mt-1" style={{ backgroundColor: "#D97B29", color: "#1C1206" }}>
               {user ? "Go to dashboard" : "Get started"}
             </button>
           </div>
@@ -179,7 +179,7 @@ export default function Landing() {
           <div className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full mb-6" style={{ backgroundColor: "#F5E7D6", color: "#B87333" }}>
             <Zap size={12} /> Adaptive to any business
           </div>
-          <h1 className="text-4xl md:text-5xl leading-[1.08] mb-5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>
+          <h1 className="text-4xl md:text-5xl leading-[1.08] mb-5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
             Every lead gets answered.<br />Every step gets logged.
           </h1>
           <p className="text-base text-[#6B6459] leading-relaxed mb-8 max-w-md">
@@ -189,8 +189,8 @@ export default function Landing() {
           <div className="flex flex-wrap items-center gap-3 mb-10">
             <button
               onClick={() => navigate(primaryCtaTarget)}
-              className="text-sm font-medium text-white px-5 py-3 rounded-lg flex items-center gap-2"
-              style={{ backgroundColor: "#151515" }}
+              className="text-sm font-bold uppercase tracking-wide px-5 py-3 rounded flex items-center gap-2"
+              style={{ backgroundColor: "#D97B29", color: "#1C1206" }}
             >
               Set up your business <ArrowRight size={15} />
             </button>
@@ -216,7 +216,7 @@ export default function Landing() {
       <section id="how" className="max-w-6xl mx-auto px-6 py-20 md:py-28">
         <div className="max-w-lg mb-14">
           <span className="text-xs font-medium text-[#B87333] uppercase tracking-wide">How it works</span>
-          <h2 className="text-3xl mt-2" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>One path, five steps, no surprises</h2>
+          <h2 className="text-3xl mt-2" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>One path, five steps, no surprises</h2>
         </div>
         <div className="grid md:grid-cols-2 gap-x-16">
           <div>
@@ -243,7 +243,7 @@ export default function Landing() {
         <div className="max-w-6xl mx-auto px-6 py-20 md:py-24 grid md:grid-cols-2 gap-12 items-center">
           <div>
             <span className="text-xs font-medium text-[#B87333] uppercase tracking-wide">Trust & audit</span>
-            <h2 className="text-3xl mt-2 mb-5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>Nothing your engine does is invisible</h2>
+            <h2 className="text-3xl mt-2 mb-5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Nothing your engine does is invisible</h2>
             <ul className="flex flex-col gap-3.5">
               {[
                 "Every trigger, decision, and action is written to an append-only history",
@@ -278,12 +278,12 @@ export default function Landing() {
       </section>
 
       <section className="max-w-6xl mx-auto px-6 py-20 md:py-28 text-center">
-        <h2 className="text-3xl md:text-4xl mb-4" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>Your first customer is already messaging someone.</h2>
+        <h2 className="text-3xl md:text-4xl mb-4" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Your first customer is already messaging someone.</h2>
         <p className="text-[#6B6459] mb-8 max-w-md mx-auto">Set up your Business DNA in minutes and give every lead a same-minute answer.</p>
         <button
           onClick={() => navigate(primaryCtaTarget)}
-          className="text-sm font-medium text-white px-6 py-3.5 rounded-lg inline-flex items-center gap-2"
-          style={{ backgroundColor: "#151515" }}
+          className="text-sm font-bold uppercase tracking-wide px-6 py-3.5 rounded inline-flex items-center gap-2"
+          style={{ backgroundColor: "#D97B29", color: "#1C1206" }}
         >
           Set up your business <ArrowRight size={15} />
         </button>

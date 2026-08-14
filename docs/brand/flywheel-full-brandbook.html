@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flywheel — Brand Book</title>
+<meta name="description" content="Flywheel Brand Book — name, emblem, legend, visual system, voice, and how the brand applies to the Wave 1 legal-vertical launch.">
+<style>
+  :root{
+    --graphite:#151515;
+    --graphite-2:#1c1c1c;
+    --graphite-soft:#3a362d;
+    --bronze:#B87333;
+    --bronze-light:#D89456;
+    --bronze-dark:#96591f;
+    --paper:#F5F1EA;
+    --paper-2:#EEE8DC;
+    --amber:#D97B29;
+    --line:#e2dbcb;
+    --line-dark:#33302b;
+    --muted:#6b6558;
+    --font-display: 'Century Gothic','Futura','Trebuchet MS',sans-serif;
+    --font-serif: Georgia,'Times New Roman',serif;
+    --font-body: -apple-system,'Segoe UI',Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--graphite);font-family:var(--font-body);}
+  a{color:inherit;}
+  img,svg{display:block;}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 32px;}
+
+  /* ---------- nav ---------- */
+  header{position:sticky;top:0;z-index:50;background:rgba(245,241,234,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);}
+  .nav-inner{max-width:1120px;margin:0 auto;padding:16px 32px;display:flex;align-items:center;justify-content:space-between;gap:20px;}
+  .brand-lockup{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  .brand-lockup span{font-family:var(--font-display);letter-spacing:.04em;font-size:17px;font-weight:700;}
+  header nav{display:flex;align-items:center;gap:22px;overflow-x:auto;}
+  header nav a{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);text-decoration:none;white-space:nowrap;}
+  header nav a:hover{color:var(--bronze-dark);}
+
+  /* ---------- hero ---------- */
+  .hero{padding:80px 0 56px;text-align:center;}
+  .kicker{font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--bronze-dark);margin-bottom:22px;font-weight:700;}
+  .hero h1{font-family:var(--font-display);font-size:64px;line-height:1;margin:0 0 18px;letter-spacing:-.01em;}
+  .hero .quote{font-family:var(--font-serif);font-style:italic;color:var(--graphite-soft);max-width:520px;margin:0 auto;font-size:19px;line-height:1.5;}
+  .hero-wheel{margin:52px auto 0;}
+  .hero-wheel svg{margin:0 auto;}
+  .hero-meta{margin-top:18px;font-size:12px;color:var(--muted);letter-spacing:.03em;}
+
+  .ribbon{background:var(--graphite);color:var(--paper);padding:13px 0;text-align:center;font-size:12.5px;letter-spacing:.03em;}
+  .ribbon .wrap{display:flex;justify-content:center;gap:30px;flex-wrap:wrap;}
+  .ribbon b{color:var(--bronze-light);}
+
+  section{padding:90px 0;border-bottom:1px solid var(--line);}
+  section:last-of-type{border-bottom:none;}
+  section.tight{padding:64px 0;}
+  .section-head{max-width:680px;margin:0 auto 44px;text-align:center;}
+  .section-head .eyebrow{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--bronze-dark);font-weight:700;margin-bottom:14px;}
+  .section-head h2{font-family:var(--font-display);font-size:32px;line-height:1.2;margin:0 0 14px;}
+  .section-head p{color:var(--graphite-soft);font-size:15.5px;line-height:1.65;margin:0;}
+  .section-head.left{text-align:left;margin:0 0 40px;max-width:none;}
+
+  .prose{max-width:720px;margin:0 auto;font-size:15.5px;line-height:1.75;color:var(--graphite-soft);}
+  .prose p{margin:0 0 18px;}
+  .prose b{color:var(--graphite);}
+  .callout{background:#fff;border:1px solid var(--line);border-left:3px solid var(--bronze);border-radius:6px;padding:22px 26px;margin:26px 0;font-size:14.5px;line-height:1.65;color:var(--graphite-soft);}
+  .callout b{color:var(--graphite);}
+
+  /* ---------- logo grid ---------- */
+  .logo-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;}
+  .logo-card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:34px 20px 22px;display:flex;flex-direction:column;align-items:center;gap:18px;}
+  .logo-card.dark{background:var(--graphite);border-color:var(--line-dark);}
+  .logo-card .name{font-family:var(--font-display);font-size:13px;letter-spacing:.05em;text-transform:uppercase;}
+  .logo-card.dark .name{color:var(--paper);}
+  .logo-card .cap{font-size:12px;color:var(--muted);text-align:center;line-height:1.5;}
+  .logo-card.dark .cap{color:#9c968a;}
+
+  /* ---------- palette ---------- */
+  .palette{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;}
+  .swatch{border-radius:8px;overflow:hidden;border:1px solid var(--line);}
+  .swatch-color{height:96px;}
+  .swatch-info{background:#fff;padding:14px 16px;}
+  .swatch-info .name{font-family:var(--font-display);font-size:13px;text-transform:uppercase;letter-spacing:.04em;}
+  .swatch-info .hex{font-size:12px;color:var(--muted);margin-top:4px;font-family:monospace;}
+  .swatch-info .use{font-size:11.5px;color:var(--muted);margin-top:6px;line-height:1.4;}
+
+  /* ---------- type specimen ---------- */
+  .type-specimen{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  .type-block{background:#fff;border:1px solid var(--line);border-radius:8px;padding:30px;}
+  .type-block .label{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--bronze-dark);margin-bottom:16px;font-weight:700;}
+  .type-block.display .sample{font-family:var(--font-display);font-size:32px;line-height:1.15;}
+  .type-block.serif .sample{font-family:var(--font-serif);font-style:italic;font-size:19px;line-height:1.55;color:var(--graphite-soft);}
+  .type-block.body .sample{font-family:var(--font-body);font-size:14.5px;line-height:1.65;color:var(--graphite-soft);}
+
+  /* ---------- voice do/dont ---------- */
+  .voice-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  .voice-card{border-radius:8px;padding:26px 26px;}
+  .voice-card.yes{background:#fff;border:1px solid var(--line);border-top:3px solid var(--bronze);}
+  .voice-card.no{background:var(--paper-2);border:1px solid var(--line);}
+  .voice-card .lbl{font-family:var(--font-display);font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;}
+  .voice-card.yes .lbl{color:var(--bronze-dark);}
+  .voice-card.no .lbl{color:var(--muted);}
+  .voice-card p{font-size:14.5px;line-height:1.6;margin:0 0 10px;color:var(--graphite-soft);}
+  .voice-card p:last-child{margin-bottom:0;}
+  .voice-card .ex{font-style:italic;color:var(--graphite);}
+
+  /* ---------- legend panel ---------- */
+  .legend-panel{background:var(--graphite);color:var(--paper);border-radius:12px;padding:64px 60px;position:relative;overflow:hidden;}
+  .legend-panel::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 85% 15%,rgba(184,115,51,.14),transparent 60%);}
+  .legend-panel .inner{position:relative;max-width:640px;margin:0 auto;}
+  .legend-panel p{font-family:var(--font-serif);font-style:italic;font-size:17px;line-height:1.75;color:#e7e2d5;margin:0 0 22px;}
+  .legend-panel .tag{font-family:var(--font-display);font-style:normal;font-size:20px;color:var(--bronze-light);margin-top:30px;letter-spacing:.01em;}
+  .legend-note{max-width:640px;margin:26px auto 0;font-size:13px;color:var(--muted);line-height:1.6;text-align:center;}
+
+  /* ---------- applications ---------- */
+  .app-grid{display:grid;grid-template-columns:1.4fr 1fr;gap:20px;}
+  .app-card{background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+  .app-card .cap{padding:14px 18px;font-size:12px;color:var(--muted);letter-spacing:.03em;border-top:1px solid var(--line);}
+  .mock-browser{border-radius:0;}
+  .mock-bar{background:var(--paper-2);padding:8px 12px;display:flex;align-items:center;gap:6px;border-bottom:1px solid var(--line);}
+  .mock-bar .dot{width:8px;height:8px;border-radius:50%;background:#d8d0bf;}
+  .mock-url{margin-left:10px;background:#fff;border-radius:4px;padding:3px 10px;font-size:10.5px;color:var(--muted);font-family:monospace;border:1px solid var(--line);}
+  .mock-landing{padding:28px 24px;background:var(--paper);text-align:center;}
+  .mock-landing .k{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--bronze-dark);margin-bottom:10px;font-weight:700;}
+  .mock-landing h5{font-family:var(--font-display);font-size:19px;margin:0 0 8px;line-height:1.2;}
+  .mock-landing .s{font-size:11px;color:var(--muted);max-width:280px;margin:0 auto 16px;line-height:1.5;}
+  .mock-cta{display:inline-block;background:var(--amber);color:#1c1206;font-size:10px;font-weight:700;letter-spacing:.04em;padding:8px 16px;border-radius:3px;text-transform:uppercase;}
+  .mock-wheel{margin:20px auto 0;}
+
+  .email-mock{padding:22px 24px;font-size:12px;}
+  .email-mock .row{display:flex;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);color:var(--muted);}
+  .email-mock .row b{color:var(--graphite);min-width:44px;}
+  .email-mock .body{padding-top:14px;font-size:12px;line-height:1.7;color:var(--graphite-soft);}
+
+  .icon-row{display:flex;align-items:flex-end;gap:26px;flex-wrap:wrap;justify-content:center;padding:8px 0;}
+  .icon-tile{background:var(--graphite);border-radius:20%;display:flex;align-items:center;justify-content:center;}
+  .icon-cap{text-align:center;font-size:10.5px;color:var(--muted);margin-top:8px;}
+
+  .card-stage{display:flex;gap:24px;justify-content:center;flex-wrap:wrap;}
+  .biz-card{width:280px;height:160px;border-radius:8px;position:relative;box-shadow:0 18px 40px rgba(21,21,21,.1);}
+  .biz-card.front{background:linear-gradient(155deg,#1a1a1a,#0e0e0e);border:1px solid var(--line-dark);display:flex;align-items:center;justify-content:center;}
+  .biz-card.back{background:#fff;color:var(--graphite);padding:22px;display:flex;flex-direction:column;justify-content:space-between;border:1px solid var(--line);}
+  .biz-card.back .nm{font-family:var(--font-display);font-size:14px;}
+  .biz-card.back .role{font-size:10px;color:var(--muted);margin-top:3px;letter-spacing:.04em;text-transform:uppercase;}
+  .biz-card.back .meta{font-size:10px;color:var(--muted);line-height:1.7;}
+
+  /* ---------- stat row (legal vertical) ---------- */
+  .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;}
+  .stat-card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:24px 20px;}
+  .stat-card .num{font-family:var(--font-display);font-size:28px;color:var(--bronze-dark);margin-bottom:6px;}
+  .stat-card .lbl{font-size:12.5px;color:var(--muted);line-height:1.5;}
+
+  .compare{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  .compare .col{border-radius:8px;padding:26px 24px;}
+  .compare .col.bad{background:var(--paper-2);border:1px solid var(--line);}
+  .compare .col.good{background:var(--graphite);color:var(--paper);}
+  .compare h3{font-family:var(--font-display);font-size:14px;letter-spacing:.04em;text-transform:uppercase;margin:0 0 16px;}
+  .compare .col.bad h3{color:var(--graphite-soft);}
+  .compare .col.good h3{color:var(--bronze-light);}
+  .compare ul{margin:0;padding:0;list-style:none;}
+  .compare li{font-size:13.5px;line-height:1.6;padding:9px 0;border-top:1px solid rgba(0,0,0,.06);}
+  .compare .col.good li{border-top:1px solid rgba(245,241,234,.12);color:#e7e2d5;}
+  .compare li:first-child{border-top:none;}
+
+  .pillar-row{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+  .pillar{background:#fff;border:1px solid var(--line);border-radius:8px;padding:26px 24px;}
+  .pillar .n{font-family:var(--font-serif);font-style:italic;color:var(--bronze-dark);font-size:13px;margin-bottom:10px;}
+  .pillar h4{font-family:var(--font-display);font-size:15px;margin:0 0 8px;}
+  .pillar p{font-size:13.5px;color:var(--graphite-soft);line-height:1.6;margin:0;}
+
+  .price-tag{display:inline-flex;align-items:baseline;gap:6px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:18px 26px;margin-top:8px;}
+  .price-tag .amt{font-family:var(--font-display);font-size:28px;color:var(--graphite);}
+  .price-tag .per{font-size:12px;color:var(--muted);}
+  .price-tag .tier{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--bronze-dark);font-weight:700;margin-right:10px;}
+
+  /* ---------- scaling ---------- */
+  .scale-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+  .scale-card{border-radius:8px;padding:28px 26px;}
+  .scale-card.a{background:var(--graphite);color:var(--paper);}
+  .scale-card.b{background:#fff;border:1px solid var(--line);}
+  .scale-card h4{font-family:var(--font-display);font-size:14px;letter-spacing:.04em;text-transform:uppercase;margin:0 0 14px;}
+  .scale-card.a h4{color:var(--bronze-light);}
+  .scale-card.b h4{color:var(--bronze-dark);}
+  .scale-card p{font-size:13.5px;line-height:1.6;margin:0;}
+  .scale-card.a p{color:#c9c3b6;}
+  .scale-card.b p{color:var(--graphite-soft);}
+  .scale-wheel{margin-top:18px;}
+
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:40px 0;letter-spacing:.03em;background:var(--paper-2);}
+
+  @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+  .spin-med{animation:spin 8s linear infinite;transform-origin:100px 100px;}
+  .spin-slow{animation:spin 20s linear infinite;transform-origin:100px 100px;}
+
+  @media(max-width:900px){
+    .logo-grid,.palette{grid-template-columns:repeat(2,1fr);}
+    .type-specimen,.voice-grid,.compare,.app-grid,.scale-grid,.stat-row{grid-template-columns:1fr;}
+    .pillar-row{grid-template-columns:1fr;}
+    .hero h1{font-size:42px;}
+    .legend-panel{padding:44px 26px;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav-inner">
+    <div class="brand-lockup">
+      <svg width="24" height="24" viewBox="0 0 200 200">
+        <circle cx="100" cy="100" r="80" fill="none" stroke="#B87333" stroke-width="13"/>
+        <circle cx="100" cy="100" r="14" fill="#B87333"/>
+        <g stroke="#B87333" stroke-width="11" stroke-linecap="round">
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(8 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(80 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(152 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(224 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(296 100 100)"/>
+        </g>
+      </svg>
+      <span>FLYWHEEL</span>
+    </div>
+    <nav>
+      <a href="#idea">Idea</a>
+      <a href="#name">Name</a>
+      <a href="#emblem">Emblem</a>
+      <a href="#system">System</a>
+      <a href="#voice">Voice</a>
+      <a href="#legend">Legend</a>
+      <a href="#applications">Applications</a>
+      <a href="#legal">Legal Vertical</a>
+      <a href="#scaling">Scaling</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero wrap" style="border-bottom:none;padding-bottom:0;">
+  <div class="kicker">Brand Book</div>
+  <h1>Flywheel</h1>
+  <p class="quote">"The first wheel started motion. This one starts an era."</p>
+  <div class="hero-wheel">
+    <svg width="170" height="170" viewBox="0 0 200 200">
+      <g stroke="#B87333" stroke-linecap="round" fill="none" opacity="0.3">
+        <circle cx="100" cy="100" r="90" stroke-width="2" stroke-dasharray="76 480" transform="rotate(190 100 100)" opacity="0.5"/>
+        <circle cx="100" cy="100" r="98" stroke-width="2" stroke-dasharray="67 540" transform="rotate(192 100 100)" opacity="0.3"/>
+      </g>
+      <g class="spin-med">
+        <circle cx="100" cy="100" r="80" fill="none" stroke="#B87333" stroke-width="7"/>
+        <circle cx="100" cy="100" r="13" fill="#B87333"/>
+        <g stroke="#B87333" stroke-width="6" stroke-linecap="round">
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(15 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(87 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(159 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(231 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(303 100 100)"/>
+        </g>
+      </g>
+    </svg>
+  </div>
+  <div class="hero-meta">Rebrand from Atelier · launching in the US market · August 14, 2026</div>
+</section>
+
+<div class="ribbon">
+  <div class="wrap">
+    <span>Deterministic AI engine, not a prompt</span>
+    <span>Wave 1: <b>solo attorneys</b>, CA &amp; NY</span>
+    <span>Starter <b>$199/mo</b></span>
+    <span>Discloses itself as AI, every time</span>
+  </div>
+</div>
+
+<!-- ================= BRAND IDEA ================= -->
+<section class="wrap" id="idea">
+  <div class="section-head">
+    <div class="eyebrow">01 — Brand Idea</div>
+    <h2>A cycle that keeps itself going.</h2>
+  </div>
+  <div class="prose">
+    <p>The product is a deterministic AI engine that carries a lead from first contact to a closed deal on a fixed script (a <b>"Business DNA"</b>), never promising anything the script doesn't cover. The product's own funnel is built the same way and sells the product to itself — a closed, self-sustaining loop.</p>
+    <p>A flywheel is a part you spin up once; after that it holds its own rotation and gives back energy evenly, turn after turn, with no jolts. This isn't a metaphor picked for looks — the engineering principle of a flywheel is a literal description of how the product works.</p>
+    <div class="callout"><b>The core brand idea.</b> A flywheel doesn't need to be pushed on every turn — stored momentum does the work. Flywheel the product works the same way: a script, once set up, keeps carrying a lead toward the deal on its own, with no manual push at every step.</div>
+  </div>
+</section>
+
+<!-- ================= NAME ================= -->
+<section class="wrap" id="name">
+  <div class="section-head">
+    <div class="eyebrow">02 — Name</div>
+    <h2>Borrowed, not coined.</h2>
+  </div>
+  <div class="prose">
+    <p><b>Flywheel</b> isn't a coined word — it's a term borrowed at once from engineering and from B2B marketing: the "flywheel" growth model is already familiar to the audience (HubSpot built its own methodology on it), so the meaning lands instantly, no explanation needed. The word reads and sounds the same everywhere the launch market speaks English.</p>
+    <div class="callout"><b>One caveat.</b> "Flywheel" is in active use across software and martech: Flywheel Digital, a registered Flywheel Software, Inc. trademark, the hosting provider getflywheel.com, and others. A bare word mark will be hard to protect outright — registered as a combined mark (logo + name), not the word alone. Full clearance findings live in the companion rebrand document.</div>
+  </div>
+</section>
+
+<!-- ================= EMBLEM ================= -->
+<section class="wrap" id="emblem">
+  <div class="section-head">
+    <div class="eyebrow">03 — The Emblem</div>
+    <h2>The Wheel.</h2>
+    <p>Drawn not as a static, symmetrical circle but as a shape caught in motion — the wheel is never drawn at rest. Five spokes, not three or four: three in a ring reads instantly as a well-known automotive badge, a collision deliberately designed away from. Five keeps the silhouette unmistakably a wheel — cart wheel, ship's wheel, gear — at every size.</p>
+  </div>
+  <div class="logo-grid">
+    <div class="logo-card">
+      <svg width="88" height="88" viewBox="0 0 200 200">
+        <g stroke="#B87333" stroke-linecap="round" fill="none" opacity="0.35">
+          <circle cx="100" cy="100" r="90" stroke-width="2" stroke-dasharray="76 480" transform="rotate(190 100 100)" opacity="0.5"/>
+        </g>
+        <circle cx="100" cy="100" r="80" fill="none" stroke="#B87333" stroke-width="7"/>
+        <circle cx="100" cy="100" r="13" fill="#B87333"/>
+        <g stroke="#B87333" stroke-width="6" stroke-linecap="round">
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(15 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(87 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(159 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(231 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(303 100 100)"/>
+        </g>
+      </svg>
+      <div class="name">Primary Mark</div>
+      <div class="cap">Covers, decks, the brand book — full wheel with motion trail</div>
+    </div>
+    <div class="logo-card">
+      <svg width="88" height="88" viewBox="0 0 200 200">
+        <circle cx="100" cy="100" r="80" fill="none" stroke="#B87333" stroke-width="7"/>
+        <circle cx="100" cy="100" r="13" fill="#B87333"/>
+        <g stroke="#B87333" stroke-width="6" stroke-linecap="round">
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(8 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(80 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(152 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(224 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(296 100 100)"/>
+        </g>
+      </svg>
+      <div class="name">Monogram</div>
+      <div class="cap">Next to the wordmark, site header — simplified to read as an "F"</div>
+    </div>
+    <div class="logo-card dark">
+      <svg width="88" height="88" viewBox="0 0 200 200">
+        <rect x="0" y="0" width="200" height="200" rx="44" fill="#1c1c1c"/>
+        <circle cx="100" cy="100" r="60" fill="none" stroke="#F5F1EA" stroke-width="13"/>
+        <circle cx="100" cy="100" r="10" fill="#F5F1EA"/>
+        <g stroke="#F5F1EA" stroke-width="11" stroke-linecap="round">
+          <line x1="100" y1="100" x2="100" y2="44" transform="rotate(10 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="44" transform="rotate(82 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="44" transform="rotate(154 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="44" transform="rotate(226 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="44" transform="rotate(298 100 100)"/>
+        </g>
+      </svg>
+      <div class="name">App Icon</div>
+      <div class="cap">Favicon, loading spinner — legible down to 16×16 px</div>
+    </div>
+    <div class="logo-card">
+      <svg width="88" height="88" viewBox="0 0 200 200">
+        <circle cx="100" cy="100" r="80" fill="none" stroke="#151515" stroke-width="6"/>
+        <circle cx="100" cy="100" r="9" fill="none" stroke="#151515" stroke-width="4"/>
+        <g stroke="#151515" stroke-width="5" stroke-linecap="round">
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(15 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(87 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(159 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(231 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="26" transform="rotate(303 100 100)"/>
+        </g>
+      </svg>
+      <div class="name">Monochrome</div>
+      <div class="cap">Single-color print, embossing, merch — outline only, no fill</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= VISUAL SYSTEM ================= -->
+<section class="wrap" id="system">
+  <div class="section-head">
+    <div class="eyebrow">04 — Visual System</div>
+    <h2>Graphite, bronze, and one live accent.</h2>
+    <p>Deep graphite as the base — the material of the mechanism. Warm bronze for the wheel line and accents — the material of early tools and machines. Amber reserved only for "active, in motion" states in the product, like the spark that first set the flywheel spinning.</p>
+  </div>
+  <div class="palette">
+    <div class="swatch">
+      <div class="swatch-color" style="background:#151515;"></div>
+      <div class="swatch-info"><div class="name">Graphite</div><div class="hex">#151515</div><div class="use">Dark mode, covers, packaging</div></div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#B87333;"></div>
+      <div class="swatch-info"><div class="name">Bronze</div><div class="hex">#B87333</div><div class="use">Emblem, headings, rules</div></div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#F5F1EA;border-bottom:1px solid #e2dbcb;"></div>
+      <div class="swatch-info"><div class="name">Warm White</div><div class="hex">#F5F1EA</div><div class="use">Light mode background, paper</div></div>
+    </div>
+    <div class="swatch">
+      <div class="swatch-color" style="background:#D97B29;"></div>
+      <div class="swatch-info"><div class="name">Amber</div><div class="hex">#D97B29</div><div class="use">Product status only — active, in progress, CTAs</div></div>
+    </div>
+  </div>
+
+  <div class="type-specimen" style="margin-top:24px;">
+    <div class="type-block display">
+      <div class="label">Display — Headings &amp; Wordmark</div>
+      <div class="sample">Flywheel</div>
+    </div>
+    <div class="type-block serif">
+      <div class="label">Serif — Legend &amp; Manifesto</div>
+      <div class="sample">"The first wheel started motion. This one starts an era."</div>
+    </div>
+    <div class="type-block body">
+      <div class="label">Grotesk — Product &amp; Documentation</div>
+      <div class="sample">Flywheel answers and qualifies every lead 24/7, built so the AI can only follow the script you approve.</div>
+    </div>
+    <div class="type-block">
+      <div class="label">Ornament</div>
+      <div class="sample" style="font-family:var(--font-body);font-size:14px;color:var(--graphite-soft);line-height:1.6;">A thin motion trail — a short arc or streak — as a repeating detail on card edges, footers, and packaging. One detail per spread, never a texture covering the whole background.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= BRAND VOICE ================= -->
+<section class="wrap" id="voice">
+  <div class="section-head">
+    <div class="eyebrow">05 — Brand Voice</div>
+    <h2>Short, confident, no superlatives.</h2>
+    <p>The product doesn't "disrupt the market" — it keeps the rotation going. The flywheel metaphor belongs in headlines and on the "About" page; product copy and outreach to leads default to specifics — savings figures, response times, compliance citations.</p>
+  </div>
+  <div class="voice-grid">
+    <div class="voice-card yes">
+      <div class="lbl">On-brand</div>
+      <p class="ex">"The AI only rewrites the wording of a script you approve."</p>
+      <p class="ex">"$649 average cost per lead in legal services."</p>
+      <p>Specific, verifiable, no adjectives doing the work a fact could do instead.</p>
+    </div>
+    <div class="voice-card no">
+      <div class="lbl">Off-brand</div>
+      <p class="ex">"Revolutionary AI that transforms your intake forever."</p>
+      <p class="ex">"The smartest assistant your firm will ever meet."</p>
+      <p>Superlatives and hype — the kind of language a deterministic product doesn't need to reach for.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= LEGEND ================= -->
+<section class="wrap" id="legend">
+  <div class="section-head">
+    <div class="eyebrow">06 — Brand Legend</div>
+    <h2>Civilisational, not mythological.</h2>
+  </div>
+  <div class="legend-panel">
+    <div class="inner">
+      <p>Before the wheel, everything moved only because someone pushed it, dragged it, carried it — every time, from the start. Then someone noticed a stone roll downhill on its own, needing no second push, and understood: motion doesn't have to be spent all over again each time. It can be started once and kept going.</p>
+      <p>So the wheel arrived — not one invention among many, but the one that made the rest possible. The cart, the potter's wheel, the mill, and much later the flywheel of the steam engine, holding the turn between each stroke of power so that no force was wasted, only stored and returned, evenly. Each of those was its own era's wheel — the same idea, turned toward whatever that age needed moving.</p>
+      <p>We're not finishing that story. We're giving the wheel a new era to turn in. Flywheel takes the same principle — motion, once started, keeps itself going — and points it at business: the path from first contact to closed deal turns on its own, gaining momentum with every cycle, instead of being pushed by hand at every step.</p>
+      <div class="tag">The first wheel started motion. This one starts an era.</div>
+    </div>
+  </div>
+  <p class="legend-note">The legend's register is historical, not religious, and grounded in a real engineering fact — the steam-engine flywheel is history, not metaphor. It belongs on an "About" page and the opening slide of a deck. It does not belong in product copy or lead-facing sales text — see Wave 1 application below.</p>
+</section>
+
+<!-- ================= APPLICATIONS ================= -->
+<section class="wrap" id="applications">
+  <div class="section-head">
+    <div class="eyebrow">07 — Design Applications</div>
+    <h2>The system in use.</h2>
+  </div>
+
+  <div class="app-grid">
+    <div class="app-card">
+      <div class="mock-bar"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="mock-url">flywheel.ai/legal</div></div>
+      <div class="mock-landing">
+        <div class="k">AI Intake for Solo Law Practices</div>
+        <h5>The AI intake assistant that legally can't overstep.</h5>
+        <div class="s">Answers and qualifies every lead, 24/7 — built so the AI can only follow the script you approve.</div>
+        <span class="mock-cta">Start free trial</span>
+        <div class="mock-wheel">
+          <svg width="80" height="80" viewBox="0 0 200 200" style="margin:0 auto;">
+            <circle cx="100" cy="100" r="80" fill="none" stroke="#B87333" stroke-width="7"/>
+            <circle cx="100" cy="100" r="13" fill="#B87333"/>
+            <g stroke="#B87333" stroke-width="6" stroke-linecap="round">
+              <line x1="100" y1="100" x2="100" y2="26" transform="rotate(15 100 100)"/>
+              <line x1="100" y1="100" x2="100" y2="26" transform="rotate(87 100 100)"/>
+              <line x1="100" y1="100" x2="100" y2="26" transform="rotate(159 100 100)"/>
+              <line x1="100" y1="100" x2="100" y2="26" transform="rotate(231 100 100)"/>
+              <line x1="100" y1="100" x2="100" y2="26" transform="rotate(303 100 100)"/>
+            </g>
+          </svg>
+        </div>
+      </div>
+      <div class="cap">Landing page — light mode, Wave 1 legal vertical</div>
+    </div>
+
+    <div class="app-card">
+      <div class="email-mock">
+        <div class="row"><b>From</b> Flywheel</div>
+        <div class="row"><b>Subj</b> The $649 problem most solo firms don't track</div>
+        <div class="body">Hi [First Name],<br><br>I'll keep this short. Most solo and small firms lose a meaningful share of inbound leads to missed calls and after-hours voicemail...</div>
+      </div>
+      <div class="cap">Outbound email template — specifics-first, no manifesto language</div>
+    </div>
+  </div>
+
+  <div style="margin-top:20px;" class="app-grid">
+    <div class="app-card" style="padding:26px 24px;">
+      <div class="icon-row">
+        <div>
+          <div class="icon-tile" style="width:72px;height:72px;">
+            <svg width="40" height="40" viewBox="0 0 200 200">
+              <circle cx="100" cy="100" r="60" fill="none" stroke="#F5F1EA" stroke-width="13"/>
+              <circle cx="100" cy="100" r="10" fill="#F5F1EA"/>
+              <g stroke="#F5F1EA" stroke-width="11" stroke-linecap="round">
+                <line x1="100" y1="100" x2="100" y2="44" transform="rotate(10 100 100)"/>
+                <line x1="100" y1="100" x2="100" y2="44" transform="rotate(82 100 100)"/>
+                <line x1="100" y1="100" x2="100" y2="44" transform="rotate(154 100 100)"/>
+                <line x1="100" y1="100" x2="100" y2="44" transform="rotate(226 100 100)"/>
+                <line x1="100" y1="100" x2="100" y2="44" transform="rotate(298 100 100)"/>
+              </g>
+            </svg>
+          </div>
+          <div class="icon-cap">128px</div>
+        </div>
+        <div>
+          <div class="icon-tile" style="width:48px;height:48px;">
+            <svg width="28" height="28" viewBox="0 0 200 200">
+              <circle cx="100" cy="100" r="60" fill="none" stroke="#F5F1EA" stroke-width="15"/>
+              <circle cx="100" cy="100" r="11" fill="#F5F1EA"/>
+              <g stroke="#F5F1EA" stroke-width="13" stroke-linecap="round">
+                <line x1="100" y1="100" x2="100" y2="44" transform="rotate(10 100 100)"/>
+                <line x1="100" y1="100" x2="100" y2="44" transform="rotate(82 100 100)"/>
+                <line x1="100" y1="100" x2="100" y2="44" transform="rotate(154 100 100)"/>
+                <line x1="100" y1="100" x2="100" y2="44" transform="rotate(226 100 100)"/>
+                <line x1="100" y1="100" x2="100" y2="44" transform="rotate(298 100 100)"/>
+              </g>
+            </svg>
+          </div>
+          <div class="icon-cap">48px</div>
+        </div>
+        <div>
+          <div class="icon-tile" style="width:28px;height:28px;">
+            <svg width="16" height="16" viewBox="0 0 200 200">
+              <circle cx="100" cy="100" r="70" fill="none" stroke="#F5F1EA" stroke-width="18"/>
+              <circle cx="100" cy="100" r="16" fill="#F5F1EA"/>
+            </svg>
+          </div>
+          <div class="icon-cap">16px</div>
+        </div>
+      </div>
+      <div class="cap" style="border-top:none;padding-top:14px;text-align:center;">App icon at size — favicon fallback simplifies to ring + dot</div>
+    </div>
+
+    <div class="app-card" style="padding:26px 24px;">
+      <div class="card-stage">
+        <div class="biz-card front">
+          <svg width="56" height="56" viewBox="0 0 200 200">
+            <circle cx="100" cy="100" r="80" fill="none" stroke="#B87333" stroke-width="6"/>
+            <circle cx="100" cy="100" r="12" fill="#B87333"/>
+            <g stroke="#B87333" stroke-width="5" stroke-linecap="round">
+              <line x1="100" y1="100" x2="100" y2="26" transform="rotate(15 100 100)"/>
+              <line x1="100" y1="100" x2="100" y2="26" transform="rotate(87 100 100)"/>
+              <line x1="100" y1="100" x2="100" y2="26" transform="rotate(159 100 100)"/>
+              <line x1="100" y1="100" x2="100" y2="26" transform="rotate(231 100 100)"/>
+              <line x1="100" y1="100" x2="100" y2="26" transform="rotate(303 100 100)"/>
+            </g>
+          </svg>
+        </div>
+      </div>
+      <div class="cap" style="border-top:none;padding-top:14px;text-align:center;">Design-partner card — embossed monochrome wheel, minimal type</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= LEGAL VERTICAL ================= -->
+<section class="wrap" id="legal">
+  <div class="section-head">
+    <div class="eyebrow">08 — Wave 1 in Practice: Legal Vertical</div>
+    <h2>Solo attorneys, California &amp; New York.</h2>
+    <p>Per the GTM strategy, Wave 1 targets solo attorneys in family law and general practice, starting in California and New York — states that already require AI-disclosure, which is exactly what the brand's compliance architecture is built to do by default.</p>
+  </div>
+
+  <div class="stat-row" style="margin-bottom:44px;">
+    <div class="stat-card"><div class="num">$649</div><div class="lbl">average cost per lead in legal services</div></div>
+    <div class="stat-card"><div class="num">37.8%</div><div class="lbl">of inbound calls answered by a live person, industry-wide</div></div>
+    <div class="stat-card"><div class="num">85%</div><div class="lbl">of callers who hit voicemail never call back</div></div>
+    <div class="stat-card"><div class="num">$55–80K</div><div class="lbl">fully loaded cost of one intake specialist, per year</div></div>
+  </div>
+
+  <div class="pillar-row" style="margin-bottom:44px;">
+    <div class="pillar">
+      <div class="n">01</div>
+      <h4>Architecture, not policy</h4>
+      <p>The compliance guarantee — the AI can only rewrite a script, never invent one — lives in the message pipeline, not a prompt. This is the brand idea itself, pointed at the one fear this audience has.</p>
+    </div>
+    <div class="pillar">
+      <div class="n">02</div>
+      <h4>Specifics over story</h4>
+      <p>Landing and outreach copy lead with cost-per-lead, intake-specialist salaries, and named statutes (SB 243, Article 47) — the legend stays on the About page, per Brand Voice.</p>
+    </div>
+    <div class="pillar">
+      <div class="n">03</div>
+      <h4>Starter only, for now</h4>
+      <p>Product reality (solo practices are the only segment Starter fully serves today) becomes brand discipline: Wave 1 materials sell $199/mo, not a team tier that isn't ready.</p>
+    </div>
+  </div>
+
+  <div class="compare" style="margin-bottom:36px;">
+    <div class="col bad">
+      <h3>A chatbot on a prompt</h3>
+      <ul>
+        <li>The AI decides what to say, guided by instructions</li>
+        <li>Can be talked into estimating a case or promising an outcome</li>
+        <li>Compliance depends on the prompt holding up under pressure</li>
+      </ul>
+    </div>
+    <div class="col good">
+      <h3>Flywheel</h3>
+      <ul>
+        <li>The AI only rewrites the wording of a script you approve</li>
+        <li>Has no path to invent legal analysis or promise a result</li>
+        <li>Identifies itself as AI from the first message, every time</li>
+      </ul>
+    </div>
+  </div>
+
+  <div style="text-align:center;">
+    <div class="price-tag"><span class="tier">Starter</span><span class="amt">$199</span><span class="per">/month · 7-day free trial</span></div>
+  </div>
+</section>
+
+<!-- ================= SCALING ================= -->
+<section class="wrap tight" id="scaling" style="border-bottom:none;">
+  <div class="section-head">
+    <div class="eyebrow">09 — Scaling to New Verticals &amp; Markets</div>
+    <h2>Tuned, not rebuilt.</h2>
+    <p>The brand is built to move with the GTM roadmap — Wave 2 (financial and insurance advisors), then new geographies — without redesigning the system each time.</p>
+  </div>
+  <div class="scale-grid">
+    <div class="scale-card a">
+      <h4>Dark Mode — Product</h4>
+      <p>Graphite background, bronze line work. Used for the product itself and SaaS contexts generally — where reading as software matters more than reading as an established practice.</p>
+    </div>
+    <div class="scale-card b">
+      <h4>Light Mode — Conservative Verticals</h4>
+      <p>Bronze on warm white. Used for lawyers, financial advisors, and other professional verticals where the brand needs to read as an established practice, not a startup demo. The logo and legend work in both without changes.</p>
+    </div>
+    <div class="scale-card b">
+      <h4>Culture-Neutral Emblem</h4>
+      <p>The wheel carries no specific mythology or religious association — unlike an earlier concept built around the Ouroboros, set aside for exactly this reason — so no audience is narrowed by the imagery as the brand expands into new niches and countries.</p>
+    </div>
+    <div class="scale-card a">
+      <h4>Legend, Rewritten Per Market</h4>
+      <p>Authored in English for the launch market first. When the brand moves into a new language market, the legend is rewritten to carry the same meaning there — not translated word for word.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  © 2026 Flywheel · Brand Book · Companion documents: Rebrand — Uniqueness Check, Registration, Rollout Plan · Wave 1 Outreach &amp; Ad Materials
+</footer>
+
+</body>
+</html>

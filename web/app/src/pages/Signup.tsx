@@ -38,7 +38,7 @@ export default function Signup() {
   }
 
   return (
-    <div style={{ backgroundColor: "#F5F1EA", fontFamily: "'Inter', sans-serif", color: "#151515" }} className="min-h-screen w-full flex items-center justify-center px-6">
+    <div style={{ backgroundColor: "#F5F1EA", fontFamily: "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif", color: "#151515" }} className="min-h-screen w-full flex items-center justify-center px-6">
       <div className="w-full max-w-sm">
         <Link to="/lawyers" className="flex items-center gap-2 mb-8 justify-center">
           <div
@@ -47,11 +47,11 @@ export default function Signup() {
           >
             <FlywheelMark size={16} />
           </div>
-          <span className="font-semibold text-sm" style={{ fontFamily: "'Space Grotesk', sans-serif" }}>Flywheel</span>
+          <span className="font-semibold text-sm" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif" }}>Flywheel</span>
         </Link>
 
         <div className="bg-white rounded-2xl border border-[#E7E5DE] p-7">
-          <h1 className="text-2xl mb-1.5" style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 600 }}>
+          <h1 className="text-2xl mb-1.5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
             Create your account
           </h1>
           <p className="text-sm text-[#6B6459] mb-6">Sets up your login. You'll build your Business DNA next.</p>

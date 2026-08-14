@@ -41,16 +41,16 @@ The legend's register is civilisational, not mythological — the language of a 
 
 ## Visual System
 
-**Color.** Deep graphite as the base (the material of the mechanism), warm bronze/copper for the wheel line and accents (the material of early tools and machines), warm white for text. One functional accent — an amber/ember tone — reserved for "active, in motion" states in the product, like the spark that first set the flywheel spinning.
+**Color.** Deep graphite as the base (the material of the mechanism), warm bronze/copper for the wheel line and accents (the material of early tools and machines), warm white for text. One functional accent — an amber/ember tone — reserved for "active, in motion" states in the product, like the spark that first set the flywheel spinning. **Revised Aug 14 (design showcase + Wave 1 legal landing):** on marketing/landing surfaces specifically, amber doubles as the primary call-to-action color — the button that starts the engine turning is itself an "active, in motion" moment, so this reads as an extension of the original rule, not an exception to it. Inside the authenticated product, amber stays reserved for status only (e.g. a case in `QUALIFYING`) — never a plain action button there.
 
 | Role | Color | Use |
 | --- | --- | --- |
-| Background / base | Graphite `#151515` | Dark mode, covers, packaging |
+| Background / base | Graphite `#151515` | Dark mode, covers, packaging, in-product buttons |
 | Line / brand accent | Bronze `#B87333` | Emblem, headings, rules |
 | Text / paper | Warm White `#F5F1EA` | Body text on dark backgrounds |
-| Functional accent | Amber `#D97B29` | Product status only (active, in progress) |
+| Functional accent | Amber `#D97B29` | Product status (active, in progress); primary CTA buttons on marketing/landing pages only |
 
-**Typography.** The wordmark and headings use a dense, geometric sans with an industrial character — confident, slightly heavy forms that read as precision machinery rather than calligraphy. Legend and manifesto copy uses a contrasting serif, so the "big story" sounds deliberately different from the interface. Product and documentation body text uses a neutral, highly legible grotesk.
+**Typography.** The wordmark and headings use a dense, geometric sans with an industrial character — confident, slightly heavy forms that read as precision machinery rather than calligraphy. Legend and manifesto copy uses a contrasting serif, so the "big story" sounds deliberately different from the interface. Product and documentation body text uses a neutral, highly legible grotesk. **Revised Aug 14 — named stacks, per the design showcase and Wave 1 legal landing (system fonts, no webfont loading):** display/headings `'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif`; legend/manifesto `Georgia, 'Times New Roman', serif`; body `-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif`. Nav links and section eyebrows on marketing pages are set in the body stack, uppercase, with wide letter-spacing.
 
 **Ornament.** A thin motion trail (a short arc or streak) as a repeating detail on card edges, footers, and packaging — one detail per spread, never a texture covering the whole background.
 
