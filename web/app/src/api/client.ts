@@ -267,6 +267,11 @@ export interface BillingStatus {
   has_billing_access: boolean;
 }
 
+export interface SmsStatus {
+  configured: boolean;
+  phone_number: string | null;
+}
+
 export interface CheckoutSessionResponse {
   checkout_url: string;
 }
@@ -358,6 +363,16 @@ export const api = {
   createPortalSession: (token: string, businessId: string) =>
     request<PortalSessionResponse>(
       `/api/v1/businesses/${businessId}/billing/portal-session`,
+      { method: "POST", body: JSON.stringify({}) },
+      token,
+    ),
+
+  getSmsStatus: (token: string, businessId: string) =>
+    request<SmsStatus>(`/api/v1/businesses/${businessId}/integrations/sms`, { method: "GET" }, token),
+
+  provisionSms: (token: string, businessId: string) =>
+    request<SmsStatus>(
+      `/api/v1/businesses/${businessId}/integrations/sms/provision`,
       { method: "POST", body: JSON.stringify({}) },
       token,
     ),

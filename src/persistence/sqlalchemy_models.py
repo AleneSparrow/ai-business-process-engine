@@ -94,6 +94,23 @@ class CrmWebhookConnectionRow(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class SmsConnectionRow(Base):
+    """One Twilio phone number per business. Purchased and populated by
+    SmsService.provision_number_if_needed, not typed in by the business
+    owner -- see that module. `phone_number` is globally unique (it's how
+    an inbound Twilio webhook resolves which business a text belongs to)."""
+
+    __tablename__ = "sms_connections"
+
+    business_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("businesses.id", ondelete="CASCADE"), primary_key=True
+    )
+    phone_number: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
+    twilio_phone_sid: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class StaffUserRow(Base):
     __tablename__ = "staff_users"
 

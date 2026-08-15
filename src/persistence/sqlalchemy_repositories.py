@@ -47,6 +47,7 @@ from .sqlalchemy_models import (
     ConversationMessageRow,
     ConversationRow,
     CrmWebhookConnectionRow,
+    SmsConnectionRow,
     LeadRow,
     PaymentRequestRow,
     ProcessCaseRow,
@@ -241,6 +242,36 @@ class SQLAlchemyCrmWebhookConnectionRepository:
         row = self.session.get(CrmWebhookConnectionRow, business_id)
         if row is not None:
             self.session.delete(row)
+
+
+class SQLAlchemySmsConnectionRepository:
+    """One purchased Twilio phone number per business. See SmsConnectionRow."""
+
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def get_by_business(self, business_id: str) -> tuple[str, str] | None:
+        row = self.session.get(SmsConnectionRow, business_id)
+        return (row.phone_number, row.twilio_phone_sid) if row is not None else None
+
+    def get_business_id_by_phone(self, phone_number: str) -> str | None:
+        row = (
+            self.session.query(SmsConnectionRow)
+            .filter(SmsConnectionRow.phone_number == phone_number)
+            .one_or_none()
+        )
+        return row.business_id if row is not None else None
+
+    def add(
+        self, business_id: str, phone_number: str, twilio_phone_sid: str, *, now: datetime
+    ) -> None:
+        self.session.add(SmsConnectionRow(
+            business_id=business_id,
+            phone_number=phone_number,
+            twilio_phone_sid=twilio_phone_sid,
+            created_at=now,
+            updated_at=now,
+        ))
 
 
 class SQLAlchemyStaffUserRepository:

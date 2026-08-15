@@ -33,6 +33,27 @@ class Settings:
     lemonsqueezy_variant_pro: str | None = None
     billing_trial_days: int = 7
     frontend_base_url: str | None = None
+    # SMS delivery runs through Twilio. The account itself is opened and
+    # funded by the user from Vietnam (same situation as Lemon Squeezy) --
+    # verified before building against it that Twilio accepts billing from
+    # 230+ countries with no Vietnam exclusion. The traffic itself is 100%
+    # US-market: US phone numbers, US leads texting US attorneys. None of
+    # Twilio's Vietnam-market SMS guidelines (sender ID pre-registration,
+    # content rules) apply here -- those govern messages *to* Vietnamese
+    # numbers, which this product never sends.
+    twilio_account_sid: str | None = field(default=None, repr=False)
+    twilio_auth_token: str | None = field(default=None, repr=False)
+    # The backend's own public URL, used only to tell Twilio where to POST
+    # inbound SMS when a number is purchased for a business (see
+    # TwilioClient.purchase_phone_number). Distinct from frontend_base_url.
+    public_api_base_url: str | None = None
+
+    @property
+    def sms_configured(self) -> bool:
+        """Whether Twilio SMS delivery is wired up. Optional at the Settings
+        level, same reasoning as billing_configured -- SmsService raises a
+        clear, specific error per-request instead of failing app startup."""
+        return self.twilio_account_sid is not None
 
     @property
     def billing_configured(self) -> bool:
@@ -87,6 +108,20 @@ class Settings:
                     "LEMONSQUEEZY_API_KEY is set, so billing is enabled -- also required: "
                     + ", ".join(missing)
                 )
+        if self.sms_configured:
+            sms_missing = [
+                name
+                for name, value in (
+                    ("TWILIO_AUTH_TOKEN", self.twilio_auth_token),
+                    ("PUBLIC_API_BASE_URL", self.public_api_base_url),
+                )
+                if not value or not value.strip()
+            ]
+            if sms_missing:
+                raise ValueError(
+                    "TWILIO_ACCOUNT_SID is set, so SMS delivery is enabled -- also required: "
+                    + ", ".join(sms_missing)
+                )
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -118,6 +153,7 @@ class Settings:
             if value.strip()
         )
         frontend_base_url = os.getenv("FRONTEND_BASE_URL")
+        public_api_base_url = os.getenv("PUBLIC_API_BASE_URL")
         try:
             return cls(
                 database_url=database_url,
@@ -141,6 +177,11 @@ class Settings:
                 lemonsqueezy_variant_pro=os.getenv("LEMONSQUEEZY_VARIANT_PRO"),
                 billing_trial_days=billing_trial_days,
                 frontend_base_url=frontend_base_url.rstrip("/") if frontend_base_url else None,
+                twilio_account_sid=os.getenv("TWILIO_ACCOUNT_SID"),
+                twilio_auth_token=os.getenv("TWILIO_AUTH_TOKEN"),
+                public_api_base_url=(
+                    public_api_base_url.rstrip("/") if public_api_base_url else None
+                ),
             )
         except ValueError as exc:
             raise RuntimeError(str(exc)) from exc

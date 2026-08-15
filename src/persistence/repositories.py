@@ -173,6 +173,19 @@ class CrmWebhookConnectionRepository(Protocol):
     def delete(self, business_id: str) -> None: ...
 
 
+class SmsConnectionRepository(Protocol):
+    def get_by_business(self, business_id: str) -> tuple[str, str] | None:
+        """Returns (phone_number, twilio_phone_sid) if the business has a
+        provisioned number, else None."""
+        ...
+
+    def get_business_id_by_phone(self, phone_number: str) -> str | None: ...
+
+    def add(
+        self, business_id: str, phone_number: str, twilio_phone_sid: str, *, now: datetime
+    ) -> None: ...
+
+
 class StaffUserRepository(Protocol):
     def add(self, user: StaffUser) -> None: ...
     def get(self, user_id: str) -> StaffUser | None: ...
@@ -201,6 +214,7 @@ class UnitOfWork(Protocol):
     staff_users: StaffUserRepository
     staff_sessions: StaffSessionRepository
     crm_webhook_connections: CrmWebhookConnectionRepository
+    sms_connections: SmsConnectionRepository
 
     def __enter__(self) -> "UnitOfWork": ...
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None: ...

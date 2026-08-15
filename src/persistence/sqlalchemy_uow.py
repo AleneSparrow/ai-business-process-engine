@@ -18,6 +18,7 @@ from .sqlalchemy_repositories import (
     SQLAlchemyProcessCaseRepository,
     SQLAlchemyProcessEventRepository,
     SQLAlchemyQuoteRepository,
+    SQLAlchemySmsConnectionRepository,
     SQLAlchemyStaffSessionRepository,
     SQLAlchemyStaffUserRepository,
 )
@@ -66,6 +67,7 @@ class SQLAlchemyUnitOfWork:
         self.staff_users = SQLAlchemyStaffUserRepository(self.session)
         self.staff_sessions = SQLAlchemyStaffSessionRepository(self.session)
         self.crm_webhook_connections = SQLAlchemyCrmWebhookConnectionRepository(self.session)
+        self.sms_connections = SQLAlchemySmsConnectionRepository(self.session)
         return self
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:

@@ -159,6 +159,11 @@ class CrmWebhookConfigureRequest(ApiModel):
     webhook_url: str = Field(min_length=1, max_length=2048)
 
 
+class SmsStatusResponse(ApiModel):
+    configured: bool
+    phone_number: str | None = None
+
+
 # --- Billing: self-serve Lemon Squeezy subscription for the business's own Flywheel account --
 
 

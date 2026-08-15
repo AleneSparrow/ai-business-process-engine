@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Globe, Loader2, MapPin, Plus, RotateCcw, X } from "lucide-react";
+import { Check, Globe, Loader2, MapPin, MessageSquare, Plus, RotateCcw, X } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { AreaOption, Field, formatRelativeTime, inputCls, ToneOption } from "../components/Shared";
 import { useAuth, describeError } from "../auth/AuthContext";
-import { api, type BusinessDNASettings } from "../api/client";
+import { api, type BusinessDNASettings, type SmsStatus } from "../api/client";
 
 const SETTINGS_TABS = [
   { key: "business", label: "Business" },
@@ -11,6 +11,7 @@ const SETTINGS_TABS = [
   { key: "area", label: "Service area" },
   { key: "questions", label: "Questions" },
   { key: "escalation", label: "Escalation" },
+  { key: "sms", label: "SMS" },
 ] as const;
 
 type TabKey = (typeof SETTINGS_TABS)[number]["key"];
@@ -86,6 +87,11 @@ export default function Settings() {
   const [saving, setSaving] = useState(false);
   const [newService, setNewService] = useState("");
 
+  const [smsStatus, setSmsStatus] = useState<SmsStatus | null>(null);
+  const [smsLoading, setSmsLoading] = useState(true);
+  const [smsError, setSmsError] = useState<string | null>(null);
+  const [smsProvisioning, setSmsProvisioning] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     if (!token || !user?.business_id) return;
@@ -111,6 +117,41 @@ export default function Settings() {
       cancelled = true;
     };
   }, [token, user?.business_id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!token || !user?.business_id) return;
+    setSmsLoading(true);
+    setSmsError(null);
+    api
+      .getSmsStatus(token, user.business_id)
+      .then((status) => {
+        if (!cancelled) setSmsStatus(status);
+      })
+      .catch((err) => {
+        if (!cancelled) setSmsError(describeError(err));
+      })
+      .finally(() => {
+        if (!cancelled) setSmsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, user?.business_id]);
+
+  const provisionSms = async () => {
+    if (!token || !user?.business_id) return;
+    setSmsProvisioning(true);
+    setSmsError(null);
+    try {
+      const status = await api.provisionSms(token, user.business_id);
+      setSmsStatus(status);
+    } catch (err) {
+      setSmsError(describeError(err));
+    } finally {
+      setSmsProvisioning(false);
+    }
+  };
 
   const dirty = useMemo(
     () => !!state && !!baseline && JSON.stringify(state) !== JSON.stringify(baseline),
@@ -368,6 +409,61 @@ export default function Settings() {
                       </div>
                     </label>
                   ))}
+                </div>
+              )}
+
+              {tab === "sms" && (
+                <div>
+                  <p className="text-sm text-[#6B6459] mb-6">
+                    Give leads a phone number that texts straight into your engine — the same qualification and
+                    booking logic that runs on your website runs here too.
+                  </p>
+                  {smsLoading && (
+                    <div className="flex items-center gap-2 text-sm text-[#6B6459] py-6">
+                      <Loader2 size={16} className="animate-spin" /> Checking status…
+                    </div>
+                  )}
+                  {!smsLoading && smsStatus && !smsStatus.configured && (
+                    <div className="px-4 py-3 rounded-lg text-sm" style={{ backgroundColor: "#F1F1EF", color: "#6B6459" }}>
+                      SMS delivery isn't set up on this deployment yet.
+                    </div>
+                  )}
+                  {!smsLoading && smsStatus?.configured && smsStatus.phone_number && (
+                    <div className="flex items-center gap-3 p-4 rounded-xl border" style={{ borderColor: "#E7E5DE" }}>
+                      <span className="flex items-center justify-center rounded-full shrink-0" style={{ width: 36, height: 36, backgroundColor: "#E9F5EF", color: "#1E7B52" }}>
+                        <MessageSquare size={16} />
+                      </span>
+                      <div>
+                        <div className="text-sm font-medium" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{smsStatus.phone_number}</div>
+                        <div className="text-xs text-[#6B6459] mt-0.5">Texts to this number reach your engine automatically.</div>
+                      </div>
+                    </div>
+                  )}
+                  {!smsLoading && smsStatus?.configured && !smsStatus.phone_number && (
+                    <div className="p-4 rounded-xl border border-[#E7E5DE]">
+                      <div className="text-sm font-medium mb-1">No number yet</div>
+                      <div className="text-xs text-[#6B6459] mb-3">Set up a dedicated SMS number for your business — this takes a few seconds.</div>
+                      <button
+                        onClick={provisionSms}
+                        disabled={smsProvisioning}
+                        className="text-sm font-medium text-white px-4 py-2.5 rounded-lg flex items-center gap-1.5 disabled:opacity-50"
+                        style={{ backgroundColor: "#151515" }}
+                      >
+                        {smsProvisioning && <Loader2 size={13} className="animate-spin" />}
+                        Set up SMS
+                      </button>
+                    </div>
+                  )}
+                  {smsError && (
+                    <div className="mt-3 px-4 py-3 rounded-lg text-sm flex items-center justify-between gap-3" style={{ backgroundColor: "#FBEBE9", color: "#8A3225" }}>
+                      <span>{smsError}</span>
+                      {smsStatus?.configured && (
+                        <button onClick={provisionSms} disabled={smsProvisioning} className="text-xs font-medium underline shrink-0 disabled:opacity-50">
+                          Retry
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
