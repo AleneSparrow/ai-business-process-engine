@@ -173,7 +173,7 @@ class AnthropicProvider:
             ) from exc
         except (AuthenticationError, PermissionDeniedError) as exc:
             raise AIAuthenticationError(
-                "Claude authentication or permission failed",
+                f"Claude authentication or permission failed: {exc}",
                 metadata=self._metadata(request, started, success=False, category="authentication"),
             ) from exc
         except APIConnectionError as exc:
@@ -182,10 +182,13 @@ class AnthropicProvider:
                 metadata=self._metadata(request, started, success=False, category="transport"),
             ) from exc
         except APIStatusError as exc:
+            # exc's own message is Anthropic's own account/request-status text
+            # (e.g. a workspace spend limit or invalid-request reason) --
+            # never customer-submitted content -- safe to log as-is.
             error_type = AIInternalProviderError if exc.status_code >= 500 else AIProviderRequestError
             category = "provider_internal" if exc.status_code >= 500 else "provider_request"
             raise error_type(
-                "Claude rejected the structured request",
+                f"Claude rejected the structured request: {exc}",
                 metadata=self._metadata(request, started, success=False, category=category),
             ) from exc
         except Exception as exc:
