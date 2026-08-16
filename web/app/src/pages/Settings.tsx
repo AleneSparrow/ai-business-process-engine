@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
-import { Check, Globe, Loader2, MapPin, MessageSquare, Plus, RotateCcw, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Globe, Loader2, MapPin, MessageSquare, Plus, RotateCcw, X } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { AreaOption, Field, formatRelativeTime, inputCls, ToneOption } from "../components/Shared";
 import { useAuth, describeError } from "../auth/AuthContext";
@@ -75,8 +76,13 @@ function fromServer(dna: BusinessDNASettings): SettingsState {
 }
 
 export default function Settings() {
+  const navigate = useNavigate();
   const { token, user } = useAuth();
   const [tab, setTab] = useState<TabKey>("business");
+  const tabRailRef = useRef<HTMLDivElement>(null);
+  const scrollTabRail = (direction: -1 | 1) => {
+    tabRailRef.current?.scrollBy({ left: direction * 160, behavior: "smooth" });
+  };
   const [state, setState] = useState<SettingsState | null>(null);
   const [baseline, setBaseline] = useState<SettingsState | null>(null);
   const [version, setVersion] = useState<number | null>(null);
@@ -226,15 +232,25 @@ export default function Settings() {
       <Sidebar />
       <main className="flex-1 min-w-0 flex flex-col pt-14 md:pt-0">
         <header className="flex items-center justify-between px-6 md:px-8 py-4 border-b border-[#E7E5DE]">
-          <div>
-            <h1 className="text-xl" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Business DNA</h1>
-            <p className="text-sm text-[#6B6459] mt-0.5" style={{ fontFamily: dirty ? "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" : "'IBM Plex Mono', monospace" }}>
-              {dirty
-                ? "Unsaved changes"
-                : updatedAt
-                  ? `Last updated ${formatRelativeTime(updatedAt)}${version ? ` · v${version}` : ""}`
-                  : "Loading…"}
-            </p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate("/app")}
+              aria-label="Back to Overview"
+              className="md:hidden -ml-1.5 p-1.5 rounded-lg shrink-0"
+              style={{ color: "#6B6459" }}
+            >
+              <ArrowLeft size={18} />
+            </button>
+            <div>
+              <h1 className="text-xl" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Business DNA</h1>
+              <p className="text-sm text-[#6B6459] mt-0.5" style={{ fontFamily: dirty ? "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" : "'IBM Plex Mono', monospace" }}>
+                {dirty
+                  ? "Unsaved changes"
+                  : updatedAt
+                    ? `Last updated ${formatRelativeTime(updatedAt)}${version ? ` · v${version}` : ""}`
+                    : "Loading…"}
+              </p>
+            </div>
           </div>
           {!dirty && state && (
             <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full" style={{ color: "#1E7B52", backgroundColor: "#E9F5EF" }}>
@@ -260,18 +276,36 @@ export default function Settings() {
         {!loading && !loadError && state && (
           <>
             <div className="max-w-3xl px-6 md:px-8 py-8 w-full">
-              <div className="flex items-center gap-1 mb-8 border-b border-[#E7E5DE] overflow-x-auto">
-                {SETTINGS_TABS.map((t) => (
-                  <button
-                    key={t.key}
-                    onClick={() => setTab(t.key)}
-                    className="px-3.5 py-2.5 text-sm whitespace-nowrap relative -mb-px"
-                    style={{ color: tab === t.key ? "#151515" : "#9C9488", fontWeight: tab === t.key ? 600 : 500 }}
-                  >
-                    {t.label}
-                    {tab === t.key && <span className="absolute left-0 right-0 -bottom-px h-0.5" style={{ backgroundColor: "#151515" }} />}
-                  </button>
-                ))}
+              <div className="flex items-center gap-1 mb-8 border-b border-[#E7E5DE]">
+                <button
+                  onClick={() => scrollTabRail(-1)}
+                  aria-label="Scroll tabs left"
+                  className="md:hidden shrink-0 p-1 -mb-px"
+                  style={{ color: "#9C9488" }}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <div ref={tabRailRef} className="flex items-center gap-1 overflow-x-auto scroll-smooth">
+                  {SETTINGS_TABS.map((t) => (
+                    <button
+                      key={t.key}
+                      onClick={() => setTab(t.key)}
+                      className="px-3.5 py-2.5 text-sm whitespace-nowrap relative -mb-px shrink-0"
+                      style={{ color: tab === t.key ? "#151515" : "#9C9488", fontWeight: tab === t.key ? 600 : 500 }}
+                    >
+                      {t.label}
+                      {tab === t.key && <span className="absolute left-0 right-0 -bottom-px h-0.5" style={{ backgroundColor: "#151515" }} />}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  onClick={() => scrollTabRail(1)}
+                  aria-label="Scroll tabs right"
+                  className="md:hidden shrink-0 p-1 -mb-px"
+                  style={{ color: "#9C9488" }}
+                >
+                  <ChevronRight size={16} />
+                </button>
               </div>
 
               {tab === "business" && (
