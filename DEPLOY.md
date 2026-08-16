@@ -46,8 +46,10 @@ launch, only mentioned in case you already have a Render account.)
    - `APP_ENV` = `production`
    - `AI_PROVIDER` = `deterministic` to launch without any AI dependency at
      all (qualification and booking are deterministic either way; this only
-     turns off AI-assisted intake wording), or `openai` if you want that —
-     if `openai`, also set `OPENAI_API_KEY` to your own key **directly in
+     turns off AI-assisted intake wording), or `anthropic`/`openai` if you
+     want AI-assisted wording — if `anthropic`, also set `ANTHROPIC_API_KEY`
+     and `ANTHROPIC_MODEL`; if `openai`, set `OPENAI_API_KEY` and
+     `OPENAI_MODEL` instead — either way, set the key **directly in
      Railway's Variables tab**, not by giving it to Claude.
    - `CORS_ALLOWED_ORIGINS` — leave a placeholder for now
      (`https://placeholder.example`); you'll come back and set this to your

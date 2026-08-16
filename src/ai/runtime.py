@@ -11,6 +11,7 @@ from src.engine.intent_extractor import DeterministicIntentExtractor, IntentExtr
 from src.engine.question_generator import DeterministicQuestionGenerator, QuestionGenerator
 
 from .adapters import AICustomerResponseGenerator, AIIntentExtractor, AIQuestionGenerator
+from .anthropic_provider import AnthropicProvider
 from .openai_provider import OpenAIProvider
 from .provider import RetryingAIProvider
 
@@ -32,6 +33,24 @@ def build_ai_runtime(settings: Settings) -> AIRuntimeComponents:
             DeterministicCustomerResponseGenerator(),
             "deterministic",
             "deterministic-v1",
+        )
+    if settings.ai_provider == "anthropic":
+        if settings.anthropic_api_key is None or settings.anthropic_model is None:
+            raise RuntimeError("Anthropic runtime configuration is incomplete")
+        provider = RetryingAIProvider(
+            AnthropicProvider(
+                api_key=settings.anthropic_api_key,
+                model=settings.anthropic_model,
+                timeout_seconds=settings.ai_timeout_seconds,
+            ),
+            max_retries=settings.ai_max_retries,
+        )
+        return AIRuntimeComponents(
+            AIIntentExtractor(provider),
+            AIQuestionGenerator(provider),
+            AICustomerResponseGenerator(provider),
+            "anthropic",
+            settings.anthropic_model,
         )
     if settings.ai_provider != "openai":
         raise RuntimeError(f"unsupported AI_PROVIDER: {settings.ai_provider}")

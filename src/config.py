@@ -13,6 +13,8 @@ class Settings:
     ai_provider: str = "deterministic"
     openai_api_key: str | None = field(default=None, repr=False)
     openai_model: str | None = None
+    anthropic_api_key: str | None = field(default=None, repr=False)
+    anthropic_model: str | None = None
     ai_timeout_seconds: float = 20.0
     ai_max_retries: int = 2
     cors_allowed_origins: tuple[str, ...] = ()
@@ -68,8 +70,8 @@ class Settings:
             raise ValueError("database_url must not be empty")
         if not 1_024 <= self.max_request_body_bytes <= 10_485_760:
             raise ValueError("max_request_body_bytes must be between 1024 and 10485760")
-        if self.ai_provider not in {"deterministic", "openai"}:
-            raise ValueError("ai_provider must be 'deterministic' or 'openai'")
+        if self.ai_provider not in {"deterministic", "openai", "anthropic"}:
+            raise ValueError("ai_provider must be 'deterministic', 'openai', or 'anthropic'")
         if not 0 < self.ai_timeout_seconds <= 120:
             raise ValueError("ai_timeout_seconds must be greater than 0 and at most 120")
         if not 0 <= self.ai_max_retries <= 3:
@@ -79,6 +81,11 @@ class Settings:
                 raise ValueError("OPENAI_API_KEY is required when AI_PROVIDER=openai")
             if self.openai_model is None or not self.openai_model.strip():
                 raise ValueError("OPENAI_MODEL is required when AI_PROVIDER=openai")
+        if self.ai_provider == "anthropic":
+            if self.anthropic_api_key is None or not self.anthropic_api_key.strip():
+                raise ValueError("ANTHROPIC_API_KEY is required when AI_PROVIDER=anthropic")
+            if self.anthropic_model is None or not self.anthropic_model.strip():
+                raise ValueError("ANTHROPIC_MODEL is required when AI_PROVIDER=anthropic")
         if self.app_env.casefold() in {"production", "prod"} and "*" in self.cors_allowed_origins:
             raise ValueError("wildcard CORS origins are not allowed in production")
         if not 1 <= self.public_chat_rate_limit_requests <= 10_000:
@@ -162,6 +169,8 @@ class Settings:
                 ai_provider=ai_provider,
                 openai_api_key=os.getenv("OPENAI_API_KEY"),
                 openai_model=os.getenv("OPENAI_MODEL"),
+                anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
+                anthropic_model=os.getenv("ANTHROPIC_MODEL"),
                 ai_timeout_seconds=ai_timeout_seconds,
                 ai_max_retries=ai_max_retries,
                 max_request_body_bytes=max_request_body_bytes,

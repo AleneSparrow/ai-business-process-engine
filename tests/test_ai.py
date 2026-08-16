@@ -16,6 +16,7 @@ from src.ai.errors import (
 )
 from src.ai.fake_provider import FakeAIProvider
 from src.ai.models import AIRequest, IntentOutput
+from src.ai.anthropic_provider import AnthropicProvider
 from src.ai.openai_provider import OpenAIProvider
 from src.ai.provider import RetryingAIProvider
 from src.api.app import create_app
@@ -213,6 +214,48 @@ def test_openai_adapter_uses_sdk_typed_parse_contract_without_live_call() -> Non
 
     assert responses.arguments["text_format"] is IntentOutput
     assert responses.arguments["model"] == "test-openai-model"
+    assert result.metadata.total_tokens == 18
+
+
+def test_anthropic_adapter_uses_forced_tool_call_contract_without_live_call() -> None:
+    class ToolUseBlock:
+        type = "tool_use"
+        input = intent_output()
+
+    class MessagesStub:
+        def __init__(self) -> None:
+            self.arguments: dict[str, object] = {}
+
+        def create(self, **arguments: object):
+            self.arguments = arguments
+            return type("Response", (), {
+                "content": [ToolUseBlock()],
+                "usage": type("Usage", (), {
+                    "input_tokens": 12,
+                    "output_tokens": 6,
+                })(),
+            })()
+
+    messages = MessagesStub()
+    provider = object.__new__(AnthropicProvider)
+    provider.model = "test-anthropic-model"
+    provider._client = type("Client", (), {"messages": messages})()
+    request = AIRequest(
+        "intent",
+        "v1",
+        "intent_extraction",
+        "system",
+        "user",
+        IntentOutput,
+    )
+
+    result = provider.generate(request)
+
+    assert messages.arguments["model"] == "test-anthropic-model"
+    assert messages.arguments["tool_choice"] == {"type": "tool", "name": "emit_structured_output"}
+    assert messages.arguments["tools"][0]["input_schema"] == IntentOutput.model_json_schema()
+    assert result.output == IntentOutput.model_validate(intent_output())
+    assert result.metadata.provider == "anthropic"
     assert result.metadata.total_tokens == 18
 
 

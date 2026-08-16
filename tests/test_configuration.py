@@ -111,6 +111,23 @@ def test_openai_settings_require_credentials_without_exposing_key_in_repr(
     assert marker not in repr(settings)
 
 
+def test_anthropic_settings_require_credentials_without_exposing_key_in_repr(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgresql+psycopg://example.invalid/test")
+    monkeypatch.setenv("AI_PROVIDER", "anthropic")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setenv("ANTHROPIC_MODEL", "test-model")
+    with pytest.raises(RuntimeError, match="ANTHROPIC_API_KEY"):
+        Settings.from_environment()
+
+    marker = "sensitive-test-key-marker"
+    monkeypatch.setenv("ANTHROPIC_API_KEY", marker)
+    settings = Settings.from_environment()
+    assert settings.ai_provider == "anthropic"
+    assert marker not in repr(settings)
+
+
 def test_production_rejects_wildcard_cors_and_parses_public_chat_limits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

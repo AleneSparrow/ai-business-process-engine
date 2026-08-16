@@ -174,7 +174,17 @@ Use deterministic mode for tests, the offline demo, and local work without an AP
 export AI_PROVIDER=deterministic
 ```
 
-Use the real provider explicitly:
+Use a real provider explicitly — Anthropic:
+
+```bash
+export AI_PROVIDER=anthropic
+export ANTHROPIC_API_KEY='set-locally-never-commit'
+export ANTHROPIC_MODEL='claude-sonnet-4-5'
+export AI_TIMEOUT_SECONDS=20
+export AI_MAX_RETRIES=2
+```
+
+or OpenAI:
 
 ```bash
 export AI_PROVIDER=openai
@@ -184,7 +194,7 @@ export AI_TIMEOUT_SECONDS=20
 export AI_MAX_RETRIES=2
 ```
 
-The OpenAI adapter uses the official SDK's typed structured-output parsing. It has an explicit timeout and retries only transient network, timeout, rate-limit, and provider-internal failures, with a maximum of three configured retries. Authentication and invalid-output failures are not retried. Startup and `/ready` validate configuration without making a paid model call. There is no silent fallback to deterministic mode.
+Both adapters share the exact same prompts, Pydantic output schemas, and post-hoc unsafe-commitment filtering — swapping `AI_PROVIDER` changes only which model executes an already-constrained request, not what it's allowed to say. The OpenAI adapter uses the official SDK's typed structured-output parsing; the Anthropic adapter forces a single tool call shaped by the same Pydantic schema. Both have an explicit timeout and retry only transient network, timeout, rate-limit, and provider-internal failures, with a maximum of three configured retries. Authentication and invalid-output failures are not retried. Startup and `/ready` validate configuration without making a paid model call. There is no silent fallback to deterministic mode.
 
 Only the current raw customer message, bounded/redacted conversation context, and a task-specific Business DNA subset leave the application: service IDs, names, intake aliases, relevant qualification prompts, and—when drafting wording—configured language, tone, channel, and the already approved response meaning. Explicit phone/email fields, tenant/database IDs, pricing, integration configuration, and secrets are not added to prompts. Customer text is delimited as untrusted content and cannot change rules. Structured output is validated again against current or already validated customer evidence, the supplied service catalog, question set, response type, and unsafe-commitment checks before use.
 
