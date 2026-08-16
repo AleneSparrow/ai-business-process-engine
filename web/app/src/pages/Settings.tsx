@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Check, ChevronLeft, ChevronRight, Globe, Loader2, MapPin, MessageSquare, Plus, RotateCcw, X } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { AreaOption, Field, formatRelativeTime, inputCls, ToneOption } from "../components/Shared";
@@ -16,6 +16,10 @@ const SETTINGS_TABS = [
 ] as const;
 
 type TabKey = (typeof SETTINGS_TABS)[number]["key"];
+const TAB_KEYS = new Set<string>(SETTINGS_TABS.map((t) => t.key));
+function isTabKey(value: string | null): value is TabKey {
+  return !!value && TAB_KEYS.has(value);
+}
 
 interface DNAServiceState {
   /** Client-only identity so React keys and cross-tab references (Services <-> Questions)
@@ -78,7 +82,19 @@ function fromServer(dna: BusinessDNASettings): SettingsState {
 export default function Settings() {
   const navigate = useNavigate();
   const { token, user } = useAuth();
-  const [tab, setTab] = useState<TabKey>("business");
+  // Kept in the URL (?tab=) rather than plain component state so a reload
+  // -- or sharing/bookmarking the link -- lands back on the same tab
+  // instead of always resetting to "business".
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const tab: TabKey = isTabKey(tabParam) ? tabParam : "business";
+  const setTab = (next: TabKey) => {
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev);
+      params.set("tab", next);
+      return params;
+    }, { replace: true });
+  };
   const tabRailRef = useRef<HTMLDivElement>(null);
   const scrollTabRail = (direction: -1 | 1) => {
     tabRailRef.current?.scrollBy({ left: direction * 160, behavior: "smooth" });
