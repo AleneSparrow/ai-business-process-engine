@@ -93,7 +93,13 @@ class AnthropicProvider:
                             "name": _TOOL_NAME,
                             "description": (
                                 "Return the requested structured output. This is the only "
-                                "allowed response -- do not reply with free-form text."
+                                "allowed response -- do not reply with free-form text. You "
+                                "MUST include every property defined in the schema, with no "
+                                "exceptions: use null for any nullable property that doesn't "
+                                "apply, and an empty array for a list property with nothing "
+                                "to report. Never omit a property because it seems "
+                                "irrelevant -- an omitted property is treated as an error, "
+                                "not a smaller/leaner response."
                             ),
                             "input_schema": schema,
                         }
@@ -109,7 +115,14 @@ class AnthropicProvider:
                 try:
                     output = request.output_model.model_validate(tool_use.input)
                 except ValidationError as exc:
-                    last_shape_error = f"Claude returned invalid structured output: {exc}"
+                    # Field path + pydantic error type only -- never the
+                    # offending value, which may be customer-submitted text
+                    # (name, phone, notes...). Safe to log as-is.
+                    safe_detail = "; ".join(
+                        f"{'.'.join(str(part) for part in error['loc'])}:{error['type']}"
+                        for error in exc.errors()
+                    )
+                    last_shape_error = f"Claude returned invalid structured output ({safe_detail})"
                     continue
                 usage = getattr(response, "usage", None)
                 break

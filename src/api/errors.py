@@ -250,6 +250,10 @@ def install_error_handlers(app: FastAPI) -> None:
             ai_prompt_version=metadata.prompt_version if metadata else None,
             ai_category=metadata.category if metadata else exc.category,
             ai_attempts=metadata.attempts if metadata else None,
+            # Every AIProviderError message is either a fixed string or (for
+            # AnthropicProvider's invalid-output case) a field-path-only
+            # summary with no customer-submitted values in it -- safe to log.
+            ai_detail=str(exc) if isinstance(exc, AIInvalidOutputError) else None,
         )
         return _response(
             request,
