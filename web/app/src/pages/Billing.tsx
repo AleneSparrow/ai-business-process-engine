@@ -117,7 +117,7 @@ export default function Billing() {
   return (
     <div className="min-h-screen w-full flex" style={{ backgroundColor: "#F5F1EA", fontFamily: "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif", color: "#151515" }}>
       <Sidebar />
-      <main className="flex-1 min-w-0 flex flex-col">
+      <main className="flex-1 min-w-0 flex flex-col pt-14 md:pt-0">
         <header className="px-6 md:px-8 py-4 border-b border-[#E7E5DE]">
           <h1 className="text-xl" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Billing</h1>
           <p className="text-sm text-[#6B6459] mt-0.5">Your Flywheel subscription — manage it yourself, any time.</p>
