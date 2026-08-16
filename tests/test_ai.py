@@ -259,6 +259,66 @@ def test_anthropic_adapter_uses_forced_tool_call_contract_without_live_call() ->
     assert result.metadata.total_tokens == 18
 
 
+def test_anthropic_adapter_resamples_a_shape_invalid_tool_call_before_giving_up() -> None:
+    """Unlike OpenAI's constrained-decoding .parse(), Claude's forced tool-use
+    isn't schema-guaranteed -- this reproduces a live finding (a real request
+    that got an empty/no-tool-call response) and checks the same request is
+    resampled rather than immediately surfaced as a permanent failure."""
+
+    class EmptyResponse:
+        content: list[object] = []
+
+    class ToolUseBlock:
+        type = "tool_use"
+        input = intent_output()
+
+    class GoodResponse:
+        content = [ToolUseBlock()]
+        usage = type("Usage", (), {"input_tokens": 12, "output_tokens": 6})()
+
+    class FlakyMessagesStub:
+        def __init__(self) -> None:
+            self.call_count = 0
+
+        def create(self, **arguments: object):
+            self.call_count += 1
+            return EmptyResponse() if self.call_count == 1 else GoodResponse()
+
+    messages = FlakyMessagesStub()
+    provider = object.__new__(AnthropicProvider)
+    provider.model = "test-anthropic-model"
+    provider._client = type("Client", (), {"messages": messages})()
+    request = AIRequest("intent", "v1", "intent_extraction", "system", "user", IntentOutput)
+
+    result = provider.generate(request)
+
+    assert messages.call_count == 2
+    assert result.output == IntentOutput.model_validate(intent_output())
+
+
+def test_anthropic_adapter_raises_invalid_output_after_exhausting_resamples() -> None:
+    class EmptyResponse:
+        content: list[object] = []
+
+    class AlwaysEmptyMessagesStub:
+        def __init__(self) -> None:
+            self.call_count = 0
+
+        def create(self, **arguments: object):
+            self.call_count += 1
+            return EmptyResponse()
+
+    messages = AlwaysEmptyMessagesStub()
+    provider = object.__new__(AnthropicProvider)
+    provider.model = "test-anthropic-model"
+    provider._client = type("Client", (), {"messages": messages})()
+    request = AIRequest("intent", "v1", "intent_extraction", "system", "user", IntentOutput)
+
+    with pytest.raises(AIInvalidOutputError):
+        provider.generate(request)
+    assert messages.call_count == 3
+
+
 def test_missing_information_uses_ai_clarification_constrained_to_configured_item() -> None:
     workflow, provider = ai_workflow([
         intent_output(),

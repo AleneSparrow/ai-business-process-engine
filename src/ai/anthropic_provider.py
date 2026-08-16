@@ -50,6 +50,19 @@ _TOOL_NAME = "emit_structured_output"
 # fields) -- this is headroom, not a real generation budget.
 _MAX_OUTPUT_TOKENS = 4096
 
+# Unlike OpenAI's Responses API `.parse()`, which constrains decoding so the
+# output is schema-valid by construction, Claude's forced tool-use is not a
+# hard guarantee -- on rare, usually unusual/edge-case inputs it can omit a
+# required field or skip the tool call. A fresh sample of the *same* request
+# fixes this in practice, so a shape-invalid attempt is resampled this many
+# times (1 = no resample) before it becomes a permanent AIInvalidOutputError.
+# This is deliberately internal to this provider and separate from
+# `AIInvalidOutputError.transient` (False for every provider, at the
+# RetryingAIProvider layer) -- that flag governs retrying a request that
+# already failed cleanly; this loop exists because Claude's failure mode
+# here is "asked again, got it right," not "failed for a durable reason."
+_MAX_STRUCTURED_OUTPUT_ATTEMPTS = 3
+
 
 class AnthropicProvider:
     def __init__(self, *, api_key: str, model: str, timeout_seconds: float) -> None:
@@ -66,39 +79,46 @@ class AnthropicProvider:
         started = perf_counter()
         schema = request.output_model.model_json_schema()
         try:
-            response = self._client.messages.create(
-                model=self.model,
-                max_tokens=_MAX_OUTPUT_TOKENS,
-                system=request.system_prompt,
-                messages=[{"role": "user", "content": request.user_prompt}],
-                tools=[
-                    {
-                        "name": _TOOL_NAME,
-                        "description": (
-                            "Return the requested structured output. This is the only "
-                            "allowed response -- do not reply with free-form text."
-                        ),
-                        "input_schema": schema,
-                    }
-                ],
-                tool_choice={"type": "tool", "name": _TOOL_NAME},
-            )
-            tool_use = next(
-                (block for block in response.content if block.type == "tool_use"), None
-            )
-            if tool_use is None:
+            output = None
+            usage = None
+            last_shape_error: str | None = None
+            for _ in range(_MAX_STRUCTURED_OUTPUT_ATTEMPTS):
+                response = self._client.messages.create(
+                    model=self.model,
+                    max_tokens=_MAX_OUTPUT_TOKENS,
+                    system=request.system_prompt,
+                    messages=[{"role": "user", "content": request.user_prompt}],
+                    tools=[
+                        {
+                            "name": _TOOL_NAME,
+                            "description": (
+                                "Return the requested structured output. This is the only "
+                                "allowed response -- do not reply with free-form text."
+                            ),
+                            "input_schema": schema,
+                        }
+                    ],
+                    tool_choice={"type": "tool", "name": _TOOL_NAME},
+                )
+                tool_use = next(
+                    (block for block in response.content if block.type == "tool_use"), None
+                )
+                if tool_use is None:
+                    last_shape_error = "Claude returned no tool call"
+                    continue
+                try:
+                    output = request.output_model.model_validate(tool_use.input)
+                except ValidationError as exc:
+                    last_shape_error = f"Claude returned invalid structured output: {exc}"
+                    continue
+                usage = getattr(response, "usage", None)
+                break
+
+            if output is None:
                 raise AIInvalidOutputError(
-                    "Claude returned no tool call",
+                    last_shape_error or "Claude returned invalid structured output",
                     metadata=self._metadata(request, started, success=False, category="invalid_output"),
                 )
-            try:
-                output = request.output_model.model_validate(tool_use.input)
-            except ValidationError as exc:
-                raise AIInvalidOutputError(
-                    "Claude returned invalid structured output",
-                    metadata=self._metadata(request, started, success=False, category="invalid_output"),
-                ) from exc
-            usage = getattr(response, "usage", None)
             input_tokens = getattr(usage, "input_tokens", None)
             output_tokens = getattr(usage, "output_tokens", None)
             metadata = self._metadata(
