@@ -8,10 +8,15 @@ is a real ~$1-2/month Twilio charge, so triggering a purchase on every
 test/dev signup would be wasteful. Instead, the business owner (or Alena,
 during setup) presses "Set up SMS" on the Settings page, which calls
 `POST /api/v1/businesses/{business_id}/integrations/sms/provision`.
-`provision_number_if_needed` is deliberately best-effort and non-blocking so
-it's also safe to retry: it's a no-op if a number already exists, and
-returns `None` rather than raising if SMS isn't configured or the purchase
-fails for any reason (surfaced to the owner as "Retry" in Settings).
+
+`provision_number_if_needed` is a no-op (returns the existing number) if one
+is already provisioned, but RAISES `SmsProvisioningError` with a specific,
+human-readable reason if it isn't and the attempt fails -- unlike
+`send_outbound` below, this has exactly one caller (that manual "Set up SMS"
+button), not a non-blocking background path, so there's nothing to protect
+by swallowing the failure. A silent no-op here previously just looked like
+the button doing nothing at all; the caller (src/api/routes/sms.py) turns
+this into a real error message the owner actually sees.
 
 `send_outbound` is also never-raising for the same reason `CrmWebhookService`
 isn't: it's called from inside the inbound-SMS webhook handler, right after
@@ -35,6 +40,12 @@ if TYPE_CHECKING:
 LOGGER = logging.getLogger("uvicorn.error")
 
 INBOUND_SMS_WEBHOOK_PATH = "/api/v1/public/sms/inbound"
+
+
+class SmsProvisioningError(RuntimeError):
+    """Raised by `provision_number_if_needed` with a human-readable reason
+    when it can't hand back a number -- see that method's docstring for why
+    this is fine to raise (unlike the rest of this service)."""
 
 
 class SmsService:
@@ -68,38 +79,50 @@ class SmsService:
         with self.unit_of_work_factory() as uow:
             return uow.sms_connections.get_business_id_by_phone(phone_number)
 
-    def provision_number_if_needed(self, business_id: str) -> str | None:
+    def provision_number_if_needed(self, business_id: str) -> str:
         """Idempotent: returns the existing number if one is already
-        provisioned, attempts to buy one if SMS is configured and none
-        exists yet, or returns None (silently -- this must never raise into
-        a signup/onboarding flow) if SMS isn't configured or the purchase
-        fails for any reason."""
+        provisioned, otherwise attempts to buy one. Raises
+        `SmsProvisioningError` with a specific reason on any failure -- see
+        the module docstring for why that's the right behavior here."""
         existing = self.get_number(business_id)
         if existing is not None:
             return existing
-        if not self.configured or not self._public_api_base_url:
-            return None
+        if not self.configured:
+            raise SmsProvisioningError("SMS delivery is not configured on this deployment.")
+        if not self._public_api_base_url:
+            raise SmsProvisioningError(
+                "PUBLIC_API_BASE_URL is not set on this deployment, so a purchased number "
+                "would have nowhere to point its inbound webhook."
+            )
         try:
             client = self._client()
             available = client.find_available_us_number()
-            if available is None:
-                LOGGER.warning("sms_provision_no_numbers_available business_id=%s", business_id)
-                return None
-            webhook_url = f"{self._public_api_base_url}{INBOUND_SMS_WEBHOOK_PATH}"
+        except TwilioAPIError as exc:
+            LOGGER.exception("sms_provision_search_failed business_id=%s", business_id)
+            raise SmsProvisioningError(f"Twilio couldn't search for a number: {exc}") from exc
+        if available is None:
+            LOGGER.warning("sms_provision_no_numbers_available business_id=%s", business_id)
+            raise SmsProvisioningError(
+                "Twilio has no available US phone numbers right now -- this can happen on a "
+                "trial account. Try again shortly, or check the Twilio Console for restrictions."
+            )
+        webhook_url = f"{self._public_api_base_url}{INBOUND_SMS_WEBHOOK_PATH}"
+        try:
             phone_sid = client.purchase_phone_number(
                 phone_number=available, sms_webhook_url=webhook_url
             )
-            with self.unit_of_work_factory() as uow:
-                # Re-check inside the transaction -- provisioning could race
-                # with a concurrent retry from the Settings "retry" action.
-                if uow.sms_connections.get_by_business(business_id) is not None:
-                    return uow.sms_connections.get_by_business(business_id)[0]  # type: ignore[index]
-                uow.sms_connections.add(business_id, available, phone_sid, now=utc_now())
-                uow.commit()
-            return available
-        except TwilioAPIError:
-            LOGGER.exception("sms_provision_failed business_id=%s", business_id)
-            return None
+        except TwilioAPIError as exc:
+            LOGGER.exception("sms_provision_purchase_failed business_id=%s", business_id)
+            raise SmsProvisioningError(f"Twilio couldn't complete the purchase: {exc}") from exc
+        with self.unit_of_work_factory() as uow:
+            # Re-check inside the transaction -- provisioning could race
+            # with a concurrent retry from the Settings "Set up SMS" button.
+            existing_race = uow.sms_connections.get_by_business(business_id)
+            if existing_race is not None:
+                return existing_race[0]
+            uow.sms_connections.add(business_id, available, phone_sid, now=utc_now())
+            uow.commit()
+        return available
 
     def send_outbound(self, business_id: str, *, to_number: str, body: str) -> bool:
         """Best-effort, never raises. Returns whether the send succeeded."""

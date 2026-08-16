@@ -25,7 +25,7 @@ from src.domain.models import utc_now
 from src.domain.qualification import IncomingMessage
 from src.persistence.errors import WebhookSignatureError
 from src.persistence.lead_intake import PersistentLeadIntakeService
-from src.persistence.sms_service import INBOUND_SMS_WEBHOOK_PATH, SmsService
+from src.persistence.sms_service import INBOUND_SMS_WEBHOOK_PATH, SmsProvisioningError, SmsService
 from src.persistence.twilio_client import validate_inbound_signature
 
 from ..dependencies import (
@@ -36,13 +36,23 @@ from ..dependencies import (
     get_sms_service,
     require_own_business,
 )
-from ..errors import RequestDataError, ResourceNotFoundError
+from ..errors import PublicApiError, RequestDataError, ResourceNotFoundError
 from ..schemas import SmsStatusResponse
 
 public_router = APIRouter(prefix="/api/v1/public/sms", tags=["sms"])
 router = APIRouter(prefix="/api/v1/businesses/{business_id}/integrations", tags=["integrations"])
 
 _EMPTY_TWIML = '<?xml version="1.0" encoding="UTF-8"?><Response></Response>'
+
+
+class SmsProvisioningFailedError(PublicApiError):
+    """502 -- we reached out (to Twilio, or just checked our own config) and
+    the attempt to buy a number failed. `public_message` is the specific
+    reason from `SmsProvisioningError`, shown as-is in Settings so the
+    owner sees *why* instead of the button silently doing nothing."""
+
+    def __init__(self, public_message: str) -> None:
+        super().__init__(502, "sms_provisioning_failed", public_message)
 
 
 @public_router.post("/inbound", status_code=200)
@@ -119,5 +129,8 @@ def provision_sms_number(
     a Twilio hiccup) or no number exists yet."""
     if not service.configured:
         raise ResourceNotFoundError("sms_not_configured", "SMS delivery is not configured on this deployment")
-    phone_number = service.provision_number_if_needed(business_id)
+    try:
+        phone_number = service.provision_number_if_needed(business_id)
+    except SmsProvisioningError as exc:
+        raise SmsProvisioningFailedError(str(exc)) from exc
     return SmsStatusResponse(configured=True, phone_number=phone_number)
