@@ -86,6 +86,17 @@ class AnthropicProvider:
                 response = self._client.messages.create(
                     model=self.model,
                     max_tokens=_MAX_OUTPUT_TOKENS,
+                    # Every request through this provider is a structured
+                    # extraction/classification/rewrite task, not open-ended
+                    # generation -- the same customer message should reach
+                    # the same qualification decision every time it
+                    # reasonably can. Low temperature doesn't make this
+                    # provider fully deterministic (no LLM API guarantees
+                    # that even at temperature=0), but it substantially
+                    # narrows the sampling variance observed live: the exact
+                    # same test message flipped between QUALIFYING and
+                    # NEEDS_HUMAN across otherwise-identical requests.
+                    temperature=0,
                     system=request.system_prompt,
                     messages=[{"role": "user", "content": request.user_prompt}],
                     tools=[
