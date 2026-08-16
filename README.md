@@ -179,7 +179,7 @@ Use a real provider explicitly — Anthropic:
 ```bash
 export AI_PROVIDER=anthropic
 export ANTHROPIC_API_KEY='set-locally-never-commit'
-export ANTHROPIC_MODEL='claude-sonnet-4-5'
+export ANTHROPIC_MODEL='claude-sonnet-5'
 export AI_TIMEOUT_SECONDS=20
 export AI_MAX_RETRIES=2
 ```
