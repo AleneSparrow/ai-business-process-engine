@@ -150,6 +150,45 @@ def test_phone_number_with_no_matching_digits_is_still_rejected() -> None:
     assert result.requires_human is True
 
 
+def test_single_configured_service_does_not_require_literal_keyword_evidence() -> None:
+    """Live target-audience testing finding: a business with exactly one
+    configured service has nothing to disambiguate -- output.service_id
+    can only resolve, via the lookup above it, to that one real catalog
+    entry; the AI cannot invent another. Requiring the customer's own
+    words to literally contain one of that service's configured keywords
+    defeats itself here, since intake_keywords defaults to just the
+    service's own name (business_dna_builder.py) and there is currently no
+    UI to add synonyms -- exactly the common self-serve solo-practice
+    setup. Must not raise even though the customer's words ("divorce")
+    don't literally match the service's own name/alias ("consultation")."""
+    configuration = dna()
+    configuration["services"] = configuration["services"][:1]
+    configuration["services"][0]["id"] = "consultation"
+    configuration["services"][0]["name"] = "consultation"
+    configuration["services"][0]["intake_keywords"] = ["consultation"]
+    provider = FakeAIProvider([intent_output(service_id="consultation")])
+    message = incoming(raw_text="Hi, I need help with a divorce.")
+
+    result = AIIntentExtractor(provider).extract(message, configuration)
+
+    assert result.service_requested == "consultation"
+    assert not result.requires_human
+
+
+def test_multi_service_catalog_still_requires_customer_evidence_for_service_match() -> None:
+    """The single-service bypass above must not weaken the check when
+    there is more than one real option to choose between -- distinguishing
+    between several configured services using the customer's own words is
+    exactly what this check is for."""
+    provider = FakeAIProvider([intent_output(service_id="equipment-replacement")])
+    message = incoming(raw_text="I need a diagnostic visit in 60601")
+
+    result = AIIntentExtractor(provider).extract(message, dna())
+
+    assert result.confidence == 0.0
+    assert result.requires_human is True
+
+
 def test_multi_turn_ai_context_is_bounded_redacted_and_uses_validated_facts() -> None:
     provider = FakeAIProvider([intent_output(preferred_time="tomorrow afternoon")])
     context = ConversationContext(

@@ -327,8 +327,24 @@ class AIIntentExtractor:
             raise AIInvalidOutputError("AI returned a service outside the supplied catalog")
         customer_text = customer_message.casefold()
         known_matches = isinstance(known_service, str) and known_service == matches[0][0]
-        if not known_matches and not any(
-            _contains_term(customer_text, term) for _, terms in matches for term in terms
+        # A business with exactly one configured service has nothing to
+        # disambiguate: `output.service_id` already had to resolve, via the
+        # lookup above, to that one real catalog entry -- the AI cannot
+        # invent an arbitrary service here, only select the sole option
+        # that actually exists. Live target-audience testing found this
+        # check otherwise forces every self-serve business with a single
+        # generic service (the common case for a solo practice) to
+        # escalate almost every real customer message, since intake
+        # keywords default to just the service's own name (see
+        # business_dna_builder.py) and there is currently no UI to add
+        # synonyms. For a business with two or more services the check
+        # stays exactly as strict as before -- distinguishing between
+        # several real options is exactly what it's for.
+        single_service_catalog = len(services) == 1
+        if (
+            not known_matches
+            and not single_service_catalog
+            and not any(_contains_term(customer_text, term) for _, terms in matches for term in terms)
         ):
             raise AIInvalidOutputError("AI returned a supported service without customer evidence")
         return matches[0][0]
