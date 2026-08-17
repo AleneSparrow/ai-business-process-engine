@@ -26,6 +26,7 @@ from ..schemas import (
     PublicConversationCreateRequest,
     PublicConversationMessageRequest,
     PublicConversationResponse,
+    PublicServiceOptionSchema,
 )
 
 
@@ -114,6 +115,17 @@ def get_chat_config(
             str(widget.get("ai_disclosure_text", ""))
             if isinstance(widget, Mapping)
             else ""
+        ),
+        # Quick-reply chips for the widget's opening turn (see widget.js
+        # renderServiceOptions) -- id/name only, straight off the catalog
+        # already in Business DNA. No new interpretation logic: tapping a
+        # chip just sends the service's own name as an ordinary chat
+        # message, which the existing AIIntentExtractor already resolves
+        # against these same id/name/aliases (see _resolve_service).
+        services=tuple(
+            PublicServiceOptionSchema(id=str(service["id"]), name=str(service["name"]))
+            for service in dna.get("services", [])
+            if isinstance(service, Mapping) and service.get("id") and service.get("name")
         ),
     )
 

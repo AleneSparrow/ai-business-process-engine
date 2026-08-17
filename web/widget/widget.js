@@ -109,8 +109,30 @@
     input.disabled = value;
     send.disabled = value;
     slotOptions.querySelectorAll("button").forEach((button) => { button.disabled = value; });
-    if (value) status.textContent = "Sending…";
-    else if (status.textContent === "Sending…") status.textContent = "";
+    history.querySelectorAll(".aibp-chat__service-button").forEach((button) => { button.disabled = value; });
+  }
+
+  // Animated "typing" bubble instead of a text status line -- shown in the
+  // message history itself (where a reply is about to appear) rather than a
+  // caption easy to miss below the input. Only one instance ever exists;
+  // renderConversation()'s history.replaceChildren() removes it implicitly
+  // whenever a real response lands, so hideTyping() just needs to null out
+  // the stale reference rather than guarantee removal itself.
+  let typingBubble = null;
+  function showTyping() {
+    if (typingBubble) return;
+    typingBubble = document.createElement("div");
+    typingBubble.className = "aibp-chat__message aibp-chat__message--assistant aibp-chat__typing";
+    typingBubble.setAttribute("aria-label", "Assistant is typing");
+    typingBubble.innerHTML = "<span></span><span></span><span></span>";
+    history.append(typingBubble);
+    history.scrollTop = history.scrollHeight;
+  }
+  function hideTyping() {
+    if (typingBubble) {
+      typingBubble.remove();
+      typingBubble = null;
+    }
   }
 
   function showError(message) {
@@ -124,12 +146,43 @@
     message.textContent = text;
     history.append(message);
     history.scrollTop = history.scrollHeight;
+    return message;
+  }
+
+  // Quick-reply service chips: shown once, right under the opening welcome
+  // message, so a first-time visitor can tap what they need instead of
+  // typing it out. A tap just sends the service's own name as an ordinary
+  // chat message (same trick as the slot-picker buttons) -- the AI intent
+  // extractor already resolves free text against these same catalog
+  // id/name/aliases, so this needs zero new interpretation logic. They
+  // live inside `history` (not a persistent bar like slotOptions) because
+  // they're a one-time opening move, not a recurring prompt: once any
+  // message exists, renderConversation()'s replaceChildren() drops them
+  // for good, the same way the welcome message itself scrolls away.
+  function appendServiceOptions(services) {
+    if (!services || !services.length) return;
+    const row = document.createElement("div");
+    row.className = "aibp-chat__services";
+    row.setAttribute("aria-label", "Quick options");
+    services.forEach(function (service) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "aibp-chat__service-button";
+      button.textContent = service.name;
+      button.addEventListener("click", function () {
+        submitMessage(service.name);
+      });
+      row.append(button);
+    });
+    history.append(row);
+    history.scrollTop = history.scrollHeight;
   }
 
   function renderConversation(data) {
     history.replaceChildren();
     if (!data.messages.length && config) {
       appendMessage("assistant", config.welcome_message);
+      appendServiceOptions(config.services);
     }
     data.messages.forEach((message) => appendMessage(message.role, message.text));
     if (data.requires_human) status.textContent = "A team member will review this conversation.";
@@ -219,7 +272,10 @@
   async function restore() {
     if (!conversationToken) {
       history.replaceChildren();
-      if (config) appendMessage("assistant", config.welcome_message);
+      if (config) {
+        appendMessage("assistant", config.welcome_message);
+        appendServiceOptions(config.services);
+      }
       renderSlotOptions([]);
       return;
     }
@@ -318,13 +374,22 @@
     if (!text || busy) return;
     status.classList.remove("aibp-chat__status--error");
     setBusy(true);
+    // Optimistic echo + typing bubble: a real reply overwrites both via
+    // renderConversation()'s history.replaceChildren(), so nothing needs
+    // reconciling on the success path. On failure the echo is retracted
+    // (it may not have actually reached the business) while the typed text
+    // stays in the input for a retry.
+    const optimistic = appendMessage("customer", text);
+    showTyping();
     try {
       await sendMessage(text);
       input.value = "";
       await refreshCommercial();
     } catch (error) {
+      optimistic.remove();
       showError(error instanceof Error ? error.message : "Message could not be sent.");
     } finally {
+      hideTyping();
       setBusy(false);
       if (focusInput) input.focus();
     }

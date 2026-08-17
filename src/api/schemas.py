@@ -298,6 +298,16 @@ class PublicConversationResponse(ApiModel):
         )
 
 
+class PublicServiceOptionSchema(ApiModel):
+    """Just enough to render a quick-reply chip in the widget's opening
+    turn -- id/name only, deliberately not the full catalog entry (no
+    pricing, no questions) since this is exposed on the *public,
+    pre-conversation* chat-config endpoint alongside welcome_message."""
+
+    id: str
+    name: str
+
+
 class PublicChatConfigResponse(ApiModel):
     enabled: bool
     business_name: str
@@ -305,6 +315,7 @@ class PublicChatConfigResponse(ApiModel):
     welcome_message: str
     language: str
     ai_disclosure_text: str
+    services: tuple[PublicServiceOptionSchema, ...] = ()
 
 
 class PublicBookingSchema(ApiModel):

@@ -105,7 +105,7 @@ function MobileNav({
               <nav className="flex flex-col gap-1">
                 <NavItem icon={LayoutGrid} label="Overview" active={view === "dashboard"} onClick={() => go("/app")} />
                 <NavItem icon={MessageSquare} label="Conversations" active={view === "conversation"} onClick={() => go("/app/conversations")} />
-                <NavItem icon={Workflow} label="Business DNA" active={view === "settings"} onClick={() => go("/app/settings")} />
+                <NavItem icon={Workflow} label="Settings" active={view === "settings"} onClick={() => go("/app/settings")} />
                 <NavItem icon={CreditCard} label="Billing" active={view === "billing"} onClick={() => go("/app/billing")} />
               </nav>
             </div>
@@ -194,7 +194,7 @@ export function Sidebar() {
             />
             <NavItem
               icon={Workflow}
-              label="Business DNA"
+              label="Settings"
               active={view === "settings"}
               onClick={() => navigate("/app/settings")}
             />

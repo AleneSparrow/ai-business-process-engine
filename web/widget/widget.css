@@ -65,12 +65,34 @@
 .aibp-chat__message--assistant,
 .aibp-chat__message--human,
 .aibp-chat__message--system { background: #fff; border: 1px solid #d9dfeb; }
+/* Typing bubble -- see showTyping()/hideTyping() in widget.js. Reuses the
+   assistant bubble's shape/color, just swaps the content for three dots. */
+.aibp-chat__typing { display: inline-flex; align-items: center; gap: .3rem; padding: .8rem 1rem; }
+.aibp-chat__typing span { width: 6px; height: 6px; border-radius: 50%; background: #9aa5b8; animation: aibp-typing 1.2s infinite ease-in-out; }
+.aibp-chat__typing span:nth-child(2) { animation-delay: .15s; }
+.aibp-chat__typing span:nth-child(3) { animation-delay: .3s; }
+@keyframes aibp-typing {
+  0%, 60%, 100% { transform: translateY(0); opacity: .45; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aibp-chat__typing span { animation: none; opacity: .8; }
+}
 /* Clickable slot-picker -- see renderSlotOptions in widget.js. Sits between
    history and status, hidden whenever there's no active slot proposal. */
 .aibp-chat__slots { display: flex; flex: none; flex-wrap: wrap; gap: .4rem; padding: .6rem 1rem 0; background: #f6f8fc; }
 .aibp-chat__slots[hidden] { display: none; }
-.aibp-chat__slot-button { border: 1px solid var(--aibp-color); border-radius: .6rem; padding: .4rem .7rem; color: var(--aibp-color); background: #fff; cursor: pointer; font-size: .85rem; }
-.aibp-chat__slot-button:hover { color: #fff; background: var(--aibp-color); }
+/* Quick-reply service chips -- see appendServiceOptions in widget.js. Unlike
+   the slot picker above, these live inline in the scrollable history (right
+   under the welcome message) since they're a one-time opening move, not a
+   recurring prompt -- they scroll away with the rest of the transcript once
+   any message has been sent. Same pill look as the slot buttons, just a
+   different container since one sits inside history and the other outside it. */
+.aibp-chat__services { display: flex; flex-wrap: wrap; gap: .4rem; margin: -.25rem 0 .75rem; }
+.aibp-chat__slot-button,
+.aibp-chat__service-button { border: 1px solid var(--aibp-color); border-radius: .6rem; padding: .4rem .7rem; color: var(--aibp-color); background: #fff; cursor: pointer; font-size: .85rem; }
+.aibp-chat__slot-button:hover,
+.aibp-chat__service-button:hover { color: #fff; background: var(--aibp-color); }
 .aibp-chat__status { flex: none; min-height: 1.2rem; margin: .25rem 1rem; color: #536179; font-size: .8rem; }
 .aibp-chat__status--error { color: #a11; }
 .aibp-chat__form { display: grid; flex: none; grid-template-columns: 1fr auto; gap: .5rem; padding: .5rem 1rem 1rem; }

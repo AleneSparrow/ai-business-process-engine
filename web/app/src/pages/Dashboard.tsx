@@ -36,6 +36,8 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<CaseState | "ALL">("ALL");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +86,39 @@ export default function Dashboard() {
     });
     return c;
   }, [decorated]);
+
+  useEffect(() => {
+    setActionError(null);
+  }, [selectedId]);
+
+  // The case list (DashboardCaseSummary) has no conversation_id of its own --
+  // look the conversation up by case_id first, then approve its pending
+  // transition via the same StaffActionService.resolve the Conversations
+  // page already uses (see Conversation.tsx's handleResolve). Patches the
+  // resolved case in place from the response rather than a full re-fetch.
+  const handleResolve = async () => {
+    if (!token || !user?.business_id || !selected) return;
+    const businessId = user.business_id;
+    setResolvingId(selected.case_id);
+    setActionError(null);
+    try {
+      const { conversations } = await api.listConversations(token, businessId);
+      const match = conversations.find((c) => c.case_id === selected.case_id);
+      if (!match) {
+        setActionError("Couldn't find the conversation for this case.");
+        return;
+      }
+      const result = await api.resolveConversation(token, businessId, match.conversation_id);
+      if (result.case) {
+        const resolvedCase = result.case;
+        setCases((prev) => (prev ?? []).map((c) => (c.case_id === resolvedCase.case_id ? resolvedCase : c)));
+      }
+    } catch (err) {
+      setActionError(describeError(err));
+    } finally {
+      setResolvingId(null);
+    }
+  };
 
   return (
     <div className="min-h-screen w-full flex" style={{ backgroundColor: "#F5F1EA", fontFamily: "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif", color: "#151515" }}>
@@ -188,12 +223,24 @@ export default function Dashboard() {
                   <div className="rounded-xl p-3 mb-5" style={{ backgroundColor: "#FAFAF7" }}>
                     <p className="text-sm leading-relaxed">{selected.detail}</p>
                   </div>
+                  {actionError && (
+                    <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ backgroundColor: "#FBEBE9", color: "#8A3225" }}>
+                      {actionError}
+                    </div>
+                  )}
                   <div className="flex flex-col gap-2">
                     <button onClick={() => navigate(`/app/conversations?case=${selected.case_id}`)} className="w-full py-2.5 rounded-lg text-sm font-medium text-white flex items-center justify-center gap-2" style={{ backgroundColor: "#151515" }}>
                       Open conversation <ArrowUpRight size={14} />
                     </button>
                     {selected.caseState === "NEEDS_HUMAN" && (
-                      <button disabled title="Mark resolved isn't wired to the engine yet" className="w-full py-2.5 rounded-lg text-sm font-medium border border-[#E7E5DE] opacity-50 cursor-not-allowed">Mark resolved</button>
+                      <button
+                        onClick={handleResolve}
+                        disabled={resolvingId === selected.case_id}
+                        className="w-full py-2.5 rounded-lg text-sm font-medium border border-[#E7E5DE] flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        {resolvingId === selected.case_id && <Loader2 size={14} className="animate-spin" />}
+                        Mark resolved
+                      </button>
                     )}
                   </div>
                   <div className="mt-5 pt-4 border-t border-[#F0EFE9] flex items-center gap-4 text-xs text-[#6B6459]">

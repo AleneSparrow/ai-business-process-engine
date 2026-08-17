@@ -6,13 +6,17 @@ import { AreaOption, Field, formatRelativeTime, inputCls, ToneOption } from "../
 import { useAuth, describeError } from "../auth/AuthContext";
 import { api, type BusinessDNASettings, type SmsStatus } from "../api/client";
 
+// Grouped by the task a business owner actually has, not by which Business
+// DNA schema section a field happens to live in -- "Services" and "Booking"
+// used to be separate tabs even though a service only takes bookings once
+// both its own "bookable" checkbox AND this section's timezone/hours are
+// set; "Questions" and "Escalation" were split even though both are really
+// "how the engine should handle the conversation." Four stops instead of
+// seven the owner has to click through to find anything.
 const SETTINGS_TABS = [
-  { key: "business", label: "Business" },
-  { key: "services", label: "Services" },
-  { key: "area", label: "Service area" },
-  { key: "questions", label: "Questions" },
-  { key: "booking", label: "Booking" },
-  { key: "escalation", label: "Escalation" },
+  { key: "basics", label: "Basics" },
+  { key: "services", label: "Services & booking" },
+  { key: "conversation", label: "Conversation" },
   { key: "sms", label: "SMS" },
 ] as const;
 
@@ -132,7 +136,7 @@ export default function Settings() {
   // instead of always resetting to "business".
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const tab: TabKey = isTabKey(tabParam) ? tabParam : "business";
+  const tab: TabKey = isTabKey(tabParam) ? tabParam : "basics";
   const setTab = (next: TabKey) => {
     setSearchParams((prev) => {
       const params = new URLSearchParams(prev);
@@ -311,7 +315,7 @@ export default function Settings() {
               <ArrowLeft size={18} />
             </button>
             <div>
-              <h1 className="text-xl" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Business DNA</h1>
+              <h1 className="text-xl" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Settings</h1>
               <p className="text-sm text-[#6B6459] mt-0.5" style={{ fontFamily: dirty ? "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" : "'IBM Plex Mono', monospace" }}>
                 {dirty
                   ? "Unsaved changes"
@@ -377,7 +381,7 @@ export default function Settings() {
                 </button>
               </div>
 
-              {tab === "business" && (
+              {tab === "basics" && (
                 <div>
                   <Field label="Business name"><input className={inputCls} value={state.name} onChange={(e) => setState({ ...state, name: e.target.value })} /></Field>
                   <Field label="Industry"><input className={inputCls} value={state.industry} onChange={(e) => setState({ ...state, industry: e.target.value })} /></Field>
@@ -394,30 +398,8 @@ export default function Settings() {
                       ))}
                     </div>
                   </Field>
-                </div>
-              )}
 
-              {tab === "services" && (
-                <Field label="What you offer" hint="These are what it books, quotes, and answers questions about.">
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {state.services.map((s) => (
-                      <span key={s.key} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm bg-[#F1F1EF] border border-[#E7E5DE]">
-                        {s.name} <X size={12} className="cursor-pointer text-[#9C9488]" onClick={() => removeService(s.key)} />
-                      </span>
-                    ))}
-                    {state.services.length === 0 && <span className="text-xs text-[#9C9488]">No services yet — add at least one.</span>}
-                  </div>
-                  <div className="flex gap-2">
-                    <input className={inputCls} placeholder="Add a service" value={newService} onChange={(e) => setNewService(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addService())} />
-                    <button onClick={addService} className="px-4 rounded-lg text-white text-sm font-medium flex items-center gap-1.5 shrink-0" style={{ backgroundColor: "#151515" }}>
-                      <Plus size={14} /> Add
-                    </button>
-                  </div>
-                </Field>
-              )}
-
-              {tab === "area" && (
-                <div>
+                  <div className="text-sm font-semibold mt-8 mb-4 pt-6 border-t border-[#F0EFE9]">Who you serve</div>
                   <div className="grid sm:grid-cols-2 gap-3 mb-5">
                     <AreaOption
                       icon={Globe}
@@ -443,56 +425,26 @@ export default function Settings() {
                 </div>
               )}
 
-              {tab === "questions" && (
+              {tab === "services" && (
                 <div>
-                  <p className="text-sm text-[#6B6459] mb-6">Per service, the questions your engine confirms before booking.</p>
-                  {state.services.length === 0 && <p className="text-sm text-[#9C9488]">Add a service on the Services tab first.</p>}
-                  {state.services.map((svc) => (
-                    <div key={svc.key} className="mb-5 pb-5 border-b border-[#F0EFE9] last:border-0">
-                      <div className="text-sm font-semibold mb-2.5">{svc.name}</div>
-                      <div className="flex flex-col gap-2">
-                        {svc.questions.map((q, i) => (
-                          <div key={i} className="flex items-center gap-2">
-                            <span className="text-xs text-[#9C9488] w-5 shrink-0" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{i + 1}</span>
-                            <input
-                              className={inputCls}
-                              value={q}
-                              onChange={(e) => {
-                                const services = state.services.map((s) =>
-                                  s.key === svc.key ? { ...s, questions: s.questions.map((qq, qi) => (qi === i ? e.target.value : qq)) } : s,
-                                );
-                                setState({ ...state, services });
-                              }}
-                            />
-                            <X
-                              size={14}
-                              className="cursor-pointer text-[#9C9488] shrink-0"
-                              onClick={() => {
-                                const services = state.services.map((s) =>
-                                  s.key === svc.key ? { ...s, questions: s.questions.filter((_, qi) => qi !== i) } : s,
-                                );
-                                setState({ ...state, services });
-                              }}
-                            />
-                          </div>
-                        ))}
-                        <button
-                          className="text-xs font-medium text-[#B87333] flex items-center gap-1 mt-0.5 ml-7"
-                          onClick={() => {
-                            const services = state.services.map((s) => (s.key === svc.key ? { ...s, questions: [...s.questions, ""] } : s));
-                            setState({ ...state, services });
-                          }}
-                        >
-                          <Plus size={12} /> Add question
-                        </button>
-                      </div>
+                  <Field label="What you offer" hint="These are what it books, quotes, and answers questions about.">
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {state.services.map((s) => (
+                        <span key={s.key} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm bg-[#F1F1EF] border border-[#E7E5DE]">
+                          {s.name} <X size={12} className="cursor-pointer text-[#9C9488]" onClick={() => removeService(s.key)} />
+                        </span>
+                      ))}
+                      {state.services.length === 0 && <span className="text-xs text-[#9C9488]">No services yet — add at least one.</span>}
                     </div>
-                  ))}
-                </div>
-              )}
+                    <div className="flex gap-2">
+                      <input className={inputCls} placeholder="Add a service" value={newService} onChange={(e) => setNewService(e.target.value)} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addService())} />
+                      <button onClick={addService} className="px-4 rounded-lg text-white text-sm font-medium flex items-center gap-1.5 shrink-0" style={{ backgroundColor: "#151515" }}>
+                        <Plus size={14} /> Add
+                      </button>
+                    </div>
+                  </Field>
 
-              {tab === "booking" && (
-                <div>
+                  <div className="text-sm font-semibold mt-8 mb-2 pt-6 border-t border-[#F0EFE9]">Online booking</div>
                   <p className="text-sm text-[#6B6459] mb-6">
                     Let clients pick a real open slot and get booked automatically — no back-and-forth.
                     Only services marked bookable below are offered a slot; everything else still goes
@@ -513,7 +465,7 @@ export default function Settings() {
 
                   <Field label="Which services can be booked online?">
                     <div className="flex flex-col gap-2">
-                      {state.services.length === 0 && <span className="text-xs text-[#9C9488]">Add a service on the Services tab first.</span>}
+                      {state.services.length === 0 && <span className="text-xs text-[#9C9488]">Add a service above first.</span>}
                       {state.services.map((s) => (
                         <label key={s.key} className="flex items-center gap-2.5 text-sm cursor-pointer">
                           <input
@@ -581,27 +533,74 @@ export default function Settings() {
                 </div>
               )}
 
-              {tab === "escalation" && (
-                <div className="flex flex-col gap-3">
-                  <p className="text-sm text-[#6B6459] mb-1">The engine never guesses past these lines — it stops and asks.</p>
-                  {ESCALATION_OPTIONS.map(([key, title, desc]) => (
-                    <label
-                      key={key}
-                      className="flex items-start gap-3 p-4 rounded-xl border cursor-pointer"
-                      style={{ borderColor: state.escalation[key] ? "#B87333" : "#E7E5DE", backgroundColor: state.escalation[key] ? "#F5E7D6" : "#fff" }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={state.escalation[key]}
-                        onChange={() => setState({ ...state, escalation: { ...state.escalation, [key]: !state.escalation[key] } })}
-                        className="mt-0.5 accent-[#B87333]"
-                      />
-                      <div>
-                        <div className="text-sm font-medium">{title}</div>
-                        <div className="text-xs text-[#6B6459] mt-0.5">{desc}</div>
+              {tab === "conversation" && (
+                <div>
+                  <p className="text-sm text-[#6B6459] mb-6">Per service, the questions your engine confirms before booking.</p>
+                  {state.services.length === 0 && <p className="text-sm text-[#9C9488]">Add a service on the Services & booking tab first.</p>}
+                  {state.services.map((svc) => (
+                    <div key={svc.key} className="mb-5 pb-5 border-b border-[#F0EFE9] last:border-0">
+                      <div className="text-sm font-semibold mb-2.5">{svc.name}</div>
+                      <div className="flex flex-col gap-2">
+                        {svc.questions.map((q, i) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <span className="text-xs text-[#9C9488] w-5 shrink-0" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{i + 1}</span>
+                            <input
+                              className={inputCls}
+                              value={q}
+                              onChange={(e) => {
+                                const services = state.services.map((s) =>
+                                  s.key === svc.key ? { ...s, questions: s.questions.map((qq, qi) => (qi === i ? e.target.value : qq)) } : s,
+                                );
+                                setState({ ...state, services });
+                              }}
+                            />
+                            <X
+                              size={14}
+                              className="cursor-pointer text-[#9C9488] shrink-0"
+                              onClick={() => {
+                                const services = state.services.map((s) =>
+                                  s.key === svc.key ? { ...s, questions: s.questions.filter((_, qi) => qi !== i) } : s,
+                                );
+                                setState({ ...state, services });
+                              }}
+                            />
+                          </div>
+                        ))}
+                        <button
+                          className="text-xs font-medium text-[#B87333] flex items-center gap-1 mt-0.5 ml-7"
+                          onClick={() => {
+                            const services = state.services.map((s) => (s.key === svc.key ? { ...s, questions: [...s.questions, ""] } : s));
+                            setState({ ...state, services });
+                          }}
+                        >
+                          <Plus size={12} /> Add question
+                        </button>
                       </div>
-                    </label>
+                    </div>
                   ))}
+
+                  <div className="text-sm font-semibold mt-8 mb-2 pt-6 border-t border-[#F0EFE9]">Escalation</div>
+                  <p className="text-sm text-[#6B6459] mb-4">The engine never guesses past these lines — it stops and asks.</p>
+                  <div className="flex flex-col gap-3">
+                    {ESCALATION_OPTIONS.map(([key, title, desc]) => (
+                      <label
+                        key={key}
+                        className="flex items-start gap-3 p-4 rounded-xl border cursor-pointer"
+                        style={{ borderColor: state.escalation[key] ? "#B87333" : "#E7E5DE", backgroundColor: state.escalation[key] ? "#F5E7D6" : "#fff" }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={state.escalation[key]}
+                          onChange={() => setState({ ...state, escalation: { ...state.escalation, [key]: !state.escalation[key] } })}
+                          className="mt-0.5 accent-[#B87333]"
+                        />
+                        <div>
+                          <div className="text-sm font-medium">{title}</div>
+                          <div className="text-xs text-[#6B6459] mt-0.5">{desc}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
                 </div>
               )}
 

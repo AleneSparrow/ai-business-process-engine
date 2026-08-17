@@ -587,8 +587,13 @@ def test_public_config_is_allowlisted_and_xss_is_plain_json(conversation_environ
 
     assert config.status_code == 200
     assert set(config.json()) == {
-        "enabled", "business_name", "chat_title", "welcome_message", "language"
+        "enabled", "business_name", "chat_title", "welcome_message", "language",
+        "ai_disclosure_text", "services",
     }
+    assert config.json()["services"] == [
+        {"id": "diagnostic-visit", "name": "Diagnostic visit"},
+        {"id": "equipment-replacement", "name": "Equipment replacement"},
+    ]
     assert "pricing" not in config.text and "ai_permissions" not in config.text
     assert conversation.status_code == 200
     assert conversation.json()["messages"][0]["text"] == payload
