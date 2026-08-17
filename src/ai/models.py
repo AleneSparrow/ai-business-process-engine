@@ -19,7 +19,14 @@ class StrictAIModel(BaseModel):
 
 class QualificationAnswerOutput(StrictAIModel):
     question_id: str = Field(min_length=1, max_length=128)
-    answer: str = Field(min_length=1, max_length=500)
+    answer: str = Field(
+        min_length=1,
+        max_length=500,
+        description=(
+            "A short phrase copied VERBATIM from the customer's own message -- "
+            "never a paraphrase, summary, or reordering of their words."
+        ),
+    )
 
 
 class IntentOutput(StrictAIModel):
