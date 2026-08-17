@@ -107,11 +107,25 @@ class PublicPaymentRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class PublicProposedSlot:
+    # 1-based -- matches exactly what DeterministicSlotPreferenceInterpreter
+    # accepts as a numeric reply ("1", "2", ...), so a widget can send this
+    # value straight back as the customer's message when a slot button is
+    # clicked, with zero backend changes needed.
+    option: int
+    slot_id: str
+    start_at: datetime
+    end_at: datetime
+    timezone: str
+
+
+@dataclass(frozen=True, slots=True)
 class PublicCommercialSnapshot:
     current_state: ProcessState | None
     booking: PublicBooking | None
     quote: PublicQuote | None
     payment_request: PublicPaymentRequest | None
+    proposed_slots: tuple[PublicProposedSlot, ...] = ()
 
 
 class ConversationService:
@@ -284,10 +298,17 @@ class ConversationService:
             case = uow.cases.get(business_id, conversation.case_id)
             if case is None or case.lead.lead_id != conversation.lead_id:
                 raise RuntimeError("conversation references an invalid tenant case")
-            self.commercial.expire_due_items(uow, case, occurred_at=utc_now())
+            occurred_at = utc_now()
+            self.commercial.expire_due_items(uow, case, occurred_at=occurred_at)
             case = uow.cases.get(business_id, conversation.case_id)
             if case is None or case.lead.lead_id != conversation.lead_id:
                 raise RuntimeError("commercial expiration invalidated the tenant case")
+            proposed_slots = tuple(
+                PublicProposedSlot(index, slot.slot_id, slot.start_at, slot.end_at, slot.timezone)
+                for index, slot in enumerate(
+                    self.commercial.get_proposed_slots(case, occurred_at=occurred_at), start=1
+                )
+            )
             booking = uow.bookings.get_for_case(business_id, case.case_id)
             quote = uow.quotes.get_for_case(business_id, case.case_id)
             payment = uow.payment_requests.get_for_case_type(
@@ -321,6 +342,7 @@ class ConversationService:
                     payment.currency,
                     payment.expires_at,
                 ),
+                proposed_slots,
             )
             uow.commit()
             return result

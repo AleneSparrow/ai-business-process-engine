@@ -510,3 +510,60 @@ def test_commercial_models_reject_unsafe_money_time_and_mutable_defaults() -> No
             NOW.replace(tzinfo=None),
             NOW + timedelta(days=1),
         )
+
+
+def _case_with_commercial_metadata(metadata: dict) -> ProcessCase:
+    lead = Lead("lead-slots", "Ada", None, "+13125550100", {})
+    return ProcessCase(
+        "case-slots", "business", lead, ProcessState.QUALIFIED, NOW, NOW, metadata=metadata,
+    )
+
+
+def test_get_proposed_slots_returns_stored_slots_while_awaiting_selection() -> None:
+    # Regression coverage for the public-widget slot-picker (GET .../commercial
+    # proposed_slots, see ConversationService.get_commercial): this is a pure
+    # read of case.metadata, no persistence involved.
+    slot_payload = {
+        "slot_id": "slot-1",
+        "start_at": (NOW + timedelta(hours=1)).isoformat(),
+        "end_at": (NOW + timedelta(hours=2)).isoformat(),
+        "timezone": "UTC",
+        "capacity": 1,
+    }
+    case = _case_with_commercial_metadata({
+        "commercial": {
+            "mode": "awaiting_slot",
+            "slots": [slot_payload],
+            "slots_expires_at": (NOW + timedelta(minutes=30)).isoformat(),
+        }
+    })
+    slots = CommercialWorkflowService().get_proposed_slots(case, occurred_at=NOW)
+    assert [slot.slot_id for slot in slots] == ["slot-1"]
+
+
+def test_get_proposed_slots_empty_once_expired_or_out_of_slot_mode() -> None:
+    slot_payload = {
+        "slot_id": "slot-1",
+        "start_at": (NOW + timedelta(hours=1)).isoformat(),
+        "end_at": (NOW + timedelta(hours=2)).isoformat(),
+        "timezone": "UTC",
+        "capacity": 1,
+    }
+    service = CommercialWorkflowService()
+
+    expired = _case_with_commercial_metadata({
+        "commercial": {
+            "mode": "awaiting_slot",
+            "slots": [slot_payload],
+            "slots_expires_at": (NOW - timedelta(minutes=1)).isoformat(),
+        }
+    })
+    assert service.get_proposed_slots(expired, occurred_at=NOW) == ()
+
+    booked = _case_with_commercial_metadata({
+        "commercial": {"mode": "booked"},
+    })
+    assert service.get_proposed_slots(booked, occurred_at=NOW) == ()
+
+    no_metadata = _case_with_commercial_metadata({})
+    assert service.get_proposed_slots(no_metadata, occurred_at=NOW) == ()

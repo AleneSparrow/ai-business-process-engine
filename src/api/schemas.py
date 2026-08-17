@@ -334,11 +334,23 @@ class PublicPaymentRequestSchema(ApiModel):
     expires_at: datetime
 
 
+class PublicProposedSlotSchema(ApiModel):
+    # 1-based -- send this number straight back as the customer's next chat
+    # message (e.g. as the value of a slot-picker button) to select it; the
+    # deterministic slot interpreter accepts a bare "1"/"2"/"3" reply as-is.
+    option: int
+    slot_id: str
+    start_at: datetime
+    end_at: datetime
+    timezone: str
+
+
 class PublicCommercialResponse(ApiModel):
     current_state: ProcessState | None
     booking: PublicBookingSchema | None
     quote: PublicQuoteSchema | None
     payment_request: PublicPaymentRequestSchema | None
+    proposed_slots: tuple[PublicProposedSlotSchema, ...] = ()
 
     @classmethod
     def from_domain(cls, value: PublicCommercialSnapshot) -> "PublicCommercialResponse":
@@ -379,6 +391,16 @@ class PublicCommercialResponse(ApiModel):
                 )
                 if value.payment_request is not None
                 else None
+            ),
+            proposed_slots=tuple(
+                PublicProposedSlotSchema(
+                    option=slot.option,
+                    slot_id=slot.slot_id,
+                    start_at=slot.start_at,
+                    end_at=slot.end_at,
+                    timezone=slot.timezone,
+                )
+                for slot in value.proposed_slots
             ),
         )
 

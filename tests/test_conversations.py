@@ -188,6 +188,18 @@ def test_conversation_books_valid_proposed_slot_and_public_status_is_token_scope
     assert qualified.json()["current_state"] == "QUALIFIED"
     assert "Choose an appointment time" in qualified.json()["messages"][-1]["text"]
 
+    # Regression coverage for the public-widget slot-picker buttons (see
+    # web/widget/widget.js renderSlotOptions): the proposed slots must be
+    # readable structurally, 1-based and in the same order the chat text
+    # lists them, *before* a slot is selected.
+    awaiting_selection = client.get(
+        f"/api/v1/public/businesses/tenant-a/conversations/{token}/commercial"
+    ).json()
+    assert [slot["option"] for slot in awaiting_selection["proposed_slots"]] == [
+        index + 1 for index in range(len(awaiting_selection["proposed_slots"]))
+    ]
+    assert len(awaiting_selection["proposed_slots"]) >= 2
+
     booked = send(client, token, "The second option works", "commercial-booking-select")
     assert booked.status_code == 200
     assert booked.json()["current_state"] == "BOOKED"
@@ -208,11 +220,13 @@ def test_conversation_books_valid_proposed_slot_and_public_status_is_token_scope
     assert owned.status_code == unrelated.status_code == 200
     assert owned.json()["booking"]["status"] == "CONFIRMED"
     assert owned.json()["payment_request"]["status"] == "READY"
+    assert owned.json()["proposed_slots"] == []
     assert unrelated.json() == {
         "current_state": None,
         "booking": None,
         "quote": None,
         "payment_request": None,
+        "proposed_slots": [],
     }
     assert cross_tenant.status_code == 404
 

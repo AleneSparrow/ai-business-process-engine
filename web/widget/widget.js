@@ -69,6 +69,17 @@
   history.setAttribute("aria-live", "polite");
   history.setAttribute("aria-relevant", "additions");
 
+  // Clickable slot-picker: rendered whenever the backend has an active,
+  // unexpired slot proposal for this conversation (see /commercial's
+  // proposed_slots). Clicking a button sends its 1-based option number as
+  // an ordinary chat message -- DeterministicSlotPreferenceInterpreter
+  // already accepts a bare "1"/"2"/"3" reply, so no new backend contract is
+  // needed beyond exposing the slot list itself.
+  const slotOptions = document.createElement("div");
+  slotOptions.className = "aibp-chat__slots";
+  slotOptions.hidden = true;
+  slotOptions.setAttribute("aria-label", "Available times");
+
   const status = document.createElement("p");
   status.className = "aibp-chat__status";
   status.setAttribute("role", "status");
@@ -89,7 +100,7 @@
   send.type = "submit";
   send.textContent = "Send";
   form.append(label, input, send);
-  panel.append(header, history, status, form);
+  panel.append(header, history, slotOptions, status, form);
   root.append(launcher, panel);
   document.body.append(root);
 
@@ -97,6 +108,7 @@
     busy = value;
     input.disabled = value;
     send.disabled = value;
+    slotOptions.querySelectorAll("button").forEach((button) => { button.disabled = value; });
     if (value) status.textContent = "Sending…";
     else if (status.textContent === "Sending…") status.textContent = "";
   }
@@ -121,6 +133,59 @@
     }
     data.messages.forEach((message) => appendMessage(message.role, message.text));
     if (data.requires_human) status.textContent = "A team member will review this conversation.";
+  }
+
+  function formatSlotLabel(slot) {
+    try {
+      return new Intl.DateTimeFormat(undefined, {
+        timeZone: slot.timezone,
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit"
+      }).format(new Date(slot.start_at));
+    } catch (error) {
+      return slot.start_at;
+    }
+  }
+
+  function renderSlotOptions(slots) {
+    slotOptions.replaceChildren();
+    if (!slots || !slots.length) {
+      slotOptions.hidden = true;
+      return;
+    }
+    slots.forEach(function (slot) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "aibp-chat__slot-button";
+      button.textContent = formatSlotLabel(slot);
+      button.addEventListener("click", function () {
+        submitMessage(String(slot.option), { focusInput: false });
+      });
+      slotOptions.append(button);
+    });
+    slotOptions.hidden = false;
+  }
+
+  async function refreshCommercial() {
+    if (!conversationToken) {
+      renderSlotOptions([]);
+      return;
+    }
+    try {
+      const data = await request(`/conversations/${encodeURIComponent(conversationToken)}/commercial`, {
+        method: "GET",
+        headers: { Accept: "application/json" }
+      });
+      renderSlotOptions(data.proposed_slots);
+    } catch (error) {
+      // Non-fatal -- the conversation itself already rendered successfully;
+      // losing the slot buttons just means the customer types "1"/"2"/"3"
+      // instead of clicking, same as before this feature existed.
+      renderSlotOptions([]);
+    }
   }
 
   function messageId() {
@@ -155,6 +220,7 @@
     if (!conversationToken) {
       history.replaceChildren();
       if (config) appendMessage("assistant", config.welcome_message);
+      renderSlotOptions([]);
       return;
     }
     try {
@@ -163,6 +229,7 @@
         headers: { Accept: "application/json" }
       });
       renderConversation(data);
+      await refreshCommercial();
       window.sessionStorage.removeItem(pendingKey);
       pendingCreate = null;
     } catch (error) {
@@ -175,6 +242,7 @@
             body: JSON.stringify(payload)
           });
           renderConversation(data);
+          await refreshCommercial();
           window.sessionStorage.removeItem(pendingKey);
           pendingCreate = null;
           return;
@@ -245,21 +313,26 @@
       form.requestSubmit();
     }
   });
-  form.addEventListener("submit", async function (event) {
-    event.preventDefault();
-    const text = input.value.trim();
+  async function submitMessage(text, options) {
+    const focusInput = !options || options.focusInput !== false;
     if (!text || busy) return;
     status.classList.remove("aibp-chat__status--error");
     setBusy(true);
     try {
       await sendMessage(text);
       input.value = "";
+      await refreshCommercial();
     } catch (error) {
       showError(error instanceof Error ? error.message : "Message could not be sent.");
     } finally {
       setBusy(false);
-      input.focus();
+      if (focusInput) input.focus();
     }
+  }
+
+  form.addEventListener("submit", function (event) {
+    event.preventDefault();
+    submitMessage(input.value.trim());
   });
 
   request("/chat-config", { method: "GET", headers: { Accept: "application/json" } })
