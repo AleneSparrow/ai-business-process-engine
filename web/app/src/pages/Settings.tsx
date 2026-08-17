@@ -11,9 +11,37 @@ const SETTINGS_TABS = [
   { key: "services", label: "Services" },
   { key: "area", label: "Service area" },
   { key: "questions", label: "Questions" },
+  { key: "booking", label: "Booking" },
   { key: "escalation", label: "Escalation" },
   { key: "sms", label: "SMS" },
 ] as const;
+
+const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
+type Weekday = (typeof WEEKDAYS)[number];
+const WEEKDAY_LABELS: Record<Weekday, string> = {
+  monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun",
+};
+// Every value here is a real IANA zone the deterministic availability engine
+// (src/engine/commercial.py) resolves via zoneinfo — this list is deliberately
+// US-only since the product's market is US-only today.
+const US_TIMEZONES: { value: string; label: string }[] = [
+  { value: "America/New_York", label: "Eastern (New York)" },
+  { value: "America/Chicago", label: "Central (Chicago)" },
+  { value: "America/Denver", label: "Mountain (Denver)" },
+  { value: "America/Phoenix", label: "Mountain, no DST (Phoenix)" },
+  { value: "America/Los_Angeles", label: "Pacific (Los Angeles)" },
+  { value: "America/Anchorage", label: "Alaska (Anchorage)" },
+  { value: "Pacific/Honolulu", label: "Hawaii (Honolulu)" },
+];
+
+interface DayHoursState {
+  open: boolean;
+  opens: string;
+  closes: string;
+}
+type WeekHoursState = Record<Weekday, DayHoursState>;
+
+const DEFAULT_DAY_CLOSED: DayHoursState = { open: false, opens: "09:00", closes: "17:00" };
 
 type TabKey = (typeof SETTINGS_TABS)[number]["key"];
 const TAB_KEYS = new Set<string>(SETTINGS_TABS.map((t) => t.key));
@@ -28,6 +56,10 @@ interface DNAServiceState {
   id: string | null;
   name: string;
   questions: string[];
+  /** Maps to fulfillment_type "bookable" + booking_allowed together — see
+   * BusinessDNASettingsService._apply. Only takes effect once the Booking tab's
+   * bookingEnabled is also on. */
+  bookable: boolean;
 }
 
 interface SettingsState {
@@ -41,6 +73,9 @@ interface SettingsState {
   areaMode: "remote" | "local";
   zips: string;
   escalation: { highUrgency: boolean; emergency: boolean };
+  bookingEnabled: boolean;
+  bookingTimezone: string;
+  hours: WeekHoursState;
 }
 
 /** Preset labels map to the exact copy `src/domain/business_dna_builder.py::_TONE_COPY`
@@ -68,14 +103,24 @@ function nextClientKey(): string {
 }
 
 function fromServer(dna: BusinessDNASettings): SettingsState {
+  const hours = WEEKDAYS.reduce((acc, day) => {
+    const windows = dna.business_hours[day];
+    acc[day] = windows && windows.length > 0
+      ? { open: true, opens: windows[0].opens, closes: windows[0].closes }
+      : { ...DEFAULT_DAY_CLOSED };
+    return acc;
+  }, {} as WeekHoursState);
   return {
     name: dna.name,
     industry: dna.industry,
     tone: dna.tone,
-    services: dna.services.map((s) => ({ key: nextClientKey(), id: s.id, name: s.name, questions: [...s.questions] })),
+    services: dna.services.map((s) => ({ key: nextClientKey(), id: s.id, name: s.name, questions: [...s.questions], bookable: s.bookable })),
     areaMode: dna.service_zip_codes.length === 0 ? "remote" : "local",
     zips: dna.service_zip_codes.join(", "),
     escalation: { highUrgency: dna.escalate_on_high_urgency, emergency: dna.escalate_on_emergency },
+    bookingEnabled: dna.booking_enabled,
+    bookingTimezone: dna.booking_timezone,
+    hours,
   };
 }
 
@@ -196,7 +241,7 @@ export default function Settings() {
     const v = newService.trim();
     if (!state || !v) return;
     if (state.services.some((s) => s.name.toLowerCase() === v.toLowerCase())) return;
-    setState({ ...state, services: [...state.services, { key: nextClientKey(), id: null, name: v, questions: [] }] });
+    setState({ ...state, services: [...state.services, { key: nextClientKey(), id: null, name: v, questions: [], bookable: false }] });
     setNewService("");
   };
   const removeService = (key: string) => {
@@ -217,10 +262,18 @@ export default function Settings() {
           id: s.id ?? undefined,
           name: s.name.trim(),
           questions: s.questions.map((q) => q.trim()).filter(Boolean),
+          bookable: s.bookable,
         })),
         service_zip_codes: state.areaMode === "local" ? zipList : [],
         escalate_on_high_urgency: state.escalation.highUrgency,
         escalate_on_emergency: state.escalation.emergency,
+        booking_enabled: state.bookingEnabled,
+        booking_timezone: state.bookingTimezone,
+        business_hours: WEEKDAYS.reduce((acc, day) => {
+          const d = state.hours[day];
+          if (d.open) acc[day] = [{ opens: d.opens, closes: d.closes }];
+          return acc;
+        }, {} as Record<string, { opens: string; closes: string }[]>),
       });
       const mapped = fromServer(dna);
       // Keep the client-only keys we already had (by position — the server returns
@@ -435,6 +488,96 @@ export default function Settings() {
                       </div>
                     </div>
                   ))}
+                </div>
+              )}
+
+              {tab === "booking" && (
+                <div>
+                  <p className="text-sm text-[#6B6459] mb-6">
+                    Let clients pick a real open slot and get booked automatically — no back-and-forth.
+                    Only services marked bookable below are offered a slot; everything else still goes
+                    to you for review.
+                  </p>
+                  <label className="flex items-start gap-3 p-4 rounded-xl border cursor-pointer mb-6" style={{ borderColor: state.bookingEnabled ? "#B87333" : "#E7E5DE", backgroundColor: state.bookingEnabled ? "#F5E7D6" : "#fff" }}>
+                    <input
+                      type="checkbox"
+                      checked={state.bookingEnabled}
+                      onChange={() => setState({ ...state, bookingEnabled: !state.bookingEnabled })}
+                      className="mt-0.5 accent-[#B87333]"
+                    />
+                    <div>
+                      <div className="text-sm font-medium">Turn on online booking</div>
+                      <div className="text-xs text-[#6B6459] mt-0.5">Off by default — until this is on, every qualified lead still goes to you instead of getting a slot.</div>
+                    </div>
+                  </label>
+
+                  <Field label="Which services can be booked online?">
+                    <div className="flex flex-col gap-2">
+                      {state.services.length === 0 && <span className="text-xs text-[#9C9488]">Add a service on the Services tab first.</span>}
+                      {state.services.map((s) => (
+                        <label key={s.key} className="flex items-center gap-2.5 text-sm cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={s.bookable}
+                            onChange={() => {
+                              const services = state.services.map((svc) => (svc.key === s.key ? { ...svc, bookable: !svc.bookable } : svc));
+                              setState({ ...state, services });
+                            }}
+                            className="accent-[#B87333]"
+                          />
+                          {s.name}
+                        </label>
+                      ))}
+                    </div>
+                  </Field>
+
+                  <Field label="Time zone" hint="Slot times are calculated in this zone.">
+                    <select
+                      className={inputCls}
+                      value={state.bookingTimezone}
+                      onChange={(e) => setState({ ...state, bookingTimezone: e.target.value })}
+                    >
+                      {US_TIMEZONES.map((tz) => (
+                        <option key={tz.value} value={tz.value}>{tz.label}</option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label="Open hours" hint="Uncheck a day to keep it closed. Slots are only offered inside these windows.">
+                    <div className="flex flex-col gap-2">
+                      {WEEKDAYS.map((day) => {
+                        const d = state.hours[day];
+                        return (
+                          <div key={day} className="flex items-center gap-3">
+                            <label className="flex items-center gap-2 w-24 shrink-0 text-sm cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={d.open}
+                                onChange={() => setState({ ...state, hours: { ...state.hours, [day]: { ...d, open: !d.open } } })}
+                                className="accent-[#B87333]"
+                              />
+                              {WEEKDAY_LABELS[day]}
+                            </label>
+                            <input
+                              type="time"
+                              className={inputCls}
+                              disabled={!d.open}
+                              value={d.opens}
+                              onChange={(e) => setState({ ...state, hours: { ...state.hours, [day]: { ...d, opens: e.target.value } } })}
+                            />
+                            <span className="text-xs text-[#9C9488]">to</span>
+                            <input
+                              type="time"
+                              className={inputCls}
+                              disabled={!d.open}
+                              value={d.closes}
+                              onChange={(e) => setState({ ...state, hours: { ...state.hours, [day]: { ...d, closes: e.target.value } } })}
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Field>
                 </div>
               )}
 

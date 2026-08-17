@@ -218,6 +218,12 @@ export interface BusinessDNAService {
   id: string;
   name: string;
   questions: string[];
+  bookable: boolean;
+}
+
+export interface BusinessHoursWindow {
+  opens: string;
+  closes: string;
 }
 
 export interface BusinessDNASettings {
@@ -230,12 +236,16 @@ export interface BusinessDNASettings {
   service_zip_codes: string[];
   escalate_on_high_urgency: boolean;
   escalate_on_emergency: boolean;
+  booking_enabled: boolean;
+  booking_timezone: string;
+  business_hours: Record<string, BusinessHoursWindow[]>;
 }
 
 export interface BusinessDNAServiceUpdate {
   id?: string;
   name: string;
   questions: string[];
+  bookable: boolean;
 }
 
 export interface BusinessDNASettingsUpdate {
@@ -246,6 +256,9 @@ export interface BusinessDNASettingsUpdate {
   service_zip_codes: string[];
   escalate_on_high_urgency: boolean;
   escalate_on_emergency: boolean;
+  booking_enabled: boolean;
+  booking_timezone: string;
+  business_hours: Record<string, BusinessHoursWindow[]>;
 }
 
 export type BillingPlan = "starter" | "pro";

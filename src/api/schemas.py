@@ -654,6 +654,7 @@ class BusinessDNAServiceSchema(ApiModel):
     id: str
     name: str
     questions: tuple[str, ...]
+    bookable: bool
 
     @classmethod
     def from_domain(cls, service: Mapping[str, Any]) -> "BusinessDNAServiceSchema":
@@ -661,7 +662,13 @@ class BusinessDNAServiceSchema(ApiModel):
             id=str(service["id"]),
             name=str(service["name"]),
             questions=tuple(str(q["prompt"]) for q in service.get("qualification_questions", [])),
+            bookable=service.get("fulfillment_type") == "bookable" and bool(service.get("booking_allowed")),
         )
+
+
+class BusinessHoursWindowSchema(ApiModel):
+    opens: Annotated[str, Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")]
+    closes: Annotated[str, Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")]
 
 
 class BusinessDNASettingsResponse(ApiModel):
@@ -674,6 +681,9 @@ class BusinessDNASettingsResponse(ApiModel):
     service_zip_codes: tuple[str, ...]
     escalate_on_high_urgency: bool
     escalate_on_emergency: bool
+    booking_enabled: bool
+    booking_timezone: str
+    business_hours: dict[str, tuple[BusinessHoursWindowSchema, ...]]
 
     @classmethod
     def from_domain(cls, dna: BusinessDNAVersion) -> "BusinessDNASettingsResponse":
@@ -693,6 +703,14 @@ class BusinessDNASettingsResponse(ApiModel):
             else ()
         )
         triggers = set(config["human_escalation"]["triggers"])
+        booking = config.get("booking", {})
+        business_hours = {
+            str(day): tuple(
+                BusinessHoursWindowSchema(opens=str(window["opens"]), closes=str(window["closes"]))
+                for window in windows
+            )
+            for day, windows in config.get("business_hours", {}).items()
+        }
         return cls(
             version=dna.version,
             updated_at=dna.created_at,
@@ -703,6 +721,9 @@ class BusinessDNASettingsResponse(ApiModel):
             service_zip_codes=zips,
             escalate_on_high_urgency="high" in triggers,
             escalate_on_emergency="emergency" in triggers,
+            booking_enabled=bool(booking.get("enabled", False)),
+            booking_timezone=str(booking.get("timezone", "UTC")),
+            business_hours=business_hours,
         )
 
 
@@ -710,6 +731,7 @@ class BusinessDNAServiceUpdateSchema(ApiModel):
     id: Annotated[str | None, Field(min_length=1, max_length=128)] = None
     name: Annotated[str, Field(min_length=1, max_length=200)]
     questions: Annotated[tuple[Annotated[str, Field(min_length=1, max_length=500)], ...], Field(max_length=20)] = ()
+    bookable: bool = False
 
 
 class BusinessDNASettingsUpdateRequest(ApiModel):
@@ -725,3 +747,8 @@ class BusinessDNASettingsUpdateRequest(ApiModel):
     ] = ()
     escalate_on_high_urgency: bool
     escalate_on_emergency: bool
+    booking_enabled: bool = False
+    booking_timezone: Annotated[str, Field(min_length=1, max_length=64)] = "UTC"
+    # Empty means "leave business_hours as currently configured" -- see
+    # BusinessDNASettingsService._apply.
+    business_hours: dict[str, tuple[BusinessHoursWindowSchema, ...]] = Field(default_factory=dict)

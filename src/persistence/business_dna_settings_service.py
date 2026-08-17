@@ -18,10 +18,12 @@ pricing/booking editor).
 """
 
 import json
+import re
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from jsonschema import Draft202012Validator
 
@@ -33,6 +35,15 @@ from .repositories import UnitOfWork
 
 _SCHEMA_PATH = Path(__file__).parents[2] / "config" / "business_dna.schema.json"
 _PRIMARY_AREA_ID = "primary"
+_ALL_WEEKDAYS = (
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+)
+_TIME_PATTERN = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+# Wide enough to never further restrict business_hours -- booking.allowed_times
+# is required non-empty by the schema, so this is the "no extra restriction"
+# placeholder when Settings owns business_hours as the single source of truth
+# for when a business is open (see DeterministicAvailabilityEngine._intersect_windows).
+_UNRESTRICTED_ALLOWED_TIMES = [{"starts": "00:00", "ends": "23:59"}]
 # The only two Urgency values (src/domain/qualification.py::Urgency) it makes sense
 # to let a business owner opt into escalating on -- QualificationService.evaluate()
 # checks `intent.urgency.value in business_dna["human_escalation"]["triggers"]`, and
@@ -50,6 +61,10 @@ class SettingsServiceInput:
     id: str | None
     name: str
     questions: tuple[str, ...]
+    # When True, Settings turns this service fully bookable (fulfillment_type
+    # "bookable" + booking_allowed True); when False it resets to the safe
+    # "human_review" default. See BusinessDNASettingsService._apply.
+    bookable: bool = False
 
     def __post_init__(self) -> None:
         if not self.name.strip():
@@ -65,6 +80,12 @@ class SettingsUpdate:
     service_zip_codes: tuple[str, ...]
     escalate_on_high_urgency: bool
     escalate_on_emergency: bool
+    booking_enabled: bool = False
+    booking_timezone: str = "UTC"
+    # Empty means "leave whatever business_hours is already configured
+    # unchanged" -- see _apply. Keys must be from _ALL_WEEKDAYS; a day with no
+    # windows (or omitted entirely) means the business is closed that day.
+    business_hours: Mapping[str, tuple[tuple[str, str], ...]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if not self.name.strip():
@@ -75,6 +96,18 @@ class SettingsUpdate:
             raise ValueError("tone must not be empty")
         if not self.services:
             raise ValueError("at least one service is required")
+        try:
+            ZoneInfo(self.booking_timezone)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError("booking_timezone is not a recognized timezone") from exc
+        for day, windows in self.business_hours.items():
+            if day not in _ALL_WEEKDAYS:
+                raise ValueError(f"business_hours has an unrecognized day: {day}")
+            for opens, closes in windows:
+                if not _TIME_PATTERN.match(opens) or not _TIME_PATTERN.match(closes):
+                    raise ValueError("business_hours times must use HH:MM (24h)")
+                if closes <= opens:
+                    raise ValueError("business_hours windows must close after they open")
         # Empty is valid -- it means "no fixed service area" (see _apply, which
         # maps that to a `remote` service area instead of `postal_codes`).
 
@@ -173,6 +206,12 @@ class BusinessDNASettingsService:
                 }
                 for index, question in enumerate(item.questions, start=1)
             ]
+            if item.bookable:
+                service["fulfillment_type"] = "bookable"
+                service["booking_allowed"] = True
+            else:
+                service["fulfillment_type"] = "human_review"
+                service["booking_allowed"] = False
             used_ids.add(service["id"])
             rebuilt.append(service)
         config["services"] = rebuilt
@@ -209,5 +248,26 @@ class BusinessDNASettingsService:
         if update.escalate_on_emergency:
             triggers.append("emergency")
         config["human_escalation"]["triggers"] = triggers
+
+        # Settings is the single owner of business_hours + booking.timezone/
+        # enabled once an owner has touched this tab. allowed_days/allowed_times
+        # are widened to "no extra restriction" so business_hours alone decides
+        # which days/windows are actually open (see DeterministicAvailabilityEngine
+        # in src/engine/commercial.py) -- everything else in booking (buffers,
+        # capacity, notice windows, cancellation policy, ...) carries over
+        # unchanged from whatever onboarding or a prior save left configured.
+        if update.business_hours:
+            config["business_hours"] = {
+                day: [{"opens": opens, "closes": closes} for opens, closes in windows]
+                for day, windows in update.business_hours.items()
+                if windows
+            }
+        booking = dict(config.get("booking", {}))
+        booking["enabled"] = update.booking_enabled
+        booking["timezone"] = update.booking_timezone
+        booking["allowed_days"] = list(_ALL_WEEKDAYS)
+        booking["allowed_times"] = list(_UNRESTRICTED_ALLOWED_TIMES)
+        config["booking"] = booking
+        config["business"]["timezone"] = update.booking_timezone
 
         return config
