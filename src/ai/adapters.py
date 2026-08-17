@@ -186,7 +186,24 @@ class AIIntentExtractor:
                     raise AIInvalidOutputError("AI returned an unauthorized qualification answer")
                 answer_value = answer.answer.strip()
                 if not _contains_term(message.raw_text, answer_value):
-                    raise AIInvalidOutputError("AI returned a qualification answer without customer evidence")
+                    # TEMPORARY diagnostic (2026-08-17): question_id is a
+                    # catalog ID (safe); loosely_matches is a boolean
+                    # computed from a punctuation/casing-normalized
+                    # comparison -- neither ever logs the actual customer-
+                    # derived text. This tells us whether the miss is a
+                    # reformatting issue (like the earlier phone-number bug)
+                    # or the AI adding/paraphrasing content the customer
+                    # never said.
+                    normalize = lambda text: re.sub(  # noqa: E731
+                        r"\s+", " ", re.sub(r"[^\w\s]", "", text).casefold()
+                    ).strip()
+                    loosely_matches = bool(normalize(answer_value)) and normalize(answer_value) in normalize(
+                        message.raw_text
+                    )
+                    raise AIInvalidOutputError(
+                        "AI returned a qualification answer without customer evidence "
+                        f"(question_id={answer.question_id}, loosely_matches_normalized={loosely_matches})"
+                    )
                 answers[answer.question_id] = answer_value
             final_requires_human = output.requires_human or self._configured_trigger_matches(
                 message.raw_text, business_dna
