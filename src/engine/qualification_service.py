@@ -1,11 +1,27 @@
 """Business-DNA-driven lead qualification."""
 
+import json
+import logging
 import re
 from typing import Any, Mapping
 
 from src.domain.models import Lead
 from src.domain.qualification import IntentResult, MissingInformationResult, QualificationResult
 from src.domain.states import ProcessState
+
+# TEMPORARY diagnostic logging (2026-08-17): not importing
+# `src.api.observability.log_event` here -- src/api/app.py imports engine
+# modules, so a dependency from src.engine back onto src.api risks a
+# circular import if this module is ever the first one touched (e.g. a
+# test importing it directly, before anything has imported src.api).
+# Logging directly with the same "uvicorn.error" logger name keeps
+# identical log output without that dependency direction.
+_LOGGER = logging.getLogger("uvicorn.error")
+
+
+def _log_event(level: int, event: str, **fields: Any) -> None:
+    payload = {"event": event, **{key: value for key, value in fields.items() if value is not None}}
+    _LOGGER.log(level, json.dumps(payload, separators=(",", ":"), default=str))
 
 
 class QualificationService:
@@ -23,6 +39,17 @@ class QualificationService:
         threshold = float(business_dna["ai_permissions"]["minimum_confidence"])
         triggers = set(business_dna["human_escalation"]["triggers"])
         if intent.requires_human or intent.confidence < threshold:
+            # TEMPORARY diagnostic logging (2026-08-17): distinguishes the
+            # two ways this branch can fire -- confidence/threshold are
+            # non-sensitive numeric config+model signals, never customer
+            # content.
+            _log_event(
+                logging.INFO,
+                "qualification_needs_human_diagnostic",
+                reason="requires_human" if intent.requires_human else "below_confidence_threshold",
+                confidence=intent.confidence,
+                threshold=threshold,
+            )
             return self._result(
                 ProcessState.NEEDS_HUMAN,
                 ("Intent confidence is below policy or extraction requested review",),
@@ -251,6 +278,16 @@ class QualificationService:
         intent: IntentResult,
         service: Mapping[str, Any] | None = None,
     ) -> QualificationResult:
+        if state in (ProcessState.NEEDS_HUMAN, ProcessState.LOST):
+            # TEMPORARY diagnostic logging (2026-08-17): reasons are this
+            # file's own fixed strings, never customer content.
+            _log_event(
+                logging.INFO,
+                "qualification_terminal_diagnostic",
+                state=state.value,
+                reasons=reasons,
+                service_id=QualificationService._service_id(service),
+            )
         return QualificationResult(
             qualified=state is ProcessState.QUALIFIED,
             reasons=reasons,

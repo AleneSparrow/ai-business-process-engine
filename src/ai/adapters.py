@@ -1,6 +1,8 @@
 """Validated adapters from structured AI output to existing engine protocols."""
 
 from dataclasses import replace
+import json
+import logging
 import re
 from typing import Any, Mapping
 
@@ -31,9 +33,21 @@ from .provider import StructuredAIProvider
 # (resulting_state=NEEDS_HUMAN with no error). All fields below are safe to
 # log: confidence/requires_human/urgency are model-internal signals, and
 # service_requested is a catalog ID, never customer-submitted free text.
-import logging as _logging  # noqa: E402
+#
+# NOTE: deliberately not importing `src.api.observability.log_event` here --
+# src/api/app.py imports src.ai.runtime, which imports this module, so
+# importing anything under `src.api` from here (even transitively, via
+# package __init__ side effects) risks a circular import when this module
+# is the first one touched (e.g. `from src.ai.adapters import ...` in a
+# test, before anything has imported src.api). Logging directly with the
+# same "uvicorn.error" logger name keeps identical log output without that
+# dependency direction.
+_LOGGER = logging.getLogger("uvicorn.error")
 
-from src.api.observability import log_event as _log_event  # noqa: E402
+
+def _log_event(level: int, event: str, **fields: Any) -> None:
+    payload = {"event": event, **{key: value for key, value in fields.items() if value is not None}}
+    _LOGGER.log(level, json.dumps(payload, separators=(",", ":"), default=str))
 
 
 _UNSAFE_CUSTOMER_COMMITMENT = re.compile(
@@ -178,7 +192,7 @@ class AIIntentExtractor:
                 message.raw_text, business_dna
             )
             _log_event(
-                _logging.INFO,
+                logging.INFO,
                 "intent_extracted_diagnostic",
                 service_requested=service_requested,
                 confidence=output.confidence,
@@ -206,7 +220,7 @@ class AIIntentExtractor:
             # NEEDS_HUMAN case: `str(exc)` here is always one of this file's
             # own fixed messages (e.g. "AI returned phone without customer
             # evidence") -- never customer-submitted content.
-            _log_event(_logging.INFO, "intent_extraction_invalid_diagnostic", reason=str(exc))
+            _log_event(logging.INFO, "intent_extraction_invalid_diagnostic", reason=str(exc))
             metadata = exc.metadata
             if metadata is None and "result" in locals():
                 metadata = _invalid_metadata(result.metadata)
