@@ -128,6 +128,19 @@ class AIIntentExtractor:
                     "aliases": service.get("intake_keywords", []),
                     "qualification_questions": questions,
                 })
+        # TEMPORARY diagnostic (2026-08-17): services_context is catalog
+        # configuration (ids/names/configured alias keywords/question ids),
+        # never customer content -- safe to log. Investigating whether the
+        # "supported service without customer evidence" rejections are an
+        # AI bug or a business-DNA catalog gap (narrow intake_keywords).
+        _log_event(
+            logging.INFO,
+            "services_context_diagnostic",
+            services=[
+                {"id": s.get("id"), "name": s.get("name"), "aliases": s.get("aliases")}
+                for s in services_context
+            ],
+        )
         prompt = intent_prompt(
             context={
                 "services": services_context,
