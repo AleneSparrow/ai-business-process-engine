@@ -86,17 +86,18 @@ class AnthropicProvider:
                 response = self._client.messages.create(
                     model=self.model,
                     max_tokens=_MAX_OUTPUT_TOKENS,
-                    # Every request through this provider is a structured
-                    # extraction/classification/rewrite task, not open-ended
-                    # generation -- the same customer message should reach
-                    # the same qualification decision every time it
-                    # reasonably can. Low temperature doesn't make this
-                    # provider fully deterministic (no LLM API guarantees
-                    # that even at temperature=0), but it substantially
-                    # narrows the sampling variance observed live: the exact
-                    # same test message flipped between QUALIFYING and
-                    # NEEDS_HUMAN across otherwise-identical requests.
-                    temperature=0,
+                    # NOTE: deliberately no `temperature` param. A prior
+                    # version of this file set temperature=0 to narrow
+                    # decision-boundary sampling variance (the same test
+                    # message flipping between QUALIFYING and NEEDS_HUMAN
+                    # across identical requests) -- but claude-sonnet-5
+                    # rejects it outright with a 400 ("`temperature` is
+                    # deprecated for this model"), which took the whole
+                    # provider down, not just the variance it was meant to
+                    # fix. Confirmed live via Railway logs before reverting.
+                    # If reducing sampling variance is worth revisiting,
+                    # check the current model's docs for its replacement
+                    # (if any) before reintroducing a sampling parameter.
                     system=request.system_prompt,
                     messages=[{"role": "user", "content": request.user_prompt}],
                     tools=[
