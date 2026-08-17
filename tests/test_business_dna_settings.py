@@ -139,3 +139,35 @@ def test_business_hours_window_must_close_after_it_opens():
 def test_business_hours_rejects_unknown_day_key():
     with pytest.raises(ValueError, match="unrecognized day"):
         _update(business_hours={"someday": (("09:00", "17:00"),)})
+
+
+def test_remote_business_with_no_rules_gets_auto_qualify_rule_injected():
+    # Regression test: without this, QualificationService._qualification_rule_outcome
+    # falls through to default_outcome ("needs_human") for every lead of a
+    # remote business, since there's no service-area rule to gate "qualified"
+    # on the way local/zip-enforced businesses do.
+    config = _base_config()
+    config["qualification"] = {"enforce_service_area": False}
+    result = BusinessDNASettingsService._apply(config, _update(service_zip_codes=()))
+    assert result["qualification"]["rules"] == [
+        {"field": "service_id", "operator": "exists", "value": True, "outcome": "qualified"}
+    ]
+
+
+def test_remote_business_with_existing_rules_is_not_overwritten():
+    config = _base_config()
+    config["qualification"] = {
+        "enforce_service_area": False,
+        "rules": [{"field": "notes", "operator": "equals", "value": "x", "outcome": "lost"}],
+    }
+    result = BusinessDNASettingsService._apply(config, _update(service_zip_codes=()))
+    assert result["qualification"]["rules"] == [
+        {"field": "notes", "operator": "equals", "value": "x", "outcome": "lost"}
+    ]
+
+
+def test_local_business_rules_are_left_alone():
+    config = _base_config()
+    config["qualification"] = {"enforce_service_area": False}
+    result = BusinessDNASettingsService._apply(config, _update(service_zip_codes=("94103",)))
+    assert "rules" not in result["qualification"]

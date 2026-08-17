@@ -236,6 +236,18 @@ class BusinessDNASettingsService:
         primary["values"] = ["everywhere"] if is_remote else cleaned_zips
         config["service_areas"] = areas
         config["qualification"]["enforce_service_area"] = not is_remote
+        # Retroactive fix for businesses that switched to remote/Anywhere (or
+        # onboarded that way before this rule existed -- see
+        # business_dna_builder.build_business_dna for the matching onboarding-time
+        # fix): with no rules configured, QualificationService._qualification_rule_outcome
+        # falls through to default_outcome ("needs_human"), so a remote business
+        # with an empty rules array would otherwise never auto-qualify a single
+        # lead. Only fires when rules is genuinely empty -- never overwrites
+        # rules an owner already configured some other way.
+        if is_remote and not config["qualification"].get("rules"):
+            config["qualification"]["rules"] = [
+                {"field": "service_id", "operator": "exists", "value": True, "outcome": "qualified"}
+            ]
 
         other_triggers = [
             trigger

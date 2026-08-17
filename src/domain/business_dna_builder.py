@@ -114,7 +114,16 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
     qualification_rules = (
         [{"field": "service_area_id", "operator": "in", "value": [_SERVICE_AREA_ID], "outcome": "qualified"}]
         if onboarding.enforce_service_area
-        else []
+        # A remote/nationwide business has no service-area signal to gate
+        # "qualified" on. By the time QualificationService._qualification_rule_outcome
+        # runs, required_fields and qualification_questions completeness are
+        # already verified and a real service_id is already resolved -- so
+        # this is safe to auto-qualify. Without an equivalent rule here, every
+        # lead for a remote business would silently fall through to
+        # qualification.default_outcome ("needs_human" below) forever, with
+        # no way for the owner to notice or fix it (no Settings UI edits
+        # qualification.rules).
+        else [{"field": "service_id", "operator": "exists", "value": True, "outcome": "qualified"}]
     )
     # No zip codes submitted means the business has no fixed service area at all
     # (remote/nationwide/online) -- QualificationService._service_area_status()
