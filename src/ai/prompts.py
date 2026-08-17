@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 
-PROMPT_VERSION = "2026-08-17.v5"
+PROMPT_VERSION = "2026-08-17.v6"
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +40,14 @@ def intent_prompt(*, context: Mapping[str, Any], customer_message: str) -> Promp
         "Use bounded CONVERSATION_CONTEXT only to interpret follow-up answers. Extract new name, phone, and email "
         "verbatim from the current customer content. Keep notes concise and do not copy contact details or the "
         "full customer message into notes.\n"
+        "service_id / unsupported_service / unsupported_service_name are mutually exclusive: if the customer's "
+        "request matches a service's id, name, or alias listed in BUSINESS_CONTEXT.services, set service_id to "
+        "that exact id, unsupported_service=false, and unsupported_service_name=null. If it does not match any "
+        "listed service, set service_id=null, unsupported_service=true, and unsupported_service_name to a short "
+        "VERBATIM phrase copied from the customer's own words for what they're asking about. Never set both "
+        "service_id and unsupported_service_name. If the request is a general/unspecified inquiry that could "
+        "reasonably fall under a listed service (e.g. a broad 'consultation' or 'general practice' service "
+        "covers many matter types), prefer matching that service over marking it unsupported.\n"
         "name/phone/email must come ONLY from the CUSTOMER_CONTENT_JSON message being processed right now -- "
         "never from CONVERSATION_CONTEXT. If the customer already gave their name, phone, or email in an earlier "
         "turn and does not repeat it in the current message, output null for that field even though you can see "

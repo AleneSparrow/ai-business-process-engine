@@ -30,9 +30,23 @@ class QualificationAnswerOutput(StrictAIModel):
 
 
 class IntentOutput(StrictAIModel):
-    service_id: str | None = Field(max_length=128)
-    unsupported_service: bool
-    unsupported_service_name: str | None = Field(max_length=200)
+    service_id: str | None = Field(
+        max_length=128,
+        description=(
+            "Set only when the request matches a service listed in BUSINESS_CONTEXT.services. "
+            "Null whenever unsupported_service is true."
+        ),
+    )
+    unsupported_service: bool = Field(
+        description="True only when the request matches no listed service. Mutually exclusive with service_id."
+    )
+    unsupported_service_name: str | None = Field(
+        max_length=200,
+        description=(
+            "Set only when unsupported_service is true, to a short VERBATIM phrase copied from the "
+            "customer's own words. Null whenever service_id is set."
+        ),
+    )
     urgency: Urgency
     customer_location: str | None = Field(max_length=500)
     preferred_time: str | None = Field(max_length=500)

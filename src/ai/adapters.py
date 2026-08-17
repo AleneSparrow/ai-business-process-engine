@@ -269,12 +269,29 @@ class AIIntentExtractor:
     ) -> str | None:
         if output.unsupported_service:
             name = AIIntentExtractor._clean(output.unsupported_service_name)
-            if (
-                output.service_id is not None
-                or name is None
-                or not _contains_term(customer_message, name)
-            ):
-                raise AIInvalidOutputError("AI returned an invalid unsupported service")
+            service_id_also_set = output.service_id is not None
+            name_is_none = name is None
+            evidenced = name is not None and _contains_term(customer_message, name)
+            if service_id_also_set or name_is_none or not evidenced:
+                # TEMPORARY diagnostic (2026-08-17): three independent
+                # failure modes collapsed into one message before -- these
+                # booleans (plus a punctuation/casing-normalized loose-match
+                # check, same technique as the qualification-answer
+                # diagnostic) say which one fired, without logging the
+                # actual customer-derived unsupported_service_name text.
+                loosely_matches = False
+                if name is not None:
+                    normalize = lambda text: re.sub(  # noqa: E731
+                        r"\s+", " ", re.sub(r"[^\w\s]", "", text).casefold()
+                    ).strip()
+                    loosely_matches = bool(normalize(name)) and normalize(name) in normalize(
+                        customer_message
+                    )
+                raise AIInvalidOutputError(
+                    "AI returned an invalid unsupported service "
+                    f"(service_id_also_set={service_id_also_set}, name_is_none={name_is_none}, "
+                    f"evidenced={evidenced}, loosely_matches_normalized={loosely_matches})"
+                )
             return name
         if output.unsupported_service_name is not None:
             raise AIInvalidOutputError("AI returned contradictory service fields")
