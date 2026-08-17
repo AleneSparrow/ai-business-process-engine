@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 
-PROMPT_VERSION = "2026-08-17.v4"
+PROMPT_VERSION = "2026-08-17.v5"
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,6 +40,11 @@ def intent_prompt(*, context: Mapping[str, Any], customer_message: str) -> Promp
         "Use bounded CONVERSATION_CONTEXT only to interpret follow-up answers. Extract new name, phone, and email "
         "verbatim from the current customer content. Keep notes concise and do not copy contact details or the "
         "full customer message into notes.\n"
+        "name/phone/email must come ONLY from the CUSTOMER_CONTENT_JSON message being processed right now -- "
+        "never from CONVERSATION_CONTEXT. If the customer already gave their name, phone, or email in an earlier "
+        "turn and does not repeat it in the current message, output null for that field even though you can see "
+        "it in the conversation history. Re-stating a contact detail you already know, instead of leaving it "
+        "null, will be rejected.\n"
         "qualification_answers: for each question in a service's qualification_questions that the current "
         "customer content answers, set 'answer' to a short VERBATIM phrase copied directly from the customer's "
         "own words -- not a paraphrase, summary, or reordering. Prefer the shortest contiguous phrase from the "
