@@ -24,6 +24,17 @@ from .models import (
 from .prompts import clarification_prompt, customer_response_prompt, intent_prompt
 from .provider import StructuredAIProvider
 
+# TEMPORARY diagnostic logging (2026-08-17): the qualification threshold
+# check (`intent.requires_human or intent.confidence < threshold`) has no
+# visibility today when it fires on the AI's own judgment rather than on a
+# caught AIInvalidOutputError -- both look identical from the outside
+# (resulting_state=NEEDS_HUMAN with no error). All fields below are safe to
+# log: confidence/requires_human/urgency are model-internal signals, and
+# service_requested is a catalog ID, never customer-submitted free text.
+import logging as _logging  # noqa: E402
+
+from src.api.observability import log_event as _log_event  # noqa: E402
+
 
 _UNSAFE_CUSTOMER_COMMITMENT = re.compile(
     r"(?:\b(?:discount|refund|waive|complimentary|guarantee|promise)\b|"
@@ -163,6 +174,19 @@ class AIIntentExtractor:
                 if not _contains_term(message.raw_text, answer_value):
                     raise AIInvalidOutputError("AI returned a qualification answer without customer evidence")
                 answers[answer.question_id] = answer_value
+            final_requires_human = output.requires_human or self._configured_trigger_matches(
+                message.raw_text, business_dna
+            )
+            _log_event(
+                _logging.INFO,
+                "intent_extracted_diagnostic",
+                service_requested=service_requested,
+                confidence=output.confidence,
+                ai_requires_human=output.requires_human,
+                trigger_matched=final_requires_human and not output.requires_human,
+                urgency=output.urgency.value if output.urgency is not None else None,
+                prompt_version=prompt.version,
+            )
             return IntentResult(
                 service_requested=service_requested,
                 urgency=output.urgency,
@@ -170,9 +194,7 @@ class AIIntentExtractor:
                 preferred_time=preferred_time,
                 notes=self._notes(output.notes, message.raw_text),
                 confidence=output.confidence,
-                requires_human=output.requires_human or self._configured_trigger_matches(
-                    message.raw_text, business_dna
-                ),
+                requires_human=final_requires_human,
                 qualification_answers=answers,
                 ai_metadata=_audit(result.metadata, confidence=output.confidence),
                 customer_name=self._evidenced(output.customer_name, message.raw_text, "name"),
@@ -180,6 +202,11 @@ class AIIntentExtractor:
                 email=self._evidenced(output.email, message.raw_text, "email"),
             )
         except AIInvalidOutputError as exc:
+            # Same diagnostic as the success path above, for the collapse-to-
+            # NEEDS_HUMAN case: `str(exc)` here is always one of this file's
+            # own fixed messages (e.g. "AI returned phone without customer
+            # evidence") -- never customer-submitted content.
+            _log_event(_logging.INFO, "intent_extraction_invalid_diagnostic", reason=str(exc))
             metadata = exc.metadata
             if metadata is None and "result" in locals():
                 metadata = _invalid_metadata(result.metadata)
