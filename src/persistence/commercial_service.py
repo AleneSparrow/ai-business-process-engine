@@ -1,5 +1,7 @@
 """Transactional commercial workflow after deterministic qualification."""
 
+import json
+import logging
 import re
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
@@ -35,6 +37,19 @@ from src.engine.decision_router import DecisionRequest
 from src.engine.process_engine import ProcessEngine
 
 from .repositories import UnitOfWork
+
+
+# TEMPORARY diagnostic logging (2026-08-17): tracing the very first live use
+# of the booking commercial path (CommercialPathSelector/_propose_slots) now
+# that Settings can turn it on. Local helper for the same reason as
+# src/ai/adapters.py and src/engine/qualification_service.py: avoids a
+# src.persistence -> src.api dependency that risks a circular import.
+_LOGGER = logging.getLogger("uvicorn.error")
+
+
+def _log_event(level: int, event: str, **fields: Any) -> None:
+    payload = {"event": event, **{key: value for key, value in fields.items() if value is not None}}
+    _LOGGER.log(level, json.dumps(payload, separators=(",", ":"), default=str))
 
 
 UTC = timezone.utc
@@ -92,7 +107,17 @@ class CommercialWorkflowService:
         service_id = self._service_id(case)
         try:
             path = self.path_selector.select(business_dna, service_id)
-        except ValueError:
+        except ValueError as exc:
+            # TEMPORARY diagnostic logging (2026-08-17): str(exc) here is
+            # always one of this codebase's own fixed messages (see
+            # CommercialPathSelector.select / find_service), never customer
+            # content -- safe to log verbatim.
+            _log_event(
+                logging.INFO,
+                "commercial_path_selection_failed_diagnostic",
+                service_id=service_id,
+                reason=str(exc),
+            )
             return self._escalate(
                 uow,
                 case,
@@ -101,6 +126,12 @@ class CommercialWorkflowService:
                 occurred_at,
                 "Commercial path configuration requires human review",
             )
+        _log_event(
+            logging.INFO,
+            "commercial_path_selected_diagnostic",
+            service_id=service_id,
+            path=path.value,
+        )
         commercial.clear()
         commercial.update({"path": path.value, "service_id": service_id})
         self._audit(
@@ -351,6 +382,23 @@ class CommercialWorkflowService:
         )
         slots = self.availability.available_slots(
             request, dna, existing, now=occurred_at
+        )
+        # TEMPORARY diagnostic logging (2026-08-17): config shape only
+        # (no customer content) -- for tracing the very first live use of
+        # the booking commercial path now that Settings can turn it on.
+        booking_cfg = dna.get("booking")
+        _log_event(
+            logging.INFO,
+            "slots_computed_diagnostic",
+            service_id=service_id,
+            slot_count=len(slots),
+            earliest=earliest,
+            latest=latest,
+            existing_bookings=len(existing),
+            booking_enabled=bool(booking_cfg.get("enabled")) if isinstance(booking_cfg, Mapping) else None,
+            booking_timezone=booking_cfg.get("timezone") if isinstance(booking_cfg, Mapping) else None,
+            allowed_days=booking_cfg.get("allowed_days") if isinstance(booking_cfg, Mapping) else None,
+            business_hours_days=sorted(dna.get("business_hours", {}).keys()) if isinstance(dna.get("business_hours"), Mapping) else None,
         )
         self._audit(
             uow,
