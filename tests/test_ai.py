@@ -118,6 +118,38 @@ def test_structured_intent_resolves_alias_and_minimizes_personal_data() -> None:
     assert "pricing" not in prompt
 
 
+def test_reformatted_phone_number_is_still_accepted_as_customer_evidence() -> None:
+    """Live finding: the AI extractor is instructed to copy phone numbers
+    verbatim, but a model can still reformat punctuation/spacing (e.g.
+    "555-987-6543" -> "(555) 987-6543"). That used to fail the literal
+    substring check and collapse the whole result to confidence=0.0 --
+    forcing NEEDS_HUMAN on an ordinary customer answering a phone-number
+    question. The digits are still customer-evidenced; only the punctuation
+    differs, so this must not raise and must not lower confidence."""
+    provider = FakeAIProvider([intent_output(phone="(555) 987-6543")])
+    message = incoming(raw_text="It's Jordan, 555-987-6543.")
+
+    result = AIIntentExtractor(provider).extract(message, dna())
+
+    assert result.phone == "(555) 987-6543"
+    assert result.confidence == 0.95
+    assert not result.requires_human
+
+
+def test_phone_number_with_no_matching_digits_is_still_rejected() -> None:
+    """The digit-based comparison must still catch genuine hallucination --
+    a phone number whose digits don't appear anywhere in the customer's
+    message at all is not customer evidence just because it looks like a
+    phone number."""
+    provider = FakeAIProvider([intent_output(phone="555-000-1234")])
+    message = incoming(raw_text="It's Jordan, 555-987-6543.")
+
+    result = AIIntentExtractor(provider).extract(message, dna())
+
+    assert result.confidence == 0.0
+    assert result.requires_human is True
+
+
 def test_multi_turn_ai_context_is_bounded_redacted_and_uses_validated_facts() -> None:
     provider = FakeAIProvider([intent_output(preferred_time="tomorrow afternoon")])
     context = ConversationContext(

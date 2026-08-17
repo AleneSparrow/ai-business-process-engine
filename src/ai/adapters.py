@@ -176,7 +176,7 @@ class AIIntentExtractor:
                 qualification_answers=answers,
                 ai_metadata=_audit(result.metadata, confidence=output.confidence),
                 customer_name=self._evidenced(output.customer_name, message.raw_text, "name"),
-                phone=self._evidenced(output.phone, message.raw_text, "phone"),
+                phone=self._phone_evidenced(output.phone, message.raw_text),
                 email=self._evidenced(output.email, message.raw_text, "email"),
             )
         except AIInvalidOutputError as exc:
@@ -274,6 +274,33 @@ class AIIntentExtractor:
         )
         if cleaned is not None and not is_known and not _contains_term(customer_message, cleaned):
             raise AIInvalidOutputError(f"AI returned {field_name} without customer evidence")
+        return cleaned
+
+    @staticmethod
+    def _phone_evidenced(value: str | None, customer_message: str) -> str | None:
+        """Same anti-hallucination guarantee as `_evidenced`, but digit-based
+        rather than an exact substring match. Live finding: the customer's
+        own literal punctuation/spacing (`555-987-6543` vs `(555) 987-6543`
+        vs `555.987.6543`) is not something the prompt's "extract verbatim"
+        instruction reliably survives -- a harmlessly reformatted phone
+        number failed the strict `_evidenced` check, which collapsed the
+        *entire* intent result to confidence=0.0 and forced NEEDS_HUMAN on
+        an ordinary customer answering "what's your phone number?". Every
+        digit still has to come from the customer's own message -- this
+        does not relax the guarantee that the AI cannot invent a phone
+        number, only which punctuation counts as the "same" one."""
+        cleaned = AIIntentExtractor._clean(value)
+        if cleaned is None:
+            return None
+        cleaned_digits = re.sub(r"\D", "", cleaned)
+        message_digits = re.sub(r"\D", "", customer_message)
+        candidates = {cleaned_digits}
+        # A model-added US country-code digit the customer didn't type is
+        # still evidence-backed for the other 10 digits.
+        if len(cleaned_digits) == 11 and cleaned_digits.startswith("1"):
+            candidates.add(cleaned_digits[1:])
+        if not any(candidate and candidate in message_digits for candidate in candidates):
+            raise AIInvalidOutputError("AI returned phone without customer evidence")
         return cleaned
 
     @staticmethod
