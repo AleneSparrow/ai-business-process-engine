@@ -306,7 +306,10 @@ class ConversationService:
             proposed_slots = tuple(
                 PublicProposedSlot(index, slot.slot_id, slot.start_at, slot.end_at, slot.timezone)
                 for index, slot in enumerate(
-                    self.commercial.get_proposed_slots(case, occurred_at=occurred_at), start=1
+                    self.commercial.get_proposed_slots(
+                        conversation.metadata, occurred_at=occurred_at
+                    ),
+                    start=1
                 )
             )
             booking = uow.bookings.get_for_case(business_id, case.case_id)

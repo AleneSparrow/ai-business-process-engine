@@ -512,17 +512,12 @@ def test_commercial_models_reject_unsafe_money_time_and_mutable_defaults() -> No
         )
 
 
-def _case_with_commercial_metadata(metadata: dict) -> ProcessCase:
-    lead = Lead("lead-slots", "Ada", None, "+13125550100", {})
-    return ProcessCase(
-        "case-slots", "business", lead, ProcessState.QUALIFIED, NOW, NOW, metadata=metadata,
-    )
-
-
 def test_get_proposed_slots_returns_stored_slots_while_awaiting_selection() -> None:
     # Regression coverage for the public-widget slot-picker (GET .../commercial
     # proposed_slots, see ConversationService.get_commercial): this is a pure
-    # read of case.metadata, no persistence involved.
+    # read of conversation.metadata (NOT case.metadata -- that's a distinct,
+    # never-written-to field; see the production bug this guards against
+    # below), no persistence involved.
     slot_payload = {
         "slot_id": "slot-1",
         "start_at": (NOW + timedelta(hours=1)).isoformat(),
@@ -530,14 +525,16 @@ def test_get_proposed_slots_returns_stored_slots_while_awaiting_selection() -> N
         "timezone": "UTC",
         "capacity": 1,
     }
-    case = _case_with_commercial_metadata({
+    conversation_metadata = {
         "commercial": {
             "mode": "awaiting_slot",
             "slots": [slot_payload],
             "slots_expires_at": (NOW + timedelta(minutes=30)).isoformat(),
         }
-    })
-    slots = CommercialWorkflowService().get_proposed_slots(case, occurred_at=NOW)
+    }
+    slots = CommercialWorkflowService().get_proposed_slots(
+        conversation_metadata, occurred_at=NOW
+    )
     assert [slot.slot_id for slot in slots] == ["slot-1"]
 
 
@@ -551,19 +548,55 @@ def test_get_proposed_slots_empty_once_expired_or_out_of_slot_mode() -> None:
     }
     service = CommercialWorkflowService()
 
-    expired = _case_with_commercial_metadata({
+    expired = {
         "commercial": {
             "mode": "awaiting_slot",
             "slots": [slot_payload],
             "slots_expires_at": (NOW - timedelta(minutes=1)).isoformat(),
         }
-    })
+    }
     assert service.get_proposed_slots(expired, occurred_at=NOW) == ()
 
-    booked = _case_with_commercial_metadata({
+    booked = {
         "commercial": {"mode": "booked"},
-    })
+    }
     assert service.get_proposed_slots(booked, occurred_at=NOW) == ()
 
-    no_metadata = _case_with_commercial_metadata({})
+    no_metadata: dict = {}
     assert service.get_proposed_slots(no_metadata, occurred_at=NOW) == ()
+
+
+def test_get_proposed_slots_ignores_case_metadata() -> None:
+    # Regression test for a real production bug: get_proposed_slots used to
+    # read from `case.metadata["commercial"]`, but `initialize()`/
+    # `_propose_slots()` only ever write slot proposals into
+    # `conversation.metadata["commercial"]` (via `_commercial_metadata()`,
+    # always called with the conversation's metadata dict). Because nothing
+    # in this codebase ever writes "commercial" into a case's own metadata,
+    # the old signature made the widget's slot-picker permanently empty even
+    # though the AI's chat reply already listed concrete appointment times.
+    # A case-shaped mapping (even one that happens to carry a "commercial"
+    # key) must never satisfy this read -- only conversation metadata does.
+    slot_payload = {
+        "slot_id": "slot-1",
+        "start_at": (NOW + timedelta(hours=1)).isoformat(),
+        "end_at": (NOW + timedelta(hours=2)).isoformat(),
+        "timezone": "UTC",
+        "capacity": 1,
+    }
+    real_conversation_metadata = {"unresolved_items": [], "current_state": "QUALIFIED"}
+    slots = CommercialWorkflowService().get_proposed_slots(
+        real_conversation_metadata, occurred_at=NOW
+    )
+    assert slots == ()
+    # And the correct source -- conversation metadata carrying the
+    # commercial dict written by _propose_slots -- does return them.
+    real_conversation_metadata["commercial"] = {
+        "mode": "awaiting_slot",
+        "slots": [slot_payload],
+        "slots_expires_at": (NOW + timedelta(minutes=30)).isoformat(),
+    }
+    slots = CommercialWorkflowService().get_proposed_slots(
+        real_conversation_metadata, occurred_at=NOW
+    )
+    assert [slot.slot_id for slot in slots] == ["slot-1"]

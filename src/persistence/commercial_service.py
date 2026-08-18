@@ -317,17 +317,24 @@ class CommercialWorkflowService:
                 )
 
     def get_proposed_slots(
-        self, case: ProcessCase, *, occurred_at: datetime
+        self, conversation_metadata: Mapping[str, Any], *, occurred_at: datetime
     ) -> tuple[TimeSlot, ...]:
         """Read-only view of the currently valid, not-yet-selected slot
-        proposal for this case (if any). Used by the public conversation API
-        (see ConversationService.get_commercial) to render clickable slot
-        options in the customer-facing widget -- purely a projection of the
-        same `commercial` metadata `_propose_slots`/`_select_slot` already
-        read and write; never mutates anything, so it's safe to call outside
-        a transaction."""
+        proposal for the conversation (if any). Used by the public
+        conversation API (see ConversationService.get_commercial) to render
+        clickable slot options in the customer-facing widget -- purely a
+        projection of the same `commercial` metadata `_propose_slots`/
+        `_select_slot` already read and write; never mutates anything, so
+        it's safe to call outside a transaction.
+
+        NOTE: this reads from `conversation.metadata["commercial"]`, NOT
+        `case.metadata` -- that's where `initialize()`/`handle_message()`
+        actually persist slot proposals (via `_commercial_metadata()`,
+        which is always called with `conversation.metadata`). A case's own
+        `metadata` field is never written to by this service; passing it
+        here would silently and permanently return no slots."""
         self._require_utc(occurred_at)
-        commercial = case.metadata.get("commercial")
+        commercial = conversation_metadata.get("commercial")
         if not isinstance(commercial, Mapping):
             return ()
         if commercial.get("mode") not in {"awaiting_slot", "awaiting_reschedule_slot"}:
