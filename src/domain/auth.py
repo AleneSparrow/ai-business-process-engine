@@ -64,6 +64,11 @@ class StaffUser:
     password_hash: str
     business_id: str | None
     created_at: datetime
+    business_ids: tuple[str, ...] = ()
+    """Every business this account is linked to (see `with_business`). An
+    account may own more than one business -- `business_id` is just its
+    currently active one, always a member of this set (or None if the set
+    is empty)."""
 
     def __post_init__(self) -> None:
         _require_text(self.user_id, "user_id")
@@ -71,14 +76,21 @@ class StaffUser:
         _require_text(self.normalized_email, "normalized_email")
         _require_text(self.password_hash, "password_hash")
         _require_aware(self.created_at, "created_at")
+        if self.business_id is not None and self.business_id not in self.business_ids:
+            raise ValueError("business_id must be a member of business_ids")
 
     def with_business(self, business_id: str) -> "StaffUser":
-        if self.business_id is not None:
-            raise ValueError("this account is already linked to a business")
+        """Link the account to `business_id`, adding it to the account's set
+        of businesses if it isn't already a member, and making it the
+        account's active business. An account may be linked to any number
+        of businesses -- this no longer rejects a second (or third...) one."""
         _require_text(business_id, "business_id")
+        business_ids = (
+            self.business_ids if business_id in self.business_ids else (*self.business_ids, business_id)
+        )
         return StaffUser(
             self.user_id, self.email, self.normalized_email, self.password_hash,
-            business_id, self.created_at,
+            business_id, self.created_at, business_ids,
         )
 
 

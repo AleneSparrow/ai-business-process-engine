@@ -155,7 +155,7 @@ def get_current_staff_user(
 def require_business_owner(
     user: Annotated[StaffUser, Depends(get_current_staff_user)],
 ) -> StaffUser:
-    if user.business_id is None:
+    if not user.business_ids:
         raise ForbiddenError("This account has not created a business yet")
     return user
 
@@ -164,8 +164,9 @@ def require_own_business(
     business_id: BusinessIdPath,
     user: Annotated[StaffUser, Depends(get_current_staff_user)],
 ) -> StaffUser:
-    """Staff-facing dashboard endpoints: the caller may only see their own tenant."""
-    if user.business_id != business_id:
+    """Staff-facing dashboard endpoints: the caller may only see a business
+    their account is linked to -- one account may be linked to several."""
+    if business_id not in user.business_ids:
         raise ForbiddenError("Not permitted for this business")
     return user
 

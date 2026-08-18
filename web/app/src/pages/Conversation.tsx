@@ -13,7 +13,7 @@ import {
 
 export default function Conversation() {
   const navigate = useNavigate();
-  const { token, user } = useAuth();
+  const { token, businessId } = useAuth();
   const [searchParams] = useSearchParams();
   const requestedCaseId = searchParams.get("case");
 
@@ -28,18 +28,17 @@ export default function Conversation() {
   const [resolving, setResolving] = useState(false);
 
   const refreshList = useCallback(() => {
-    if (!token || !user?.business_id) return;
+    if (!token || !businessId) return;
     api
-      .listConversations(token, user.business_id)
+      .listConversations(token, businessId)
       .then((res) => setConversations(res.conversations))
       .catch((err) => setError(describeError(err)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, user?.business_id]);
+  }, [token, businessId]);
 
   const refreshDetail = useCallback(
     (conversationId: string) => {
-      if (!token || !user?.business_id) return Promise.resolve();
-      const businessId = user.business_id;
+      if (!token || !businessId) return Promise.resolve();
       return api
         .getConversation(token, businessId, conversationId)
         .then((res) => {
@@ -53,14 +52,14 @@ export default function Conversation() {
           setCaseDetail(null);
         });
     },
-    [token, user?.business_id],
+    [token, businessId],
   );
 
   useEffect(() => {
     let cancelled = false;
-    if (!token || !user?.business_id) return;
+    if (!token || !businessId) return;
     api
-      .listConversations(token, user.business_id)
+      .listConversations(token, businessId)
       .then((res) => {
         if (cancelled) return;
         setConversations(res.conversations);
@@ -74,14 +73,14 @@ export default function Conversation() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, user?.business_id]);
+  }, [token, businessId]);
 
   useEffect(() => {
     let cancelled = false;
     setDetail(null);
     setCaseDetail(null);
     setActionError(null);
-    if (!token || !user?.business_id || !selectedId) return;
+    if (!token || !businessId || !selectedId) return;
     refreshDetail(selectedId).catch((err) => {
       if (!cancelled) setError(describeError(err));
     });
@@ -89,18 +88,18 @@ export default function Conversation() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, user?.business_id, selectedId]);
+  }, [token, businessId, selectedId]);
 
   const stateInfo = useMemo(() => (caseDetail ? mapProcessState(caseDetail.current_state) : null), [caseDetail]);
   const canReply = detail !== null && detail.conversation.status !== "closed";
   const canResolve = caseDetail !== null && caseDetail.current_state === "NEEDS_HUMAN";
 
   const handleSend = async () => {
-    if (!token || !user?.business_id || !selectedId || !reply.trim()) return;
+    if (!token || !businessId || !selectedId || !reply.trim()) return;
     setSending(true);
     setActionError(null);
     try {
-      await api.replyToConversation(token, user.business_id, selectedId, reply.trim());
+      await api.replyToConversation(token, businessId, selectedId, reply.trim());
       setReply("");
       await refreshDetail(selectedId);
       refreshList();
@@ -112,11 +111,11 @@ export default function Conversation() {
   };
 
   const handleResolve = async () => {
-    if (!token || !user?.business_id || !selectedId) return;
+    if (!token || !businessId || !selectedId) return;
     setResolving(true);
     setActionError(null);
     try {
-      await api.resolveConversation(token, user.business_id, selectedId);
+      await api.resolveConversation(token, businessId, selectedId);
       await refreshDetail(selectedId);
       refreshList();
     } catch (err) {

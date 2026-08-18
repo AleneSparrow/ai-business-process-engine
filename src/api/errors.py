@@ -10,7 +10,6 @@ from fastapi.responses import JSONResponse
 from src.ai.errors import AIInvalidOutputError, AIProviderError
 from src.persistence.auth_service import EmailAlreadyRegisteredError, InvalidCredentialsError
 from src.persistence.business_provisioning_service import (
-    AccountAlreadyHasBusinessError,
     BusinessIdTakenError,
     InvalidBusinessDNAError,
 )
@@ -278,14 +277,6 @@ def install_error_handlers(app: FastAPI) -> None:
         code = "invalid_credentials"
         _log_error(request, code, 401, type(exc).__name__)
         return _response(request, 401, code, "Email or password is incorrect")
-
-    @app.exception_handler(AccountAlreadyHasBusinessError)
-    async def account_already_has_business_handler(
-        request: Request, exc: AccountAlreadyHasBusinessError
-    ) -> JSONResponse:
-        code = "account_already_has_business"
-        _log_error(request, code, 409, type(exc).__name__)
-        return _response(request, 409, code, "This account is already linked to a business")
 
     @app.exception_handler(BusinessIdTakenError)
     async def business_id_taken_handler(request: Request, exc: BusinessIdTakenError) -> JSONResponse:

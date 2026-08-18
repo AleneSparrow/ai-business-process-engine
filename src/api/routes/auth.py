@@ -22,6 +22,7 @@ def _session_response(session: AuthenticatedSession) -> SessionResponse:
             user_id=session.user.user_id,
             email=session.user.email,
             business_id=session.user.business_id,
+            business_ids=list(session.user.business_ids),
         ),
     )
 
@@ -57,4 +58,9 @@ def logout(
 
 @router.get("/me", response_model=StaffUserResponse)
 def me(user: Annotated[StaffUser, Depends(get_current_staff_user)]) -> StaffUserResponse:
-    return StaffUserResponse(user_id=user.user_id, email=user.email, business_id=user.business_id)
+    return StaffUserResponse(
+        user_id=user.user_id,
+        email=user.email,
+        business_id=user.business_id,
+        business_ids=list(user.business_ids),
+    )

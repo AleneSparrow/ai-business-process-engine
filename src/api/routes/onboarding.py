@@ -10,12 +10,32 @@ from src.persistence.business_provisioning_service import (
     BusinessProvisioningService,
     business_id_from_name,
 )
-
-from ..dependencies import get_business_provisioning_service, get_current_staff_user
-from ..schemas import BusinessCreatedResponse, OnboardingRequest
+from ..dependencies import (
+    UnitOfWorkFactory,
+    get_business_provisioning_service,
+    get_current_staff_user,
+    get_unit_of_work_factory,
+)
+from ..schemas import BusinessCreatedResponse, OnboardingRequest, OwnedBusinessResponse
 
 
 router = APIRouter(prefix="/api/v1/businesses", tags=["businesses"])
+
+
+@router.get("", response_model=list[OwnedBusinessResponse])
+def list_my_businesses(
+    user: Annotated[StaffUser, Depends(get_current_staff_user)],
+    unit_of_work_factory: Annotated[UnitOfWorkFactory, Depends(get_unit_of_work_factory)],
+) -> list[OwnedBusinessResponse]:
+    """Every business the authenticated account is linked to -- powers the
+    dashboard's business switcher and "you already have N businesses" UX."""
+    with unit_of_work_factory() as unit_of_work:
+        businesses = [unit_of_work.businesses.get(business_id) for business_id in user.business_ids]
+    return [
+        OwnedBusinessResponse(business_id=business.business_id, name=business.name)
+        for business in businesses
+        if business is not None
+    ]
 
 
 @router.post("", response_model=BusinessCreatedResponse, status_code=status.HTTP_201_CREATED)

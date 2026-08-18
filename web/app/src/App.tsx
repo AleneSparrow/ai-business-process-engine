@@ -1,6 +1,6 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
-import { RequireActiveSubscription, RequireAuth, RequireBusiness, RequireNoBusiness } from "./components/RouteGuards";
+import { RequireActiveSubscription, RequireAuth, RequireBusiness } from "./components/RouteGuards";
 import Landing from "./pages/Landing";
 import LawyersLanding from "./pages/LawyersLanding";
 import Signup from "./pages/Signup";
@@ -44,10 +44,11 @@ export default function App() {
           <Route
             path="/onboarding"
             element={
+              // Reachable at any time, not just before an account's first
+              // business -- it's also how an owner adds another business
+              // (see Sidebar's "Add another business" link).
               <RequireAuth>
-                <RequireNoBusiness>
-                  <Onboarding />
-                </RequireNoBusiness>
+                <Onboarding />
               </RequireAuth>
             }
           />

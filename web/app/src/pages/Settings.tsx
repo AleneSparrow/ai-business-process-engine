@@ -153,7 +153,7 @@ function fromServer(dna: BusinessDNASettings): SettingsState {
 
 export default function Settings() {
   const navigate = useNavigate();
-  const { token, user } = useAuth();
+  const { token, businessId } = useAuth();
   // Kept in the URL (?tab=) rather than plain component state so a reload
   // -- or sharing/bookmarking the link -- lands back on the same tab
   // instead of always resetting to "business".
@@ -188,11 +188,11 @@ export default function Settings() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!token || !user?.business_id) return;
+    if (!token || !businessId) return;
     setLoading(true);
     setLoadError(null);
     api
-      .getBusinessDNASettings(token, user.business_id)
+      .getBusinessDNASettings(token, businessId)
       .then((dna) => {
         if (cancelled) return;
         const mapped = fromServer(dna);
@@ -210,15 +210,15 @@ export default function Settings() {
     return () => {
       cancelled = true;
     };
-  }, [token, user?.business_id]);
+  }, [token, businessId]);
 
   useEffect(() => {
     let cancelled = false;
-    if (!token || !user?.business_id) return;
+    if (!token || !businessId) return;
     setSmsLoading(true);
     setSmsError(null);
     api
-      .getSmsStatus(token, user.business_id)
+      .getSmsStatus(token, businessId)
       .then((status) => {
         if (!cancelled) setSmsStatus(status);
       })
@@ -231,14 +231,14 @@ export default function Settings() {
     return () => {
       cancelled = true;
     };
-  }, [token, user?.business_id]);
+  }, [token, businessId]);
 
   const provisionSms = async () => {
-    if (!token || !user?.business_id) return;
+    if (!token || !businessId) return;
     setSmsProvisioning(true);
     setSmsError(null);
     try {
-      const status = await api.provisionSms(token, user.business_id);
+      const status = await api.provisionSms(token, businessId);
       setSmsStatus(status);
     } catch (err) {
       setSmsError(describeError(err));
@@ -291,11 +291,11 @@ export default function Settings() {
   };
 
   const save = async () => {
-    if (!token || !user?.business_id || !state || !canSave) return;
+    if (!token || !businessId || !state || !canSave) return;
     setSaving(true);
     setSaveError(null);
     try {
-      const dna = await api.updateBusinessDNASettings(token, user.business_id, {
+      const dna = await api.updateBusinessDNASettings(token, businessId, {
         name: state.name.trim(),
         industry: state.industry.trim(),
         tone: state.tone,

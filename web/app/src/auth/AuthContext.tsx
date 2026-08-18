@@ -2,11 +2,23 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { api, ApiError, type StaffUser } from "../api/client";
 
 const TOKEN_STORAGE_KEY = "flywheel.session_token";
+// Which of the account's (possibly several) businesses the dashboard is
+// currently operating on -- purely a client-side choice (see
+// resolveBusinessId), since every dashboard API call already takes
+// business_id as a URL path parameter (src/api/dependencies.py's
+// require_own_business), not something the backend needs to track.
+const BUSINESS_STORAGE_KEY = "flywheel.selected_business_id";
 
 interface AuthContextValue {
   user: StaffUser | null;
   token: string | null;
   loading: boolean;
+  /** The business the dashboard is currently operating on. Null only when
+   * the account has no businesses yet (RequireBusiness sends it to
+   * /onboarding in that case). */
+  businessId: string | null;
+  /** Switch which of the account's businesses the dashboard operates on. */
+  selectBusiness: (businessId: string) => void;
   signup: (email: string, password: string) => Promise<StaffUser>;
   login: (email: string, password: string) => Promise<StaffUser>;
   logout: () => Promise<void>;
@@ -15,12 +27,30 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+/** Prefers whatever was last explicitly selected (if the account still has
+ * access to it), then the account's server-side active business, then just
+ * the first one on record. */
+function resolveBusinessId(user: StaffUser | null): string | null {
+  if (!user || user.business_ids.length === 0) return null;
+  const stored = localStorage.getItem(BUSINESS_STORAGE_KEY);
+  if (stored && user.business_ids.includes(stored)) return stored;
+  return user.business_id && user.business_ids.includes(user.business_id)
+    ? user.business_id
+    : user.business_ids[0];
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_STORAGE_KEY));
   const [user, setUserState] = useState<StaffUser | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [businessId, setBusinessIdState] = useState<string | null>(null);
 
   const setUser = useCallback((nextUser: StaffUser) => setUserState(nextUser), []);
+
+  const selectBusiness = useCallback((nextBusinessId: string) => {
+    localStorage.setItem(BUSINESS_STORAGE_KEY, nextBusinessId);
+    setBusinessIdState(nextBusinessId);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,7 +62,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       try {
         const me = await api.me(token);
-        if (!cancelled) setUserState(me);
+        if (!cancelled) {
+          setUserState(me);
+          setBusinessIdState(resolveBusinessId(me));
+        }
       } catch {
         if (!cancelled) {
           setToken(null);
@@ -55,6 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(TOKEN_STORAGE_KEY, session.token);
     setToken(session.token);
     setUserState(session.user);
+    setBusinessIdState(resolveBusinessId(session.user));
     return session.user;
   }, []);
 
@@ -63,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(TOKEN_STORAGE_KEY, session.token);
     setToken(session.token);
     setUserState(session.user);
+    setBusinessIdState(resolveBusinessId(session.user));
     return session.user;
   }, []);
 
@@ -75,12 +110,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
     localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem(BUSINESS_STORAGE_KEY);
     setToken(null);
     setUserState(null);
+    setBusinessIdState(null);
   }, [token]);
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, signup, login, logout, setUser }}>
+    <AuthContext.Provider
+      value={{ user, token, loading, businessId, selectBusiness, signup, login, logout, setUser }}
+    >
       {children}
     </AuthContext.Provider>
   );
@@ -100,8 +139,6 @@ export function describeError(err: unknown): string {
         return "An account with this email already exists — try logging in instead.";
       case "invalid_credentials":
         return "That email or password isn't right.";
-      case "account_already_has_business":
-        return "This account already has a business set up.";
       case "business_id_taken":
         return "That business name is already taken — try a slightly different name.";
       case "validation_error":

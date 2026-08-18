@@ -29,10 +29,6 @@ class BusinessProvisioningError(RuntimeError):
     pass
 
 
-class AccountAlreadyHasBusinessError(BusinessProvisioningError):
-    pass
-
-
 class BusinessIdTakenError(BusinessProvisioningError):
     pass
 
@@ -58,9 +54,9 @@ class BusinessProvisioningService:
         self._schema = _load_schema()
 
     def create_business(self, owner: StaffUser, onboarding: OnboardingInput) -> Business:
-        if owner.business_id is not None:
-            raise AccountAlreadyHasBusinessError("This account is already linked to a business")
-
+        """One account may own any number of businesses -- `owner.with_business`
+        links this new one in addition to any the account already has, and
+        makes it the account's active business."""
         configuration = build_business_dna(onboarding)
         try:
             Draft202012Validator(self._schema).validate(configuration)

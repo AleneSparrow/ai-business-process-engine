@@ -24,15 +24,7 @@ export function RequireAuth({ children }: { children: ReactElement }) {
 export function RequireBusiness({ children }: { children: ReactElement }) {
   const { user, loading } = useAuth();
   if (loading) return <FullscreenLoader />;
-  if (user && !user.business_id) return <Navigate to="/onboarding" replace />;
-  return children;
-}
-
-/** Onboarding itself: skip straight to the dashboard once a business already exists. */
-export function RequireNoBusiness({ children }: { children: ReactElement }) {
-  const { user, loading } = useAuth();
-  if (loading) return <FullscreenLoader />;
-  if (user?.business_id) return <Navigate to="/app" replace />;
+  if (user && user.business_ids.length === 0) return <Navigate to="/onboarding" replace />;
   return children;
 }
 
@@ -43,14 +35,15 @@ export function RequireNoBusiness({ children }: { children: ReactElement }) {
  * straight to /app/billing instead. Settings and Billing itself are
  * deliberately NOT wrapped in this guard -- see App.tsx. */
 export function RequireActiveSubscription({ children }: { children: ReactElement }) {
-  const { token, user, loading: authLoading } = useAuth();
+  const { token, businessId, loading: authLoading } = useAuth();
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    if (!token || !user?.business_id) return;
+    setHasAccess(null);
+    if (!token || !businessId) return;
     api
-      .getBillingStatus(token, user.business_id)
+      .getBillingStatus(token, businessId)
       .then((status) => {
         if (!cancelled) setHasAccess(status.has_billing_access);
       })
@@ -63,7 +56,7 @@ export function RequireActiveSubscription({ children }: { children: ReactElement
     return () => {
       cancelled = true;
     };
-  }, [token, user?.business_id]);
+  }, [token, businessId]);
 
   if (authLoading || hasAccess === null) return <FullscreenLoader />;
   if (!hasAccess) return <Navigate to="/app/billing" replace />;

@@ -61,7 +61,7 @@ export default function LawyersLanding() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const primaryCtaTarget = user ? (user.business_id ? "/app" : "/onboarding") : "/signup";
+  const primaryCtaTarget = user ? (user.business_ids.length > 0 ? "/app" : "/onboarding") : "/signup";
 
   return (
     <div style={{ backgroundColor: "#F5F1EA", fontFamily: "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif", color: "#151515" }} className="min-h-screen w-full">

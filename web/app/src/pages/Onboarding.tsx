@@ -92,7 +92,7 @@ interface EscalationState {
 
 export default function Onboarding() {
   const navigate = useNavigate();
-  const { user, setUser, token } = useAuth();
+  const { user, setUser, selectBusiness, token } = useAuth();
 
   const [step, setStep] = useState(0);
   const [business, setBusiness] = useState({ name: "", industry: "", tone: "Friendly & direct" });
@@ -163,7 +163,13 @@ export default function Onboarding() {
       });
 
       if (user) {
-        setUser({ ...user, business_id: created.business_id });
+        const business_ids = user.business_ids.includes(created.business_id)
+          ? user.business_ids
+          : [...user.business_ids, created.business_id];
+        setUser({ ...user, business_id: created.business_id, business_ids });
+        // This new business is clearly what the owner wants to look at next
+        // -- switch to it regardless of whatever was previously selected.
+        selectBusiness(created.business_id);
       }
       setLaunched(true);
     } catch (err) {
@@ -185,12 +191,19 @@ export default function Onboarding() {
               <FlywheelMark size={16} />
             </div>
             <span className="font-semibold text-sm" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif" }}>
-              Setting up your Business DNA
+              {user && user.business_ids.length > 0 ? "Setting up another business" : "Setting up your Business DNA"}
             </span>
           </div>
-          <span className="text-xs text-[#9C9488]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-            Step {step + 1} / {OB_STEPS.length}
-          </span>
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-[#9C9488]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+              Step {step + 1} / {OB_STEPS.length}
+            </span>
+            {user && user.business_ids.length > 0 && !launched && (
+              <button onClick={() => navigate("/app")} className="text-xs font-medium text-[#6B6459] flex items-center gap-1">
+                <X size={13} /> Cancel
+              </button>
+            )}
+          </div>
         </div>
       </header>
 

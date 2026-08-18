@@ -31,7 +31,7 @@ function StatCard({ label, value, sub, tone }: { label: string; value: string | 
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { token, user } = useAuth();
+  const { token, businessId } = useAuth();
   const [cases, setCases] = useState<DashboardCaseSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<CaseState | "ALL">("ALL");
@@ -41,9 +41,9 @@ export default function Dashboard() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!token || !user?.business_id) return;
+    if (!token || !businessId) return;
     api
-      .listCases(token, user.business_id)
+      .listCases(token, businessId)
       .then((res) => {
         if (cancelled) return;
         setCases(res.cases);
@@ -55,7 +55,7 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [token, user?.business_id]);
+  }, [token, businessId]);
 
   const decorated = useMemo(
     () =>
@@ -97,8 +97,7 @@ export default function Dashboard() {
   // page already uses (see Conversation.tsx's handleResolve). Patches the
   // resolved case in place from the response rather than a full re-fetch.
   const handleResolve = async () => {
-    if (!token || !user?.business_id || !selected) return;
-    const businessId = user.business_id;
+    if (!token || !businessId || !selected) return;
     setResolvingId(selected.case_id);
     setActionError(null);
     try {

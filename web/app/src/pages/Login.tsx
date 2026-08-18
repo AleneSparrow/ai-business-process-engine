@@ -18,7 +18,7 @@ export default function Login() {
     setSubmitting(true);
     try {
       const user = await login(email.trim(), password);
-      navigate(user.business_id ? "/app" : "/onboarding");
+      navigate(user.business_ids.length > 0 ? "/app" : "/onboarding");
     } catch (err) {
       setError(describeError(err));
     } finally {

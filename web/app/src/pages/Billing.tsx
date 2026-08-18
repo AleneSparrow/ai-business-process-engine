@@ -53,7 +53,7 @@ function formatDate(iso: string | null): string | null {
 }
 
 export default function Billing() {
-  const { token, user } = useAuth();
+  const { token, businessId } = useAuth();
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<BillingStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,11 +66,11 @@ export default function Billing() {
 
   useEffect(() => {
     let cancelled = false;
-    if (!token || !user?.business_id) return;
+    if (!token || !businessId) return;
     setLoading(true);
     setLoadError(null);
     api
-      .getBillingStatus(token, user.business_id)
+      .getBillingStatus(token, businessId)
       .then((s) => {
         if (!cancelled) setStatus(s);
       })
@@ -86,14 +86,14 @@ export default function Billing() {
     // Re-check right after returning from Checkout so a completed trial shows
     // up immediately rather than waiting on the next page load -- the webhook
     // that actually flips the status usually lands within a few seconds.
-  }, [token, user?.business_id, checkoutResult]);
+  }, [token, businessId, checkoutResult]);
 
   const startCheckout = async (plan: BillingPlan) => {
-    if (!token || !user?.business_id) return;
+    if (!token || !businessId) return;
     setPendingPlan(plan);
     setActionError(null);
     try {
-      const { checkout_url } = await api.createCheckoutSession(token, user.business_id, plan);
+      const { checkout_url } = await api.createCheckoutSession(token, businessId, plan);
       window.location.href = checkout_url;
     } catch (err) {
       setActionError(describeError(err));
@@ -102,11 +102,11 @@ export default function Billing() {
   };
 
   const openPortal = async () => {
-    if (!token || !user?.business_id) return;
+    if (!token || !businessId) return;
     setOpeningPortal(true);
     setActionError(null);
     try {
-      const { portal_url } = await api.createPortalSession(token, user.business_id);
+      const { portal_url } = await api.createPortalSession(token, businessId);
       window.location.href = portal_url;
     } catch (err) {
       setActionError(describeError(err));

@@ -56,6 +56,7 @@ from .sqlalchemy_models import (
     QuoteLineRow,
     QuoteRow,
     StaffSessionRow,
+    BusinessMembershipRow,
     StaffUserRow,
 )
 
@@ -317,12 +318,39 @@ class SQLAlchemyStaffUserRepository:
         row.business_id = user.business_id
         row.email = user.email
         row.password_hash = user.password_hash
+        # Add any businesses in user.business_ids not yet recorded as a
+        # membership. Memberships are additive here -- nothing in the domain
+        # currently removes a business from an account, so there's no
+        # deletion branch to mirror.
+        existing = set(
+            self.session.scalars(
+                select(BusinessMembershipRow.business_id).where(
+                    BusinessMembershipRow.staff_user_id == user.user_id
+                )
+            )
+        )
+        for business_id in user.business_ids:
+            if business_id not in existing:
+                self.session.add(BusinessMembershipRow(
+                    staff_user_id=user.user_id, business_id=business_id, created_at=utc_now(),
+                ))
 
-    @staticmethod
-    def _to_domain(row: StaffUserRow) -> StaffUser:
+    def _to_domain(self, row: StaffUserRow) -> StaffUser:
+        business_ids = tuple(
+            self.session.scalars(
+                select(BusinessMembershipRow.business_id)
+                .where(BusinessMembershipRow.staff_user_id == row.id)
+                .order_by(BusinessMembershipRow.created_at)
+            )
+        )
+        # A pre-migration-0010 account's active business_id may not yet have
+        # a backfilled membership row (e.g. a row written between the
+        # migration's backfill and deploy finishing) -- always include it.
+        if row.business_id is not None and row.business_id not in business_ids:
+            business_ids = (*business_ids, row.business_id)
         return StaffUser(
             row.id, row.email, row.normalized_email, row.password_hash,
-            row.business_id, _aware(row.created_at),
+            row.business_id, _aware(row.created_at), business_ids,
         )
 
 

@@ -136,6 +136,26 @@ class StaffUserRow(Base):
     )
 
 
+class BusinessMembershipRow(Base):
+    """Which businesses a staff account is linked to (many-to-many). The
+    legacy `staff_users.business_id` column above stays as that account's
+    *active* business (must be a member here) -- see migration 0010."""
+
+    __tablename__ = "business_memberships"
+
+    staff_user_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("staff_users.id", ondelete="CASCADE"), primary_key=True
+    )
+    business_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("businesses.id", ondelete="CASCADE"), primary_key=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        Index("ix_business_memberships_business", "business_id"),
+    )
+
+
 class StaffSessionRow(Base):
     __tablename__ = "staff_sessions"
 

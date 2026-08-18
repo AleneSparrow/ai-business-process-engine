@@ -461,6 +461,10 @@ class StaffUserResponse(ApiModel):
     user_id: str
     email: str
     business_id: str | None
+    # Every business this account is linked to -- business_id above is just
+    # the active one (a member of this list, or null when the list is
+    # empty). An account may own more than one business.
+    business_ids: list[str] = []
 
 
 class SessionResponse(ApiModel):
@@ -527,6 +531,14 @@ class BusinessCreatedResponse(ApiModel):
             f'<script src="/widget/widget.js" data-business-id="{business.business_id}"{base_attr}></script>'
         )
         return cls(business_id=business.business_id, name=business.name, widget_snippet=snippet)
+
+
+class OwnedBusinessResponse(ApiModel):
+    """One entry in the authenticated account's list of businesses -- powers
+    the dashboard's business switcher."""
+
+    business_id: str
+    name: str
 
 
 # --- Staff dashboard: real cases, conversations, and audit trail --------------------------

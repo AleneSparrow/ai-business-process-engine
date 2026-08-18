@@ -85,6 +85,15 @@ export interface StaffUser {
   user_id: string;
   email: string;
   business_id: string | null;
+  // Every business this account is linked to -- business_id above is just
+  // the active one (a member of this list, or null when it's empty). One
+  // account may own more than one business.
+  business_ids: string[];
+}
+
+export interface OwnedBusiness {
+  business_id: string;
+  name: string;
 }
 
 export interface SessionResponse {
@@ -327,6 +336,9 @@ export const api = {
     ),
 
   getBusiness: (businessId: string) => request<BusinessResponse>(`/api/v1/businesses/${businessId}`),
+
+  listMyBusinesses: (token: string) =>
+    request<OwnedBusiness[]>("/api/v1/businesses", { method: "GET" }, token),
 
   listCases: (token: string, businessId: string) =>
     request<DashboardCaseListResponse>(`/api/v1/businesses/${businessId}/cases`, { method: "GET" }, token),

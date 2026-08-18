@@ -48,6 +48,7 @@ def test_signup_returns_session_with_no_business_yet(auth_environment: TestClien
     assert response.status_code == 201
     body = response.json()
     assert body["user"]["business_id"] is None
+    assert body["user"]["business_ids"] == []
     assert len(body["token"]) > 20
 
 
@@ -132,16 +133,62 @@ def test_business_creation_produces_schema_valid_dna_and_links_owner(auth_enviro
 
     me_response = auth_environment.get("/api/v1/auth/me", headers=headers)
     assert me_response.json()["business_id"] == body["business_id"]
+    assert me_response.json()["business_ids"] == [body["business_id"]]
 
 
-def test_account_can_only_create_one_business(auth_environment: TestClient) -> None:
+def test_account_can_create_multiple_businesses(auth_environment: TestClient) -> None:
     token = signup(auth_environment, email="owner7@example.com").json()["token"]
     headers = {"Authorization": f"Bearer {token}"}
     first = auth_environment.post("/api/v1/businesses", json=onboarding_payload("First Co"), headers=headers)
     assert first.status_code == 201
+    first_id = first.json()["business_id"]
+
     second = auth_environment.post("/api/v1/businesses", json=onboarding_payload("Second Co"), headers=headers)
-    assert second.status_code == 409
-    assert second.json()["error"]["code"] == "account_already_has_business"
+    assert second.status_code == 201
+    second_id = second.json()["business_id"]
+    assert second_id != first_id
+
+    # The account now has both -- the newest one is active, but both remain
+    # accessible (this is what require_own_business gates on).
+    me_response = auth_environment.get("/api/v1/auth/me", headers=headers)
+    me_body = me_response.json()
+    assert me_body["business_id"] == second_id
+    assert set(me_body["business_ids"]) == {first_id, second_id}
+
+    for business_id in (first_id, second_id):
+        settings_response = auth_environment.get(
+            f"/api/v1/businesses/{business_id}/dna", headers=headers
+        )
+        assert settings_response.status_code == 200, business_id
+
+
+def test_list_my_businesses_returns_every_linked_business(auth_environment: TestClient) -> None:
+    token = signup(auth_environment, email="owner7b@example.com").json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    auth_environment.post("/api/v1/businesses", json=onboarding_payload("Alpha Co"), headers=headers)
+    auth_environment.post("/api/v1/businesses", json=onboarding_payload("Beta Co"), headers=headers)
+
+    response = auth_environment.get("/api/v1/businesses", headers=headers)
+    assert response.status_code == 200
+    names = {entry["name"] for entry in response.json()}
+    assert names == {"Alpha Co", "Beta Co"}
+
+
+def test_business_not_linked_to_account_is_forbidden(auth_environment: TestClient) -> None:
+    owner_a_token = signup(auth_environment, email="ownerC@example.com").json()["token"]
+    owner_b_token = signup(auth_environment, email="ownerD@example.com").json()["token"]
+    created = auth_environment.post(
+        "/api/v1/businesses",
+        json=onboarding_payload("Owner A's Business"),
+        headers={"Authorization": f"Bearer {owner_a_token}"},
+    )
+    business_id = created.json()["business_id"]
+
+    response = auth_environment.get(
+        f"/api/v1/businesses/{business_id}/dna",
+        headers={"Authorization": f"Bearer {owner_b_token}"},
+    )
+    assert response.status_code == 403
 
 
 def test_duplicate_business_name_is_rejected(auth_environment: TestClient) -> None:
