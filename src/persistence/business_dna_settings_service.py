@@ -21,6 +21,7 @@ import json
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -35,6 +36,14 @@ from .repositories import UnitOfWork
 
 _SCHEMA_PATH = Path(__file__).parents[2] / "config" / "business_dna.schema.json"
 _PRIMARY_AREA_ID = "primary"
+# What a service does once a lead qualifies for it -- see CommercialPathSelector
+# (src/engine/commercial.py), which reads exactly these four fulfillment_type
+# values. Settings only exposes this fixed set; the richer quoting shapes
+# (formula/starting_price/range pricing, per-input questions, human-approval
+# thresholds) stay reachable only by editing Business DNA directly for now --
+# "quote" here always means a single automatic fixed price.
+_COMMERCIAL_PATHS = ("booking", "quote", "direct_step", "human_review")
+_MONEY_PATTERN = re.compile(r"^(0|[1-9][0-9]*)(\.[0-9]{1,2})?$")
 _ALL_WEEKDAYS = (
     "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
 )
@@ -61,14 +70,36 @@ class SettingsServiceInput:
     id: str | None
     name: str
     questions: tuple[str, ...]
-    # When True, Settings turns this service fully bookable (fulfillment_type
-    # "bookable" + booking_allowed True); when False it resets to the safe
-    # "human_review" default. See BusinessDNASettingsService._apply.
-    bookable: bool = False
+    # What this service does once a lead qualifies for it -- one of
+    # _COMMERCIAL_PATHS. See BusinessDNASettingsService._apply, which maps
+    # this onto fulfillment_type/booking_allowed/quoting/direct_next_step_message.
+    commercial_path: str = "human_review"
+    # Required (and validated as a decimal amount) when commercial_path == "quote".
+    quote_price: str | None = None
+    # Required (1-1000 chars) when commercial_path == "direct_step".
+    next_step_message: str | None = None
 
     def __post_init__(self) -> None:
         if not self.name.strip():
             raise ValueError("service name must not be empty")
+        if self.commercial_path not in _COMMERCIAL_PATHS:
+            raise ValueError("service commercial_path is not recognized")
+        if self.commercial_path == "quote":
+            price_text = (self.quote_price or "").strip()
+            if not price_text:
+                raise ValueError("a quote service requires a price")
+            if not _MONEY_PATTERN.match(price_text):
+                raise ValueError("quote price must be a nonnegative decimal amount")
+            try:
+                Decimal(price_text)
+            except InvalidOperation as exc:
+                raise ValueError("quote price must be a decimal amount") from exc
+        if self.commercial_path == "direct_step":
+            message_text = (self.next_step_message or "").strip()
+            if not message_text:
+                raise ValueError("a direct-next-step service requires a message")
+            if len(message_text) > 1000:
+                raise ValueError("next-step message must be 1000 characters or fewer")
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,6 +160,21 @@ def _deep_copy(value: Any) -> Any:
     if isinstance(value, list | tuple):
         return [_deep_copy(item) for item in value]
     return value
+
+
+def _normalize_price(raw: str | None) -> str:
+    """Canonicalize a validated quote price into the exact string form
+    `fixed_price` expects (`^(0|[1-9][0-9]*)(\\.[0-9]{1,2})?$`) -- quantized
+    to at most 2 decimal places so e.g. "40" and "40.00" both save the same
+    way and round-trip cleanly through DeterministicPricingEngine.calculate
+    (src/engine/commercial.py), which reads this field back as Decimal."""
+    amount = Decimal((raw or "").strip()).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    normalized = format(amount, "f")
+    if normalized.endswith(".00"):
+        normalized = normalized[: -len(".00")]
+    elif normalized.endswith("0") and "." in normalized:
+        normalized = normalized.rstrip("0")
+    return normalized
 
 
 class BusinessDNASettingsService:
@@ -206,9 +252,30 @@ class BusinessDNASettingsService:
                 }
                 for index, question in enumerate(item.questions, start=1)
             ]
-            if item.bookable:
+            # Always rebuilt below per the *current* commercial_path -- stale
+            # quoting/direct_next_step_message from a prior save (e.g. a
+            # service switched from "quote" to "booking") must not survive,
+            # or the schema's conditional-required rules could pass on
+            # leftover data that no longer matches fulfillment_type.
+            service.pop("quoting", None)
+            service.pop("direct_next_step_message", None)
+            if item.commercial_path == "booking":
                 service["fulfillment_type"] = "bookable"
                 service["booking_allowed"] = True
+            elif item.commercial_path == "quote":
+                service["fulfillment_type"] = "quote_required"
+                service["booking_allowed"] = False
+                service["quoting"] = {
+                    "pricing_type": "fixed",
+                    "automatic_quote_allowed": True,
+                    "required_pricing_inputs": [],
+                    "pricing_input_questions": {},
+                    "fixed_price": _normalize_price(item.quote_price),
+                }
+            elif item.commercial_path == "direct_step":
+                service["fulfillment_type"] = "direct_sale"
+                service["booking_allowed"] = False
+                service["direct_next_step_message"] = (item.next_step_message or "").strip()
             else:
                 service["fulfillment_type"] = "human_review"
                 service["booking_allowed"] = False

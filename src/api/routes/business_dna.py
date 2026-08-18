@@ -55,7 +55,14 @@ def update_settings(
             industry=body.industry,
             tone=body.tone,
             services=tuple(
-                SettingsServiceInput(id=item.id, name=item.name, questions=item.questions, bookable=item.bookable)
+                SettingsServiceInput(
+                    id=item.id,
+                    name=item.name,
+                    questions=item.questions,
+                    commercial_path=item.commercial_path,
+                    quote_price=item.quote_price,
+                    next_step_message=item.next_step_message,
+                )
                 for item in body.services
             ),
             service_zip_codes=body.service_zip_codes,

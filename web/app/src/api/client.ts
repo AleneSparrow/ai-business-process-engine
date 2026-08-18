@@ -214,11 +214,18 @@ export interface StaffActionResponse {
   case: DashboardCaseSummary | null;
 }
 
+// What a service does once a lead qualifies for it -- see
+// CommercialPathSelector (src/engine/commercial.py) and
+// BusinessDNASettingsService._COMMERCIAL_PATHS on the backend.
+export type CommercialPath = "booking" | "quote" | "direct_step" | "human_review";
+
 export interface BusinessDNAService {
   id: string;
   name: string;
   questions: string[];
-  bookable: boolean;
+  commercial_path: CommercialPath;
+  quote_price: string | null;
+  next_step_message: string | null;
 }
 
 export interface BusinessHoursWindow {
@@ -245,7 +252,9 @@ export interface BusinessDNAServiceUpdate {
   id?: string;
   name: string;
   questions: string[];
-  bookable: boolean;
+  commercial_path: CommercialPath;
+  quote_price: string | null;
+  next_step_message: string | null;
 }
 
 export interface BusinessDNASettingsUpdate {

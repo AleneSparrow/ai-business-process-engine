@@ -683,19 +683,50 @@ class StaffActionResponse(ApiModel):
     case: DashboardCaseSummarySchema | None
 
 
+# fulfillment_type (Business DNA) <-> commercial_path (Settings) -- see
+# BusinessDNASettingsService._COMMERCIAL_PATHS and CommercialPathSelector
+# (src/engine/commercial.py) for what each path means at runtime.
+_FULFILLMENT_TO_COMMERCIAL_PATH = {
+    "bookable": "booking",
+    "quote_required": "quote",
+    "direct_sale": "direct_step",
+    "human_review": "human_review",
+}
+
+
 class BusinessDNAServiceSchema(ApiModel):
     id: str
     name: str
     questions: tuple[str, ...]
-    bookable: bool
+    commercial_path: str
+    # Only populated when commercial_path == "quote" and the underlying
+    # quoting.pricing_type is "fixed" -- Settings only ever writes fixed-price
+    # quotes (see BusinessDNASettingsService._apply), so a quote_required
+    # service configured with a richer pricing_type elsewhere shows an empty
+    # price here rather than a wrong one; re-saving it from Settings would
+    # require entering a fixed price, which then replaces the richer config.
+    quote_price: str | None = None
+    next_step_message: str | None = None
 
     @classmethod
     def from_domain(cls, service: Mapping[str, Any]) -> "BusinessDNAServiceSchema":
+        fulfillment_type = service.get("fulfillment_type")
+        commercial_path = _FULFILLMENT_TO_COMMERCIAL_PATH.get(fulfillment_type, "human_review")
+        quoting = service.get("quoting") if isinstance(service.get("quoting"), Mapping) else None
+        quote_price = None
+        if commercial_path == "quote" and quoting is not None and quoting.get("pricing_type") == "fixed":
+            fixed_price = quoting.get("fixed_price")
+            quote_price = str(fixed_price) if fixed_price is not None else None
+        next_step_message = None
+        if commercial_path == "direct_step" and service.get("direct_next_step_message") is not None:
+            next_step_message = str(service["direct_next_step_message"])
         return cls(
             id=str(service["id"]),
             name=str(service["name"]),
             questions=tuple(str(q["prompt"]) for q in service.get("qualification_questions", [])),
-            bookable=service.get("fulfillment_type") == "bookable" and bool(service.get("booking_allowed")),
+            commercial_path=commercial_path,
+            quote_price=quote_price,
+            next_step_message=next_step_message,
         )
 
 
@@ -764,7 +795,11 @@ class BusinessDNAServiceUpdateSchema(ApiModel):
     id: Annotated[str | None, Field(min_length=1, max_length=128)] = None
     name: Annotated[str, Field(min_length=1, max_length=200)]
     questions: Annotated[tuple[Annotated[str, Field(min_length=1, max_length=500)], ...], Field(max_length=20)] = ()
-    bookable: bool = False
+    # "booking" | "quote" | "direct_step" | "human_review" -- validated against
+    # the actual recognized set in BusinessDNASettingsService.SettingsServiceInput.
+    commercial_path: Annotated[str, Field(min_length=1, max_length=32)] = "human_review"
+    quote_price: Annotated[str | None, Field(max_length=32)] = None
+    next_step_message: Annotated[str | None, Field(max_length=1000)] = None
 
 
 class BusinessDNASettingsUpdateRequest(ApiModel):

@@ -73,7 +73,7 @@ def _update(**overrides) -> SettingsUpdate:
 def test_bookable_toggle_sets_fulfillment_type_and_booking_allowed():
     update = _update(
         services=(
-            SettingsServiceInput(id="consultation", name="Consultation", questions=(), bookable=True),
+            SettingsServiceInput(id="consultation", name="Consultation", questions=(), commercial_path="booking"),
         ),
         booking_enabled=True,
         booking_timezone="America/New_York",
@@ -93,13 +93,108 @@ def test_unbookable_toggle_resets_to_human_review():
     config["services"][0]["booking_allowed"] = True
     update = _update(
         services=(
-            SettingsServiceInput(id="consultation", name="Consultation", questions=(), bookable=False),
+            SettingsServiceInput(id="consultation", name="Consultation", questions=(), commercial_path="human_review"),
         ),
     )
     result = BusinessDNASettingsService._apply(config, update)
     service = result["services"][0]
     assert service["fulfillment_type"] == "human_review"
     assert service["booking_allowed"] is False
+
+
+def test_quote_path_sets_fixed_price_quoting():
+    update = _update(
+        services=(
+            SettingsServiceInput(
+                id="consultation", name="Consultation", questions=(), commercial_path="quote", quote_price="150"
+            ),
+        ),
+    )
+    config = BusinessDNASettingsService._apply(_base_config(), update)
+    service = config["services"][0]
+    assert service["fulfillment_type"] == "quote_required"
+    assert service["booking_allowed"] is False
+    assert service["quoting"] == {
+        "pricing_type": "fixed",
+        "automatic_quote_allowed": True,
+        "required_pricing_inputs": [],
+        "pricing_input_questions": {},
+        "fixed_price": "150",
+    }
+    assert "direct_next_step_message" not in service
+
+
+def test_quote_price_is_normalized_to_two_decimals():
+    update = _update(
+        services=(
+            SettingsServiceInput(
+                id="consultation", name="Consultation", questions=(), commercial_path="quote", quote_price="89.5"
+            ),
+        ),
+    )
+    config = BusinessDNASettingsService._apply(_base_config(), update)
+    assert config["services"][0]["quoting"]["fixed_price"] == "89.5"
+
+
+def test_quote_path_requires_price():
+    with pytest.raises(ValueError, match="requires a price"):
+        SettingsServiceInput(id="consultation", name="Consultation", questions=(), commercial_path="quote")
+
+
+def test_quote_path_rejects_non_decimal_price():
+    with pytest.raises(ValueError, match="decimal amount"):
+        SettingsServiceInput(
+            id="consultation", name="Consultation", questions=(), commercial_path="quote", quote_price="not-a-price"
+        )
+
+
+def test_direct_step_path_sets_next_step_message():
+    update = _update(
+        services=(
+            SettingsServiceInput(
+                id="consultation",
+                name="Consultation",
+                questions=(),
+                commercial_path="direct_step",
+                next_step_message="Head to our store to place your order.",
+            ),
+        ),
+    )
+    config = BusinessDNASettingsService._apply(_base_config(), update)
+    service = config["services"][0]
+    assert service["fulfillment_type"] == "direct_sale"
+    assert service["booking_allowed"] is False
+    assert service["direct_next_step_message"] == "Head to our store to place your order."
+    assert "quoting" not in service
+
+
+def test_direct_step_path_requires_message():
+    with pytest.raises(ValueError, match="requires a message"):
+        SettingsServiceInput(id="consultation", name="Consultation", questions=(), commercial_path="direct_step")
+
+
+def test_switching_away_from_quote_clears_stale_quoting():
+    config = _base_config()
+    config["services"][0]["fulfillment_type"] = "quote_required"
+    config["services"][0]["quoting"] = {
+        "pricing_type": "fixed",
+        "automatic_quote_allowed": True,
+        "required_pricing_inputs": [],
+        "pricing_input_questions": {},
+        "fixed_price": "150",
+    }
+    update = _update(
+        services=(
+            SettingsServiceInput(id="consultation", name="Consultation", questions=(), commercial_path="human_review"),
+        ),
+    )
+    result = BusinessDNASettingsService._apply(config, update)
+    assert "quoting" not in result["services"][0]
+
+
+def test_unrecognized_commercial_path_rejected():
+    with pytest.raises(ValueError, match="not recognized"):
+        SettingsServiceInput(id="consultation", name="Consultation", questions=(), commercial_path="carrier_pigeon")
 
 
 def test_business_hours_update_replaces_configured_days():

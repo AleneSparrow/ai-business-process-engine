@@ -4,13 +4,13 @@ import { ArrowLeft, Check, ChevronLeft, ChevronRight, Globe, Loader2, MapPin, Me
 import { Sidebar } from "../components/Sidebar";
 import { AreaOption, Field, formatRelativeTime, inputCls, ToneOption } from "../components/Shared";
 import { useAuth, describeError } from "../auth/AuthContext";
-import { api, type BusinessDNASettings, type SmsStatus } from "../api/client";
+import { api, type BusinessDNASettings, type CommercialPath, type SmsStatus } from "../api/client";
 
 // Grouped by the task a business owner actually has, not by which Business
 // DNA schema section a field happens to live in -- "Services" and "Booking"
 // used to be separate tabs even though a service only takes bookings once
-// both its own "bookable" checkbox AND this section's timezone/hours are
-// set; "Questions" and "Escalation" were split even though both are really
+// both its own "Book online" commercial path AND this section's timezone/hours
+// are set; "Questions" and "Escalation" were split even though both are really
 // "how the engine should handle the conversation." Four stops instead of
 // seven the owner has to click through to find anything.
 const SETTINGS_TABS = [
@@ -60,11 +60,26 @@ interface DNAServiceState {
   id: string | null;
   name: string;
   questions: string[];
-  /** Maps to fulfillment_type "bookable" + booking_allowed together — see
-   * BusinessDNASettingsService._apply. Only takes effect once the Booking tab's
-   * bookingEnabled is also on. */
-  bookable: boolean;
+  /** What happens once a lead qualifies for this service — see
+   * BusinessDNASettingsService._apply. "booking" only actually offers a slot
+   * once the Booking tab's bookingEnabled is also on. */
+  commercialPath: CommercialPath;
+  /** Only used (and required) when commercialPath === "quote". Plain decimal
+   * string, e.g. "150" or "89.50" — validated against the same pattern the
+   * backend enforces (see _MONEY_PATTERN in business_dna_settings_service.py). */
+  quotePrice: string;
+  /** Only used (and required) when commercialPath === "direct_step". */
+  nextStepMessage: string;
 }
+
+const QUOTE_PRICE_PATTERN = /^(0|[1-9][0-9]*)(\.[0-9]{1,2})?$/;
+
+const COMMERCIAL_PATH_OPTIONS: { value: CommercialPath; label: string }[] = [
+  { value: "booking", label: "Book online" },
+  { value: "quote", label: "Send a price quote" },
+  { value: "direct_step", label: "Send next steps" },
+  { value: "human_review", label: "Always hand off to you" },
+];
 
 interface SettingsState {
   name: string;
@@ -118,7 +133,15 @@ function fromServer(dna: BusinessDNASettings): SettingsState {
     name: dna.name,
     industry: dna.industry,
     tone: dna.tone,
-    services: dna.services.map((s) => ({ key: nextClientKey(), id: s.id, name: s.name, questions: [...s.questions], bookable: s.bookable })),
+    services: dna.services.map((s) => ({
+      key: nextClientKey(),
+      id: s.id,
+      name: s.name,
+      questions: [...s.questions],
+      commercialPath: s.commercial_path,
+      quotePrice: s.quote_price ?? "",
+      nextStepMessage: s.next_step_message ?? "",
+    })),
     areaMode: dna.service_zip_codes.length === 0 ? "remote" : "local",
     zips: dna.service_zip_codes.join(", "),
     escalation: { highUrgency: dna.escalate_on_high_urgency, emergency: dna.escalate_on_emergency },
@@ -239,13 +262,27 @@ export default function Settings() {
     state.industry.trim().length > 0 &&
     state.services.length > 0 &&
     state.services.every((s) => s.name.trim().length > 0) &&
+    state.services.every((s) => {
+      if (s.commercialPath === "quote") return QUOTE_PRICE_PATTERN.test(s.quotePrice.trim());
+      if (s.commercialPath === "direct_step") {
+        const msg = s.nextStepMessage.trim();
+        return msg.length > 0 && msg.length <= 1000;
+      }
+      return true;
+    }) &&
     (state.areaMode === "remote" || zipList.length > 0);
 
   const addService = () => {
     const v = newService.trim();
     if (!state || !v) return;
     if (state.services.some((s) => s.name.toLowerCase() === v.toLowerCase())) return;
-    setState({ ...state, services: [...state.services, { key: nextClientKey(), id: null, name: v, questions: [], bookable: false }] });
+    setState({
+      ...state,
+      services: [
+        ...state.services,
+        { key: nextClientKey(), id: null, name: v, questions: [], commercialPath: "human_review", quotePrice: "", nextStepMessage: "" },
+      ],
+    });
     setNewService("");
   };
   const removeService = (key: string) => {
@@ -266,7 +303,9 @@ export default function Settings() {
           id: s.id ?? undefined,
           name: s.name.trim(),
           questions: s.questions.map((q) => q.trim()).filter(Boolean),
-          bookable: s.bookable,
+          commercial_path: s.commercialPath,
+          quote_price: s.commercialPath === "quote" ? s.quotePrice.trim() : null,
+          next_step_message: s.commercialPath === "direct_step" ? s.nextStepMessage.trim() : null,
         })),
         service_zip_codes: state.areaMode === "local" ? zipList : [],
         escalate_on_high_urgency: state.escalation.highUrgency,
@@ -447,8 +486,8 @@ export default function Settings() {
                   <div className="text-sm font-semibold mt-8 mb-2 pt-6 border-t border-[#F0EFE9]">Online booking</div>
                   <p className="text-sm text-[#6B6459] mb-6">
                     Let clients pick a real open slot and get booked automatically — no back-and-forth.
-                    Only services marked bookable below are offered a slot; everything else still goes
-                    to you for review.
+                    Only services set to "Book online" below are offered a slot; this needs to be on
+                    for that to actually happen.
                   </p>
                   <label className="flex items-start gap-3 p-4 rounded-xl border cursor-pointer mb-6" style={{ borderColor: state.bookingEnabled ? "#B87333" : "#E7E5DE", backgroundColor: state.bookingEnabled ? "#F5E7D6" : "#fff" }}>
                     <input
@@ -463,22 +502,72 @@ export default function Settings() {
                     </div>
                   </label>
 
-                  <Field label="Which services can be booked online?">
-                    <div className="flex flex-col gap-2">
+                  <Field label="What happens once a lead qualifies for each service?" hint="Book online offers a real slot. Send a price quote gives an automatic fixed price. Send next steps replies with instructions instead of a price or a slot. Always hand off to you sends every qualified lead your way.">
+                    <div className="flex flex-col gap-4">
                       {state.services.length === 0 && <span className="text-xs text-[#9C9488]">Add a service above first.</span>}
                       {state.services.map((s) => (
-                        <label key={s.key} className="flex items-center gap-2.5 text-sm cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={s.bookable}
-                            onChange={() => {
-                              const services = state.services.map((svc) => (svc.key === s.key ? { ...svc, bookable: !svc.bookable } : svc));
-                              setState({ ...state, services });
-                            }}
-                            className="accent-[#B87333]"
-                          />
-                          {s.name}
-                        </label>
+                        <div key={s.key} className="p-3 rounded-xl border border-[#E7E5DE]">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <span className="text-sm font-medium min-w-0 flex-1">{s.name}</span>
+                            <select
+                              className={inputCls}
+                              style={{ width: "auto", minWidth: 200 }}
+                              value={s.commercialPath}
+                              onChange={(e) => {
+                                const commercialPath = e.target.value as CommercialPath;
+                                const services = state.services.map((svc) =>
+                                  svc.key === s.key ? { ...svc, commercialPath } : svc,
+                                );
+                                setState({ ...state, services });
+                              }}
+                            >
+                              {COMMERCIAL_PATH_OPTIONS.map((opt) => (
+                                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                          {s.commercialPath === "quote" && (
+                            <div className="mt-3">
+                              <label className="text-xs text-[#6B6459] block mb-1">Fixed price ($)</label>
+                              <input
+                                className={inputCls}
+                                style={{ width: 160 }}
+                                placeholder="e.g. 150"
+                                inputMode="decimal"
+                                value={s.quotePrice}
+                                onChange={(e) => {
+                                  const services = state.services.map((svc) =>
+                                    svc.key === s.key ? { ...svc, quotePrice: e.target.value } : svc,
+                                  );
+                                  setState({ ...state, services });
+                                }}
+                              />
+                              {!QUOTE_PRICE_PATTERN.test(s.quotePrice.trim()) && (
+                                <p className="text-xs mt-1.5" style={{ color: "#B4483A" }}>Enter a price like 150 or 89.50.</p>
+                              )}
+                            </div>
+                          )}
+                          {s.commercialPath === "direct_step" && (
+                            <div className="mt-3">
+                              <label className="text-xs text-[#6B6459] block mb-1">Message to send</label>
+                              <textarea
+                                className={inputCls}
+                                rows={2}
+                                placeholder="e.g. Head to our online store to place your order: ..."
+                                value={s.nextStepMessage}
+                                onChange={(e) => {
+                                  const services = state.services.map((svc) =>
+                                    svc.key === s.key ? { ...svc, nextStepMessage: e.target.value } : svc,
+                                  );
+                                  setState({ ...state, services });
+                                }}
+                              />
+                              {s.nextStepMessage.trim().length === 0 && (
+                                <p className="text-xs mt-1.5" style={{ color: "#B4483A" }}>A message is required.</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       ))}
                     </div>
                   </Field>
