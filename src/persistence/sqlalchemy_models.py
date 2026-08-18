@@ -45,7 +45,14 @@ class BusinessRow(Base):
     current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
-        Index("uq_businesses_payment_customer_id", "payment_customer_id", unique=True),
+        # Not unique -- see migration 0009. The same real person/email can run
+        # more than one business through this app; Lemon Squeezy assigns one
+        # customer_id per email, so a second business's checkout legitimately
+        # reuses the first business's customer_id. Webhook resolution never
+        # relies on this being unique (it uses custom_data.business_id first
+        # -- see BillingService._resolve_business_id); this index just keeps
+        # the fallback lookup (get_by_payment_customer_id) fast.
+        Index("ix_businesses_payment_customer_id", "payment_customer_id"),
         Index("ix_businesses_payment_subscription_id", "payment_subscription_id"),
     )
 

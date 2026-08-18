@@ -114,6 +114,13 @@ class SQLAlchemyBusinessRepository:
         return _business_from_row(row)
 
     def get_by_payment_customer_id(self, payment_customer_id: str) -> Business | None:
+        """Fallback lookup only (see BillingService._resolve_business_id --
+        webhook events resolve via custom_data.business_id first). Not
+        unique since migration 0009: the same Lemon Squeezy customer_id can
+        legitimately belong to more than one business (one email running
+        several businesses through this app) -- if more than one row
+        matches, this returns an arbitrary one of them, same as .scalar()
+        always has for a non-unique column."""
         row = self.session.scalar(
             select(BusinessRow).where(BusinessRow.payment_customer_id == payment_customer_id)
         )

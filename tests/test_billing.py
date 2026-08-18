@@ -279,6 +279,57 @@ def test_webhook_subscription_created_links_business_and_sets_trial(uow_factory)
     assert business.has_billing_access is True
 
 
+def test_webhook_subscription_created_allows_shared_customer_id_across_businesses(uow_factory) -> None:
+    """Regression test: found live in production when the same real person
+    checked out for a *second* business under the same email -- Lemon
+    Squeezy assigns one customer_id per email, not per subscription, so the
+    second business's subscription_created event reused the first
+    business's customer_id and used to blow up with an IntegrityError from
+    the (former) unique index on payment_customer_id (see migration 0009).
+    Every retry from Lemon Squeezy hit the same error, leaving the second
+    business stuck on subscription_status="incomplete" forever with no
+    visible error to the owner -- just a dashboard that silently never
+    unlocked. business_id resolution itself was never the problem (it comes
+    from custom_data, not customer_id -- see _resolve_business_id); this
+    only exercises the write path that used to crash."""
+    _make_business(uow_factory, "acme-co")
+    _make_business(uow_factory, "acme-labs")
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+
+    first = _subscription_event(
+        "subscription_created",
+        subscription_id="sub_acme_co",
+        customer_id="cus_shared",
+        variant_id=_VARIANT_STARTER,
+        status="on_trial",
+        trial_ends_at="2024-01-08T00:00:00.000000Z",
+        renews_at="2024-01-08T00:00:00.000000Z",
+        custom_data={"business_id": "acme-co", "plan": "starter"},
+    )
+    second = _subscription_event(
+        "subscription_created",
+        subscription_id="sub_acme_labs",
+        customer_id="cus_shared",
+        variant_id=_VARIANT_PRO,
+        status="on_trial",
+        trial_ends_at="2024-01-08T00:00:00.000000Z",
+        renews_at="2024-01-08T00:00:00.000000Z",
+        custom_data={"business_id": "acme-labs", "plan": "pro"},
+    )
+
+    service.handle_webhook(first, _sign(first))
+    service.handle_webhook(second, _sign(second))  # used to raise IntegrityError
+
+    acme_co = service.get_status("acme-co")
+    acme_labs = service.get_status("acme-labs")
+    assert acme_co.payment_customer_id == "cus_shared"
+    assert acme_co.subscription_status == "on_trial"
+    assert acme_labs.payment_customer_id == "cus_shared"
+    assert acme_labs.plan == "pro"
+    assert acme_labs.subscription_status == "on_trial"
+    assert acme_labs.has_billing_access is True
+
+
 def test_webhook_subscription_updated_sets_status_and_dates(uow_factory) -> None:
     _make_business(uow_factory)
     service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
