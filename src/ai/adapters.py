@@ -4,7 +4,7 @@ from dataclasses import replace
 import json
 import logging
 import re
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from src.domain.qualification import (
     CustomerResponse,
@@ -22,8 +22,9 @@ from .models import (
     ClarificationOutput,
     CustomerMessageOutput,
     IntentOutput,
+    ReassuranceOutput,
 )
-from .prompts import clarification_prompt, customer_response_prompt, intent_prompt
+from .prompts import clarification_prompt, customer_response_prompt, intent_prompt, reassurance_prompt
 from .provider import StructuredAIProvider
 
 # TEMPORARY diagnostic logging (2026-08-17): the qualification threshold
@@ -244,6 +245,9 @@ class AIIntentExtractor:
                 customer_name=self._evidenced(output.customer_name, message.raw_text, "name"),
                 phone=self._phone_evidenced(output.phone, message.raw_text),
                 email=self._evidenced(output.email, message.raw_text, "email"),
+                objection_phrase=self._evidenced(
+                    output.objection_phrase, message.raw_text, "objection phrase"
+                ),
             )
         except AIInvalidOutputError as exc:
             # Same diagnostic as the success path above, for the collapse-to-
@@ -565,4 +569,70 @@ class AICustomerResponseGenerator:
             case_id,
             requires_human,
             _audit(result.metadata),
+        )
+
+
+class AIReassuranceResponseGenerator:
+    """AI selects and rephrases exactly one owner-approved objection_responses
+    entry -- it is never permitted to draft new reassurance content. Selection
+    is validated in code against the closed set of configured entries, the
+    same anti-hallucination guarantee AIQuestionGenerator applies to
+    addressed_items."""
+
+    def __init__(self, provider: StructuredAIProvider) -> None:
+        self.provider = provider
+
+    def generate(
+        self,
+        objection_phrase: str,
+        approved_responses: Sequence[Mapping[str, object]],
+        business_dna: Mapping[str, object],
+        channel: str,
+        case_id: str,
+    ) -> CustomerResponse:
+        _require_permissions(business_dna, "draft_message")
+        if not approved_responses:
+            raise ValueError("cannot generate a reassurance response without any configured entries")
+        entries: list[dict[str, str]] = []
+        for entry in approved_responses:
+            trigger = entry.get("trigger_description")
+            response = entry.get("approved_response")
+            if not isinstance(trigger, str) or not isinstance(response, str):
+                raise ValueError("configured objection_responses entry is missing required text")
+            entries.append({"trigger_description": trigger, "approved_response": response})
+        communication = _communication(business_dna)
+        prompt = reassurance_prompt(
+            context={
+                "objection_phrase": objection_phrase,
+                "approved_objection_responses": entries,
+                "language": communication.get("language", "English"),
+                "tone": communication.get("tone"),
+                "channel": channel,
+            },
+            customer_message=objection_phrase,
+        )
+        request = AIRequest(
+            prompt.identifier,
+            prompt.version,
+            "reassurance_response_generation",
+            prompt.system,
+            prompt.user,
+            ReassuranceOutput,
+        )
+        result = self.provider.generate(request)
+        selected = result.output.selected_trigger_description
+        matched = next(
+            (entry for entry in entries if entry["trigger_description"] == selected), None
+        )
+        if matched is None or not _safe_message(result.output.message_text, business_dna):
+            raise AIInvalidOutputError(
+                "AI reassurance response selected an unconfigured entry or made an unsafe commitment",
+                metadata=_invalid_metadata(result.metadata),
+            )
+        return CustomerResponse(
+            result.output.message_text.strip(),
+            channel,
+            "objection_reassurance",
+            case_id,
+            ai_metadata=_audit(result.metadata),
         )

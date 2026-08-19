@@ -73,6 +73,12 @@ class IntentResult:
     customer_name: str | None = None
     phone: str | None = None
     email: str | None = None
+    # Verbatim customer phrase expressing a doubt/hesitation about moving
+    # forward (price pushback, "let me think about it", etc.) -- never a
+    # fact, emergency, hostile message, or advice request; those stay on
+    # confidence/requires_human above. See QualificationService and
+    # AIQuestionGenerator's reassurance path for how this is used.
+    objection_phrase: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.urgency, Urgency):
@@ -87,6 +93,7 @@ class IntentResult:
             (self.customer_name, "customer_name"),
             (self.phone, "phone"),
             (self.email, "email"),
+            (self.objection_phrase, "objection_phrase"),
         ):
             if value is not None:
                 _require_text(value, name)
@@ -119,6 +126,12 @@ class QualificationResult:
     requires_human: bool
     booking_allowed: bool
     service_id: str | None = None
+    # Verbatim customer objection phrase, passed through only when the case
+    # is still QUALIFYING (see QualificationService.evaluate) -- lets
+    # response generation optionally acknowledge it before re-asking for
+    # whatever is still missing. Never changes qualified/requires_human on
+    # its own.
+    objection_phrase: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "reasons", tuple(self.reasons))
@@ -126,6 +139,8 @@ class QualificationResult:
         object.__setattr__(self, "unanswered_questions", tuple(self.unanswered_questions))
         if not 0.0 <= self.confidence <= 1.0:
             raise ValueError("confidence must be between 0 and 1")
+        if self.objection_phrase is not None and self.recommended_next_state is not ProcessState.QUALIFYING:
+            raise ValueError("objection_phrase is only meaningful while the case is still QUALIFYING")
         if self.recommended_next_state not in {
             ProcessState.QUALIFIED,
             ProcessState.QUALIFYING,

@@ -28,6 +28,10 @@ from .intent_extractor import IntentExtractor
 from .process_engine import ProcessEngine
 from .qualification_service import QualificationService
 from .question_generator import QuestionGenerator
+from .reassurance_response_generator import (
+    DeterministicReassuranceResponseGenerator,
+    ReassuranceResponseGenerator,
+)
 
 
 class LeadIntakeService:
@@ -48,12 +52,16 @@ class LeadIntakeService:
         qualification_service: QualificationService | None = None,
         process_engine: ProcessEngine | None = None,
         customer_response_generator: CustomerResponseGenerator | None = None,
+        reassurance_response_generator: ReassuranceResponseGenerator | None = None,
     ) -> None:
         self.business_dna = deepcopy(business_dna)
         self.intent_extractor = intent_extractor
         self.question_generator = question_generator
         self.customer_response_generator = (
             customer_response_generator or DeterministicCustomerResponseGenerator()
+        )
+        self.reassurance_response_generator = (
+            reassurance_response_generator or DeterministicReassuranceResponseGenerator()
         )
         self.qualification_service = qualification_service or QualificationService()
         self.process_engine = process_engine or ProcessEngine()
@@ -236,7 +244,7 @@ class LeadIntakeService:
     ) -> CustomerResponse | None:
         state = qualification.recommended_next_state
         if state is ProcessState.QUALIFYING:
-            return self.question_generator.generate(
+            question_response = self.question_generator.generate(
                 MissingInformationResult(
                     qualification.missing_fields,
                     qualification.unanswered_questions,
@@ -245,6 +253,7 @@ class LeadIntakeService:
                 message.channel,
                 case.case_id,
             )
+            return self._with_reassurance(case, message, qualification, question_response)
         if state is ProcessState.NEEDS_HUMAN:
             text = self.business_dna["human_escalation"]["customer_message"]
             return self.customer_response_generator.generate(
@@ -266,6 +275,41 @@ class LeadIntakeService:
                 requires_human=False,
             )
         return None
+
+    def _with_reassurance(
+        self,
+        case: ProcessCase,
+        message: IncomingMessage,
+        qualification: QualificationResult,
+        question_response: CustomerResponse,
+    ) -> CustomerResponse:
+        """Prepend an owner-approved reassurance to the pending question(s)
+        when the customer raised an objection this turn -- zero behavior
+        change unless both (a) the AI actually detected one and (b) the
+        owner has configured at least one objection_responses entry."""
+        objection_phrase = qualification.objection_phrase
+        approved_responses = self.business_dna.get("qualification", {}).get("objection_responses", [])
+        if not objection_phrase or not approved_responses:
+            return question_response
+        reassurance_response = self.reassurance_response_generator.generate(
+            objection_phrase,
+            approved_responses,
+            self.business_dna,
+            message.channel,
+            case.case_id,
+        )
+        combined_text = f"{reassurance_response.message_text.strip()}\n\n{question_response.message_text.strip()}"
+        return CustomerResponse(
+            message_text=combined_text,
+            channel=message.channel,
+            reason="objection_reassurance_and_missing_information",
+            related_case_id=case.case_id,
+            requires_human=False,
+            ai_metadata={
+                "reassurance": dict(reassurance_response.ai_metadata),
+                "question": dict(question_response.ai_metadata),
+            },
+        )
 
     def _find_case(self, message: IncomingMessage) -> ProcessCase | None:
         if message.case_id is not None:
@@ -379,6 +423,11 @@ class LeadIntakeService:
             customer_name=current.customer_name,
             phone=current.phone,
             email=current.email,
+            # Not a "strong fact" to preserve across turns like the fields
+            # above -- an objection is a one-turn signal about *this*
+            # message. If the customer doesn't repeat it, nothing should
+            # keep re-triggering the reassurance response.
+            objection_phrase=current.objection_phrase,
         )
 
     def _validate_business_dna(self) -> None:

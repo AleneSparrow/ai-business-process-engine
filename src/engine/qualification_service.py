@@ -108,6 +108,10 @@ class QualificationService:
                 requires_human=False,
                 booking_allowed=False,
                 service_id=self._service_id(service),
+                # Passed through untouched -- which (if any) configured
+                # objection_responses entry answers it is decided later, in
+                # response generation, never here.
+                objection_phrase=intent.objection_phrase,
             )
 
         rule_outcome = self._qualification_rule_outcome(context, business_dna["qualification"])

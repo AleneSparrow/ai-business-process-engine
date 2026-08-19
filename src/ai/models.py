@@ -57,6 +57,18 @@ class IntentOutput(StrictAIModel):
     confidence: float = Field(ge=0.0, le=1.0)
     requires_human: bool
     qualification_answers: list[QualificationAnswerOutput] = Field(max_length=50)
+    objection_phrase: str | None = Field(
+        max_length=300,
+        description=(
+            "Set ONLY when the customer expresses a doubt, hesitation, or pushback about moving "
+            "forward -- price pushback, 'let me think about it', 'not sure this is for me', 'does this "
+            "actually work for my situation'. A short VERBATIM phrase copied from the customer's own "
+            "words, never a paraphrase. Null whenever the message is a plain fact, a request for a "
+            "service, an emergency, hostile, or an explicit advice/opinion request -- those are handled "
+            "by confidence/requires_human above, not this field. An objection is a normal, low-risk part "
+            "of a sales conversation and must NOT by itself raise requires_human or lower confidence."
+        ),
+    )
 
 
 class ClarificationOutput(StrictAIModel):
@@ -67,6 +79,26 @@ class ClarificationOutput(StrictAIModel):
 class CustomerMessageOutput(StrictAIModel):
     response_type: Literal["not_qualified", "human_escalation"]
     message_text: str = Field(min_length=1, max_length=1_500)
+
+
+class ReassuranceOutput(StrictAIModel):
+    selected_trigger_description: str = Field(
+        min_length=1,
+        max_length=300,
+        description=(
+            "Copied EXACTLY (character for character) from one entry's trigger_description in "
+            "APPROVED_OBJECTION_RESPONSES -- the entry whose approved_response actually answers the "
+            "customer's objection. Never invented, never edited."
+        ),
+    )
+    message_text: str = Field(
+        min_length=1,
+        max_length=800,
+        description=(
+            "A rephrasing of ONLY that entry's approved_response, adapted for tone -- must not add any "
+            "fact, promise, price, or commitment that isn't already in the approved_response text."
+        ),
+    )
 
 
 @dataclass(frozen=True, slots=True)

@@ -203,6 +203,13 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
                 "Sorry, this request is outside what we currently support "
                 "— we'll follow up if that changes."
             ),
+            # Empty by default -- no behavior change for businesses that don't
+            # need it (see QualificationService: an empty list here means the
+            # reassurance-response feature never activates). An owner fills
+            # this in later with their own typical objections and the exact
+            # response approved for each; the AI only ever selects and
+            # rephrases one of these entries, it never invents a new one.
+            "objection_responses": [],
         },
         "booking": {
             "enabled": False,

@@ -25,6 +25,10 @@ from src.engine.lead_intake import LeadIntakeService
 from src.engine.process_engine import ProcessEngine
 from src.engine.qualification_service import QualificationService
 from src.engine.question_generator import QuestionGenerator
+from src.engine.reassurance_response_generator import (
+    DeterministicReassuranceResponseGenerator,
+    ReassuranceResponseGenerator,
+)
 
 from .errors import IdempotencyInProgressError, MessageScopeError
 from .repositories import ClaimStatus, UnitOfWork, UnitOfWorkFactory
@@ -39,12 +43,16 @@ class PersistentLeadIntakeService:
         qualification_service: QualificationService | None = None,
         process_engine: ProcessEngine | None = None,
         customer_response_generator: CustomerResponseGenerator | None = None,
+        reassurance_response_generator: ReassuranceResponseGenerator | None = None,
     ) -> None:
         self.unit_of_work_factory = unit_of_work_factory
         self.intent_extractor = intent_extractor
         self.question_generator = question_generator
         self.customer_response_generator = (
             customer_response_generator or DeterministicCustomerResponseGenerator()
+        )
+        self.reassurance_response_generator = (
+            reassurance_response_generator or DeterministicReassuranceResponseGenerator()
         )
         self.qualification_service = qualification_service or QualificationService()
         self.process_engine = process_engine or ProcessEngine()
@@ -86,6 +94,7 @@ class PersistentLeadIntakeService:
             self.qualification_service,
             self.process_engine,
             self.customer_response_generator,
+            self.reassurance_response_generator,
         )
         try:
             workflow._validate_message_scope(message)

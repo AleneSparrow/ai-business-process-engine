@@ -9,8 +9,17 @@ from src.engine.customer_response_generator import (
 )
 from src.engine.intent_extractor import DeterministicIntentExtractor, IntentExtractor
 from src.engine.question_generator import DeterministicQuestionGenerator, QuestionGenerator
+from src.engine.reassurance_response_generator import (
+    DeterministicReassuranceResponseGenerator,
+    ReassuranceResponseGenerator,
+)
 
-from .adapters import AICustomerResponseGenerator, AIIntentExtractor, AIQuestionGenerator
+from .adapters import (
+    AICustomerResponseGenerator,
+    AIIntentExtractor,
+    AIQuestionGenerator,
+    AIReassuranceResponseGenerator,
+)
 from .anthropic_provider import AnthropicProvider
 from .openai_provider import OpenAIProvider
 from .provider import RetryingAIProvider
@@ -21,6 +30,7 @@ class AIRuntimeComponents:
     intent_extractor: IntentExtractor
     question_generator: QuestionGenerator
     customer_response_generator: CustomerResponseGenerator
+    reassurance_response_generator: ReassuranceResponseGenerator
     provider_name: str
     model_name: str
 
@@ -31,6 +41,7 @@ def build_ai_runtime(settings: Settings) -> AIRuntimeComponents:
             DeterministicIntentExtractor(),
             DeterministicQuestionGenerator(),
             DeterministicCustomerResponseGenerator(),
+            DeterministicReassuranceResponseGenerator(),
             "deterministic",
             "deterministic-v1",
         )
@@ -49,6 +60,7 @@ def build_ai_runtime(settings: Settings) -> AIRuntimeComponents:
             AIIntentExtractor(provider),
             AIQuestionGenerator(provider),
             AICustomerResponseGenerator(provider),
+            AIReassuranceResponseGenerator(provider),
             "anthropic",
             settings.anthropic_model,
         )
@@ -68,6 +80,7 @@ def build_ai_runtime(settings: Settings) -> AIRuntimeComponents:
         AIIntentExtractor(provider),
         AIQuestionGenerator(provider),
         AICustomerResponseGenerator(provider),
+        AIReassuranceResponseGenerator(provider),
         "openai",
         settings.openai_model,
     )
