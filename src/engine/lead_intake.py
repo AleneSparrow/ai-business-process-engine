@@ -2,10 +2,13 @@
 
 from dataclasses import replace
 from copy import deepcopy
+import json
+import logging
 import re
 from typing import Any, Mapping
 from uuid import uuid4
 
+from src.ai.errors import AIInvalidOutputError
 from src.domain.events import EventType
 from src.domain.models import DecisionType, Lead, ProcessCase, ProcessEvent
 from src.domain.qualification import (
@@ -27,11 +30,21 @@ from .customer_response_generator import (
 from .intent_extractor import IntentExtractor
 from .process_engine import ProcessEngine
 from .qualification_service import QualificationService
-from .question_generator import QuestionGenerator
+from .question_generator import DeterministicQuestionGenerator, QuestionGenerator
 from .reassurance_response_generator import (
     DeterministicReassuranceResponseGenerator,
     ReassuranceResponseGenerator,
 )
+
+# Not importing src.api.observability.log_event here for the same reason
+# QualificationService doesn't -- src/api/app.py imports engine modules, so a
+# dependency from src.engine back onto src.api risks a circular import.
+_LOGGER = logging.getLogger("uvicorn.error")
+
+
+def _log_event(level: int, event: str, **fields: Any) -> None:
+    payload = {"event": event, **{key: value for key, value in fields.items() if value is not None}}
+    _LOGGER.log(level, json.dumps(payload, separators=(",", ":"), default=str))
 
 
 class LeadIntakeService:
@@ -65,6 +78,14 @@ class LeadIntakeService:
         )
         self.qualification_service = qualification_service or QualificationService()
         self.process_engine = process_engine or ProcessEngine()
+        # Safety net, not the primary path: DeterministicQuestionGenerator
+        # composes its questions from configured prompts, no AI call at all,
+        # so it can't fail the way an AI provider can. Used only when
+        # self.question_generator raises AIInvalidOutputError (see
+        # _create_response) -- e.g. a model returning a malformed tool call
+        # after exhausting its own resample retries -- so a customer gets a
+        # plain clarifying question instead of a raw 503.
+        self._fallback_question_generator = DeterministicQuestionGenerator()
         self._cases: dict[str, ProcessCase] = {}
         self._identity_index: dict[tuple[str, str, str], str] = {}
         self._processed_messages: dict[tuple[str, str, str], LeadIntakeResult] = {}
@@ -244,15 +265,35 @@ class LeadIntakeService:
     ) -> CustomerResponse | None:
         state = qualification.recommended_next_state
         if state is ProcessState.QUALIFYING:
-            question_response = self.question_generator.generate(
-                MissingInformationResult(
-                    qualification.missing_fields,
-                    qualification.unanswered_questions,
-                ),
-                self.business_dna,
-                message.channel,
-                case.case_id,
+            missing = MissingInformationResult(
+                qualification.missing_fields,
+                qualification.unanswered_questions,
             )
+            try:
+                question_response = self.question_generator.generate(
+                    missing, self.business_dna, message.channel, case.case_id,
+                )
+            except AIInvalidOutputError as exc:
+                # The AI generator (when configured) already resampled
+                # internally and still couldn't produce a validated
+                # clarifying question -- see AnthropicProvider's own retry
+                # loop and AIQuestionGenerator.generate's addressed_items
+                # check. Rather than let that become a raw 503 for the
+                # customer, fall back to the deterministic generator, which
+                # renders the same configured prompts without any AI call
+                # and therefore can't fail the same way. Every other
+                # AIProviderError subclass (auth, configuration, rate limit,
+                # timeout, transport) is a real infrastructure problem, not
+                # "the model returned garbage" -- those still propagate.
+                _log_event(
+                    logging.WARNING,
+                    "question_generator_fallback_to_deterministic",
+                    business_id=self.business_dna.get("business", {}).get("id"),
+                    reason=str(exc),
+                )
+                question_response = self._fallback_question_generator.generate(
+                    missing, self.business_dna, message.channel, case.case_id,
+                )
             return self._with_reassurance(case, message, qualification, question_response)
         if state is ProcessState.NEEDS_HUMAN:
             text = self.business_dna["human_escalation"]["customer_message"]
