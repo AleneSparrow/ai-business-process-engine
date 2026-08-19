@@ -81,6 +81,13 @@ const COMMERCIAL_PATH_OPTIONS: { value: CommercialPath; label: string }[] = [
   { value: "human_review", label: "Always hand off to you" },
 ];
 
+interface ObjectionResponseState {
+  /** Client-only identity, same purpose as DNAServiceState.key. */
+  key: string;
+  trigger: string;
+  response: string;
+}
+
 interface SettingsState {
   name: string;
   industry: string;
@@ -95,6 +102,10 @@ interface SettingsState {
   bookingEnabled: boolean;
   bookingTimezone: string;
   hours: WeekHoursState;
+  /** Owner-authored objection/pre-approved-response pairs -- see
+   * qualification.objection_responses in the Business DNA schema. Empty
+   * means the reassurance-response feature is off for this business. */
+  objectionResponses: ObjectionResponseState[];
 }
 
 /** Preset labels map to the exact copy `src/domain/business_dna_builder.py::_TONE_COPY`
@@ -161,6 +172,11 @@ function fromServer(dna: BusinessDNASettings): SettingsState {
       ? dna.booking_timezone
       : US_TIMEZONES[0].value,
     hours,
+    objectionResponses: dna.objection_responses.map((o) => ({
+      key: nextClientKey(),
+      trigger: o.trigger_description,
+      response: o.approved_response,
+    })),
   };
 }
 
@@ -283,7 +299,11 @@ export default function Settings() {
       }
       return true;
     }) &&
-    (state.areaMode === "remote" || zipList.length > 0);
+    (state.areaMode === "remote" || zipList.length > 0) &&
+    // A fully blank row is fine (silently dropped on save, same as a blank
+    // qualification question) -- only a HALF-filled row blocks save, so a
+    // partly-typed objection never silently vanishes without feedback.
+    state.objectionResponses.every((o) => (o.trigger.trim().length > 0) === (o.response.trim().length > 0));
 
   const addService = () => {
     const v = newService.trim();
@@ -303,10 +323,34 @@ export default function Settings() {
     setState({ ...state, services: state.services.filter((s) => s.key !== key) });
   };
 
+  const addObjection = () => {
+    if (!state) return;
+    setState({
+      ...state,
+      objectionResponses: [...state.objectionResponses, { key: nextClientKey(), trigger: "", response: "" }],
+    });
+  };
+  const removeObjection = (key: string) => {
+    if (!state) return;
+    setState({ ...state, objectionResponses: state.objectionResponses.filter((o) => o.key !== key) });
+  };
+  const updateObjection = (key: string, field: "trigger" | "response", value: string) => {
+    if (!state) return;
+    setState({
+      ...state,
+      objectionResponses: state.objectionResponses.map((o) => (o.key === key ? { ...o, [field]: value } : o)),
+    });
+  };
+
   const save = async () => {
     if (!token || !businessId || !state || !canSave) return;
     setSaving(true);
     setSaveError(null);
+    // canSave already guarantees no half-filled row -- only fully blank rows
+    // get dropped here, same as a blank qualification question.
+    const submittedObjections = state.objectionResponses.filter(
+      (o) => o.trigger.trim().length > 0 && o.response.trim().length > 0,
+    );
     try {
       const dna = await api.updateBusinessDNASettings(token, businessId, {
         name: state.name.trim(),
@@ -330,13 +374,21 @@ export default function Settings() {
           if (d.open) acc[day] = [{ opens: d.opens, closes: d.closes }];
           return acc;
         }, {} as Record<string, { opens: string; closes: string }[]>),
+        objection_responses: submittedObjections.map((o) => ({
+          trigger_description: o.trigger.trim(),
+          approved_response: o.response.trim(),
+        })),
       });
       const mapped = fromServer(dna);
       // Keep the client-only keys we already had (by position — the server returns
-      // services in the same order we submitted them) so inputs don't remount and
-      // lose focus/selection right after a save.
+      // services/objections in the same order we submitted them) so inputs don't
+      // remount and lose focus/selection right after a save.
       const services = mapped.services.map((s, i) => ({ ...s, key: state.services[i]?.key ?? s.key }));
-      const next = { ...mapped, services };
+      const objectionResponses = mapped.objectionResponses.map((o, i) => ({
+        ...o,
+        key: submittedObjections[i]?.key ?? o.key,
+      }));
+      const next = { ...mapped, services, objectionResponses };
       setState(next);
       setBaseline(next);
       setVersion(dna.version);
@@ -680,6 +732,58 @@ export default function Settings() {
                       </div>
                     </div>
                   ))}
+
+                  <div className="text-sm font-semibold mt-8 mb-2 pt-6 border-t border-[#F0EFE9]">Objections</div>
+                  <p className="text-sm text-[#6B6459] mb-4">
+                    When a customer pushes back — price, timing, whether this fits their situation — the engine
+                    picks the closest match below and rewords it for the moment. It never writes its own answer,
+                    only yours. Leave this empty and objections are handled like any other message.
+                  </p>
+                  {state.objectionResponses.map((o) => (
+                    <div key={o.key} className="mb-4 p-4 rounded-xl border border-[#E7E5DE]">
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 flex flex-col gap-2.5">
+                          <div>
+                            <label className="text-xs text-[#6B6459] block mb-1">What the customer is objecting to</label>
+                            <input
+                              className={inputCls}
+                              placeholder="e.g. price pushback"
+                              value={o.trigger}
+                              maxLength={300}
+                              onChange={(e) => updateObjection(o.key, "trigger", e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <label className="text-xs text-[#6B6459] block mb-1">Your approved response</label>
+                            <textarea
+                              className={inputCls}
+                              rows={2}
+                              maxLength={800}
+                              placeholder="e.g. We charge a flat rate for the first visit, no surprises."
+                              value={o.response}
+                              onChange={(e) => updateObjection(o.key, "response", e.target.value)}
+                            />
+                          </div>
+                          {(o.trigger.trim().length > 0) !== (o.response.trim().length > 0) && (
+                            <p className="text-xs" style={{ color: "#B4483A" }}>
+                              Fill in both fields, or remove this entry.
+                            </p>
+                          )}
+                        </div>
+                        <X
+                          size={14}
+                          className="cursor-pointer text-[#9C9488] shrink-0 mt-1"
+                          onClick={() => removeObjection(o.key)}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                  <button
+                    className="text-xs font-medium text-[#B87333] flex items-center gap-1"
+                    onClick={addObjection}
+                  >
+                    <Plus size={12} /> Add objection
+                  </button>
 
                   <div className="text-sm font-semibold mt-8 mb-2 pt-6 border-t border-[#F0EFE9]">Escalation</div>
                   <p className="text-sm text-[#6B6459] mb-4">The engine never guesses past these lines — it stops and asks.</p>

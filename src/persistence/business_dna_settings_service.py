@@ -103,6 +103,28 @@ class SettingsServiceInput:
 
 
 @dataclass(frozen=True, slots=True)
+class ObjectionResponseInput:
+    """One owner-authored {objection, pre-approved response} pair -- see
+    qualification.objection_responses in the Business DNA schema. The AI is
+    only ever allowed to select and rephrase one of these entries; it can
+    never write reassurance content of its own. Length limits mirror the
+    schema (config/business_dna.schema.json)."""
+
+    trigger_description: str
+    approved_response: str
+
+    def __post_init__(self) -> None:
+        if not self.trigger_description.strip():
+            raise ValueError("objection trigger_description must not be empty")
+        if len(self.trigger_description) > 300:
+            raise ValueError("objection trigger_description must be 300 characters or fewer")
+        if not self.approved_response.strip():
+            raise ValueError("objection approved_response must not be empty")
+        if len(self.approved_response) > 800:
+            raise ValueError("objection approved_response must be 800 characters or fewer")
+
+
+@dataclass(frozen=True, slots=True)
 class SettingsUpdate:
     name: str
     industry: str
@@ -117,6 +139,12 @@ class SettingsUpdate:
     # unchanged" -- see _apply. Keys must be from _ALL_WEEKDAYS; a day with no
     # windows (or omitted entirely) means the business is closed that day.
     business_hours: Mapping[str, tuple[tuple[str, str], ...]] = field(default_factory=dict)
+    # Empty means the reassurance-response feature stays off for this
+    # business -- see qualification_service.py / lead_intake.py, which only
+    # activate it when both an objection is detected AND this list is
+    # non-empty. Settings is the sole owner of this list once touched here,
+    # same convention as business_hours above.
+    objection_responses: tuple[ObjectionResponseInput, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.name.strip():
@@ -348,5 +376,10 @@ class BusinessDNASettingsService:
         booking["allowed_times"] = list(_UNRESTRICTED_ALLOWED_TIMES)
         config["booking"] = booking
         config["business"]["timezone"] = update.booking_timezone
+
+        config["qualification"]["objection_responses"] = [
+            {"trigger_description": item.trigger_description.strip(), "approved_response": item.approved_response.strip()}
+            for item in update.objection_responses
+        ]
 
         return config

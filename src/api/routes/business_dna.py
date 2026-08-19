@@ -12,6 +12,7 @@ from src.domain.auth import StaffUser
 from src.persistence.business_dna_settings_service import (
     BusinessDNANotConfiguredError,
     BusinessDNASettingsService,
+    ObjectionResponseInput,
     SettingsServiceInput,
     SettingsUpdate,
 )
@@ -74,6 +75,13 @@ def update_settings(
                 day: tuple((window.opens, window.closes) for window in windows)
                 for day, windows in body.business_hours.items()
             },
+            objection_responses=tuple(
+                ObjectionResponseInput(
+                    trigger_description=item.trigger_description,
+                    approved_response=item.approved_response,
+                )
+                for item in body.objection_responses
+            ),
         )
         dna = service.update(business_id, update)
     except BusinessDNANotConfiguredError as exc:

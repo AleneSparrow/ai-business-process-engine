@@ -242,6 +242,14 @@ export interface BusinessHoursWindow {
   closes: string;
 }
 
+// One owner-authored {objection, pre-approved response} pair -- see
+// qualification.objection_responses in the Business DNA schema. The AI only
+// ever selects and rephrases one of these entries, never invents its own.
+export interface ObjectionResponse {
+  trigger_description: string;
+  approved_response: string;
+}
+
 export interface BusinessDNASettings {
   version: number;
   updated_at: string;
@@ -255,6 +263,7 @@ export interface BusinessDNASettings {
   booking_enabled: boolean;
   booking_timezone: string;
   business_hours: Record<string, BusinessHoursWindow[]>;
+  objection_responses: ObjectionResponse[];
 }
 
 export interface BusinessDNAServiceUpdate {
@@ -277,6 +286,7 @@ export interface BusinessDNASettingsUpdate {
   booking_enabled: boolean;
   booking_timezone: string;
   business_hours: Record<string, BusinessHoursWindow[]>;
+  objection_responses: ObjectionResponse[];
 }
 
 export type BillingPlan = "starter" | "pro";

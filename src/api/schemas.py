@@ -747,6 +747,23 @@ class BusinessHoursWindowSchema(ApiModel):
     closes: Annotated[str, Field(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")]
 
 
+class ObjectionResponseSchema(ApiModel):
+    """One owner-authored {objection, pre-approved response} pair -- see
+    qualification.objection_responses in the Business DNA schema. The AI is
+    only ever allowed to select and rephrase one of these entries, never
+    invent its own."""
+
+    trigger_description: str
+    approved_response: str
+
+    @classmethod
+    def from_domain(cls, entry: Mapping[str, Any]) -> "ObjectionResponseSchema":
+        return cls(
+            trigger_description=str(entry.get("trigger_description", "")),
+            approved_response=str(entry.get("approved_response", "")),
+        )
+
+
 class BusinessDNASettingsResponse(ApiModel):
     version: int
     updated_at: datetime
@@ -760,6 +777,7 @@ class BusinessDNASettingsResponse(ApiModel):
     booking_enabled: bool
     booking_timezone: str
     business_hours: dict[str, tuple[BusinessHoursWindowSchema, ...]]
+    objection_responses: tuple[ObjectionResponseSchema, ...] = ()
 
     @classmethod
     def from_domain(cls, dna: BusinessDNAVersion) -> "BusinessDNASettingsResponse":
@@ -800,6 +818,11 @@ class BusinessDNASettingsResponse(ApiModel):
             booking_enabled=bool(booking.get("enabled", False)),
             booking_timezone=str(booking.get("timezone", "UTC")),
             business_hours=business_hours,
+            objection_responses=tuple(
+                ObjectionResponseSchema.from_domain(entry)
+                for entry in config["qualification"].get("objection_responses", [])
+                if isinstance(entry, Mapping)
+            ),
         )
 
 
@@ -812,6 +835,11 @@ class BusinessDNAServiceUpdateSchema(ApiModel):
     commercial_path: Annotated[str, Field(min_length=1, max_length=32)] = "human_review"
     quote_price: Annotated[str | None, Field(max_length=32)] = None
     next_step_message: Annotated[str | None, Field(max_length=1000)] = None
+
+
+class ObjectionResponseUpdateSchema(ApiModel):
+    trigger_description: Annotated[str, Field(min_length=1, max_length=300)]
+    approved_response: Annotated[str, Field(min_length=1, max_length=800)]
 
 
 class BusinessDNASettingsUpdateRequest(ApiModel):
@@ -832,3 +860,8 @@ class BusinessDNASettingsUpdateRequest(ApiModel):
     # Empty means "leave business_hours as currently configured" -- see
     # BusinessDNASettingsService._apply.
     business_hours: dict[str, tuple[BusinessHoursWindowSchema, ...]] = Field(default_factory=dict)
+    # Empty turns the reassurance-response feature off -- see SettingsUpdate.
+    # Settings fully owns this list once saved (unlike business_hours above),
+    # so an empty submission here genuinely clears any previously configured
+    # entries rather than leaving them untouched.
+    objection_responses: Annotated[tuple[ObjectionResponseUpdateSchema, ...], Field(max_length=50)] = ()
