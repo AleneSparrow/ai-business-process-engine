@@ -21,6 +21,17 @@ _TONE_COPY = {
     "Casual & brief": "casual, brief, and plainspoken",
 }
 _DEFAULT_TONE_COPY = "friendly, concise, and professional"
+# The onboarding wizard has no timezone question, so every business used to
+# get "UTC" here regardless of where they actually are -- for a 100%
+# US-market product that meant every fresh business quoted appointment times
+# in UTC to its customers until the owner separately visited Settings and
+# explicitly re-picked their zone (Settings' timezone <select> only offers
+# real US zones, so an unmodified "UTC" value also didn't match any option
+# there and silently rendered as whichever zone happened to be first in the
+# list -- see Settings.tsx). Eastern is not correct for every business, but
+# it is a real, DST-aware US zone and a safer single default than UTC; the
+# owner can still change it any time in Settings.
+_DEFAULT_TIMEZONE = "America/New_York"
 
 _SERVICE_AREA_ID = "primary"
 _WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday")
@@ -148,7 +159,7 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
             "name": onboarding.business_name,
             "industry": onboarding.industry,
             "description": "",
-            "timezone": "UTC",
+            "timezone": _DEFAULT_TIMEZONE,
             "currency": "USD",
         },
         "services": _build_services(onboarding.services),
@@ -195,7 +206,7 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
         },
         "booking": {
             "enabled": False,
-            "timezone": "UTC",
+            "timezone": _DEFAULT_TIMEZONE,
             "minimum_notice_minutes": 120,
             "maximum_advance_days": 60,
             "slot_interval_minutes": 30,

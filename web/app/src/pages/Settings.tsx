@@ -146,7 +146,20 @@ function fromServer(dna: BusinessDNASettings): SettingsState {
     zips: dna.service_zip_codes.join(", "),
     escalation: { highUrgency: dna.escalate_on_high_urgency, emergency: dna.escalate_on_emergency },
     bookingEnabled: dna.booking_enabled,
-    bookingTimezone: dna.booking_timezone,
+    // Live finding (2026-08-19): a business whose stored booking_timezone
+    // isn't one of the real US zones below (e.g. a fresh business still on
+    // the "UTC" onboarding default) fell into a React <select> footgun --
+    // value={dna.booking_timezone} matches no <option>, so the browser just
+    // displays the FIRST option ("Eastern") while the real bound value stays
+    // "UTC". The owner sees "Eastern" selected, saves without touching it,
+    // and Settings silently re-persists "UTC" -- which is exactly why
+    // customers were seeing appointment times in UTC on a business whose
+    // Settings page appeared to already say Eastern. Falling back to a real
+    // zone here means the dropdown never again lies about what it's about
+    // to save.
+    bookingTimezone: US_TIMEZONES.some((tz) => tz.value === dna.booking_timezone)
+      ? dna.booking_timezone
+      : US_TIMEZONES[0].value,
     hours,
   };
 }
