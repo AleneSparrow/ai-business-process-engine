@@ -2,7 +2,7 @@
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, status
+from fastapi import APIRouter, Depends, status
 
 from src.domain.auth import StaffUser
 from src.domain.business_dna_builder import OnboardingInput, OnboardingService
@@ -15,6 +15,7 @@ from ..dependencies import (
     get_business_provisioning_service,
     get_current_staff_user,
     get_unit_of_work_factory,
+    resolve_public_api_base,
 )
 from ..schemas import BusinessCreatedResponse, OnboardingRequest, OwnedBusinessResponse
 
@@ -41,7 +42,7 @@ def list_my_businesses(
 @router.post("", response_model=BusinessCreatedResponse, status_code=status.HTTP_201_CREATED)
 def create_business(
     body: OnboardingRequest,
-    request: Request,
+    api_base: Annotated[str, Depends(resolve_public_api_base)],
     user: Annotated[StaffUser, Depends(get_current_staff_user)],
     provisioning_service: Annotated[BusinessProvisioningService, Depends(get_business_provisioning_service)],
 ) -> BusinessCreatedResponse:
@@ -59,5 +60,4 @@ def create_business(
         escalate_on_emergency=body.escalate_on_emergency,
     )
     business = provisioning_service.create_business(user, onboarding)
-    api_base = str(request.base_url).rstrip("/")
     return BusinessCreatedResponse.from_domain(business, api_base=api_base)

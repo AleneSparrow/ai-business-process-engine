@@ -185,6 +185,33 @@ def test_dna_settings_widget_snippet_is_an_absolute_url_to_this_deployment(auth_
     assert re.search(r'src="https?://[^"]+/widget/widget\.js"', snippet)
 
 
+def test_dna_settings_widget_snippet_uses_the_forwarded_scheme_behind_a_proxy(
+    auth_environment: TestClient,
+) -> None:
+    """Live finding (2026-08-19): request.base_url alone reports the scheme
+    of the connection *to this process*, not the public one -- on Railway
+    (TLS terminates at the platform edge) that produced an http:// snippet
+    even though Settings itself loads over https, which a real HTTPS site
+    refuses to load as mixed content. resolve_public_api_base falls back to
+    X-Forwarded-Proto when PUBLIC_API_BASE_URL isn't configured (as in this
+    test environment) -- confirm it actually gets honored end to end."""
+    token = signup(auth_environment, email="owner7d@example.com").json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    created = auth_environment.post(
+        "/api/v1/businesses", json=onboarding_payload("Proxy Scheme Co"), headers=headers
+    )
+    business_id = created.json()["business_id"]
+
+    settings_response = auth_environment.get(
+        f"/api/v1/businesses/{business_id}/dna",
+        headers={**headers, "X-Forwarded-Proto": "https"},
+    )
+    assert settings_response.status_code == 200
+    snippet = settings_response.json()["widget_snippet"]
+    assert re.search(r'src="https://[^"]+/widget/widget\.js"', snippet)
+    assert 'src="http://' not in snippet
+
+
 def test_list_my_businesses_returns_every_linked_business(auth_environment: TestClient) -> None:
     token = signup(auth_environment, email="owner7b@example.com").json()["token"]
     headers = {"Authorization": f"Bearer {token}"}

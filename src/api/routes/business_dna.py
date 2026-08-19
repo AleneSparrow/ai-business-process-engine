@@ -6,7 +6,7 @@ save touches vs carries over unchanged from the current active version.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 
 from src.domain.auth import StaffUser
 from src.persistence.business_dna_settings_service import (
@@ -17,7 +17,12 @@ from src.persistence.business_dna_settings_service import (
     SettingsUpdate,
 )
 
-from ..dependencies import BusinessIdPath, get_business_dna_settings_service, require_own_business
+from ..dependencies import (
+    BusinessIdPath,
+    get_business_dna_settings_service,
+    require_own_business,
+    resolve_public_api_base,
+)
 from ..errors import RequestDataError, ResourceNotFoundError
 from ..schemas import BusinessDNASettingsResponse, BusinessDNASettingsUpdateRequest
 
@@ -33,7 +38,7 @@ def _not_configured() -> ResourceNotFoundError:
 @router.get("/dna", response_model=BusinessDNASettingsResponse)
 def get_settings(
     business_id: BusinessIdPath,
-    request: Request,
+    api_base: Annotated[str, Depends(resolve_public_api_base)],
     user: Annotated[StaffUser, Depends(require_own_business)],
     service: Annotated[BusinessDNASettingsService, Depends(get_business_dna_settings_service)],
 ) -> BusinessDNASettingsResponse:
@@ -41,7 +46,6 @@ def get_settings(
         dna = service.get_active(business_id)
     except BusinessDNANotConfiguredError as exc:
         raise _not_configured() from exc
-    api_base = str(request.base_url).rstrip("/")
     return BusinessDNASettingsResponse.from_domain(dna, api_base=api_base)
 
 
@@ -49,7 +53,7 @@ def get_settings(
 def update_settings(
     business_id: BusinessIdPath,
     body: BusinessDNASettingsUpdateRequest,
-    request: Request,
+    api_base: Annotated[str, Depends(resolve_public_api_base)],
     user: Annotated[StaffUser, Depends(require_own_business)],
     service: Annotated[BusinessDNASettingsService, Depends(get_business_dna_settings_service)],
 ) -> BusinessDNASettingsResponse:
@@ -91,5 +95,4 @@ def update_settings(
         raise _not_configured() from exc
     except ValueError as exc:
         raise RequestDataError(str(exc)) from exc
-    api_base = str(request.base_url).rstrip("/")
     return BusinessDNASettingsResponse.from_domain(dna, api_base=api_base)

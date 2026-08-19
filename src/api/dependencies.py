@@ -57,6 +57,43 @@ def get_container(request: Request) -> ApplicationContainer:
     return container
 
 
+def resolve_public_api_base(
+    request: Request,
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+) -> str:
+    """Best-effort absolute origin for this deployment -- used to build
+    absolute URLs (e.g. the widget embed snippet in schemas.py) that stay
+    correct behind a TLS-terminating reverse proxy.
+
+    `str(request.base_url)` alone is NOT enough here: it reports the scheme
+    of the connection *to this process*, which on Railway (and most PaaS
+    setups) is plain HTTP even though the public URL is HTTPS -- TLS
+    terminates at the platform's edge, not at this container. A naive
+    `str(request.base_url)` therefore silently produces an http:// URL,
+    which a real HTTPS site refuses to load as mixed content (found live:
+    the widget snippet rendered as `http://...` even though Settings itself
+    is served over https).
+
+    Preference order:
+    1. `PUBLIC_API_BASE_URL` (src/config.py) -- the same explicitly
+       configured public URL already used for SMS webhook URLs (see
+       get_sms_service) -- set once, guaranteed correct, no proxy trust
+       required.
+    2. `X-Forwarded-Proto`, if the proxy set it -- the standard way a
+       reverse proxy communicates the original scheme.
+    3. `request.base_url` as-is, if neither is available.
+    """
+    configured = container.settings.public_api_base_url
+    if configured:
+        return configured
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    if forwarded_proto:
+        scheme = forwarded_proto.split(",")[0].strip()
+        if scheme:
+            return f"{scheme}://{request.url.netloc}"
+    return str(request.base_url).rstrip("/")
+
+
 def get_unit_of_work_factory(
     container: Annotated[ApplicationContainer, Depends(get_container)],
 ) -> UnitOfWorkFactory:
