@@ -190,7 +190,13 @@
 
   function formatSlotLabel(slot) {
     try {
-      return new Intl.DateTimeFormat(undefined, {
+      // Hardcoded, not the visitor's browser locale (`undefined` here would pick
+      // that up via Intl.DateTimeFormat's default-locale behavior) -- this product
+      // is 100% US-market, and a non-English browser locale (e.g. Russian) was
+      // rendering weekday/month names in that language while the rest of the
+      // dialogue stayed English, a real user-facing inconsistency found during
+      // live QA (see claude/booking-milestone-and-research.md section 11).
+      return new Intl.DateTimeFormat("en-US", {
         timeZone: slot.timezone,
         weekday: "short",
         month: "short",
