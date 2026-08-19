@@ -116,16 +116,21 @@ def main() -> None:
         if current is None:
             raise SystemExit(f"No active Business DNA found for business {args.business_id!r}")
 
+        # BusinessDNAVersion.configuration is stored recursively frozen
+        # (MappingProxyType/tuple, see `_freeze` in src/domain/models.py) so
+        # it can be safely shared -- _deep_copy unfreezes it into plain,
+        # JSON-serializable dict/list. Needed even for this read-only print:
+        # json.dumps() can't serialize a mappingproxy.
+        configuration = _deep_copy(current.configuration)
+
         print(f"Business:        {args.business_id}")
         print(f"Active version:  {current.version}")
         print("Current qualification config:")
-        _print_qualification(current.configuration)
+        _print_qualification(configuration)
 
         if not args.reset_rules:
             print("\n(Read-only run -- pass --reset-rules to actually replace the rules above.)")
             return
-
-        configuration = _deep_copy(current.configuration)
         enforce_service_area = bool(configuration.get("qualification", {}).get("enforce_service_area", False))
         new_rules = _default_rules(enforce_service_area)
         configuration["qualification"]["rules"] = new_rules
