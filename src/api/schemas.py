@@ -519,6 +519,26 @@ class OnboardingRequest(ApiModel):
         return self
 
 
+def _widget_embed_snippet(business_id: str, *, api_base: str | None) -> str:
+    """The exact <script> tag a business owner pastes into their own website
+    to mount the customer-facing chat widget (web/widget/widget.js -- served
+    by this same backend at /widget/widget.js, not by the business's site).
+    Shared by BusinessCreatedResponse (shown once right after onboarding) and
+    BusinessDNASettingsResponse (available any time from Settings -> Basics),
+    so the two never drift apart.
+
+    The script src is deliberately absolute (this deployment's own origin),
+    not relative -- a relative "/widget/widget.js" resolves against whatever
+    page it's pasted into, so on the business's *own* site it would 404
+    instead of loading the widget. data-api-base is included for clarity
+    even though widget.js would derive the same origin from an absolute
+    script src on its own.
+    """
+    src = f"{api_base}/widget/widget.js" if api_base else "/widget/widget.js"
+    base_attr = f' data-api-base="{api_base}"' if api_base else ""
+    return f'<script src="{src}" data-business-id="{business_id}"{base_attr}></script>'
+
+
 class BusinessCreatedResponse(ApiModel):
     business_id: str
     name: str
@@ -526,10 +546,7 @@ class BusinessCreatedResponse(ApiModel):
 
     @classmethod
     def from_domain(cls, business: Business, *, api_base: str | None = None) -> "BusinessCreatedResponse":
-        base_attr = f' data-api-base="{api_base}"' if api_base else ""
-        snippet = (
-            f'<script src="/widget/widget.js" data-business-id="{business.business_id}"{base_attr}></script>'
-        )
+        snippet = _widget_embed_snippet(business.business_id, api_base=api_base)
         return cls(business_id=business.business_id, name=business.name, widget_snippet=snippet)
 
 
@@ -778,9 +795,10 @@ class BusinessDNASettingsResponse(ApiModel):
     booking_timezone: str
     business_hours: dict[str, tuple[BusinessHoursWindowSchema, ...]]
     objection_responses: tuple[ObjectionResponseSchema, ...] = ()
+    widget_snippet: str = ""
 
     @classmethod
-    def from_domain(cls, dna: BusinessDNAVersion) -> "BusinessDNASettingsResponse":
+    def from_domain(cls, dna: BusinessDNAVersion, *, api_base: str | None = None) -> "BusinessDNASettingsResponse":
         config = dna.configuration
         primary_area = next(
             (area for area in config["service_areas"] if area["id"] == "primary"),
@@ -823,6 +841,7 @@ class BusinessDNASettingsResponse(ApiModel):
                 for entry in config["qualification"].get("objection_responses", [])
                 if isinstance(entry, Mapping)
             ),
+            widget_snippet=_widget_embed_snippet(dna.business_id, api_base=api_base),
         )
 
 

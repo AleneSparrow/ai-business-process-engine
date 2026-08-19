@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, Globe, Loader2, MapPin, MessageSquare, Plus, RotateCcw, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Copy, Globe, Loader2, MapPin, MessageSquare, Plus, RotateCcw, X } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { AreaOption, Field, formatRelativeTime, inputCls, ToneOption } from "../components/Shared";
 import { useAuth, describeError } from "../auth/AuthContext";
@@ -209,6 +209,11 @@ export default function Settings() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [newService, setNewService] = useState("");
+  // Read-only, server-generated -- not part of SettingsState/fromServer since
+  // it's never edited or compared for the dirty check, just displayed and
+  // refreshed on the same schedule as everything else on the page.
+  const [widgetSnippet, setWidgetSnippet] = useState<string | null>(null);
+  const [snippetCopied, setSnippetCopied] = useState(false);
 
   const [smsStatus, setSmsStatus] = useState<SmsStatus | null>(null);
   const [smsLoading, setSmsLoading] = useState(true);
@@ -229,6 +234,7 @@ export default function Settings() {
         setBaseline(mapped);
         setVersion(dna.version);
         setUpdatedAt(dna.updated_at);
+        setWidgetSnippet(dna.widget_snippet);
       })
       .catch((err) => {
         if (!cancelled) setLoadError(describeError(err));
@@ -393,6 +399,7 @@ export default function Settings() {
       setBaseline(next);
       setVersion(dna.version);
       setUpdatedAt(dna.updated_at);
+      setWidgetSnippet(dna.widget_snippet);
     } catch (err) {
       setSaveError(describeError(err));
     } finally {
@@ -402,6 +409,19 @@ export default function Settings() {
   const discard = () => {
     setState(baseline);
     setSaveError(null);
+  };
+
+  const copyWidgetSnippet = async () => {
+    if (!widgetSnippet) return;
+    try {
+      await navigator.clipboard.writeText(widgetSnippet);
+      setSnippetCopied(true);
+      setTimeout(() => setSnippetCopied(false), 2000);
+    } catch {
+      // Clipboard API can be unavailable (e.g. an insecure context) -- the
+      // snippet is still fully visible and selectable in the box below, so
+      // this is a silent no-op rather than an error state.
+    }
   };
 
   return (
@@ -526,6 +546,29 @@ export default function Settings() {
                       {zipList.length === 0 && <p className="text-xs mt-2" style={{ color: "#B4483A" }}>At least one zip code is required.</p>}
                     </Field>
                   )}
+
+                  <div className="text-sm font-semibold mt-8 mb-2 pt-6 border-t border-[#F0EFE9]">Website widget code</div>
+                  <p className="text-xs text-[#6B6459] mb-3">
+                    Paste this into your website's HTML — right before <code>&lt;/body&gt;</code> works well — to add the
+                    chat widget your customers use to talk to your business.
+                  </p>
+                  <div className="relative">
+                    <pre
+                      className="text-xs p-4 pr-20 rounded-lg border overflow-x-auto"
+                      style={{ borderColor: "#E7E5DE", backgroundColor: "#FAFAF8", fontFamily: "'IBM Plex Mono', monospace" }}
+                    >
+                      <code>{widgetSnippet ?? "Loading…"}</code>
+                    </pre>
+                    <button
+                      onClick={copyWidgetSnippet}
+                      disabled={!widgetSnippet}
+                      className="absolute top-2.5 right-2.5 text-xs font-medium px-2.5 py-1.5 rounded-md border flex items-center gap-1 bg-white disabled:opacity-50"
+                      style={{ borderColor: "#E7E5DE" }}
+                    >
+                      {snippetCopied ? <Check size={12} /> : <Copy size={12} />}
+                      {snippetCopied ? "Copied" : "Copy"}
+                    </button>
+                  </div>
                 </div>
               )}
 

@@ -1,6 +1,7 @@
 """Staff signup/login/session lifecycle and self-serve business creation."""
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -160,6 +161,28 @@ def test_account_can_create_multiple_businesses(auth_environment: TestClient) ->
             f"/api/v1/businesses/{business_id}/dna", headers=headers
         )
         assert settings_response.status_code == 200, business_id
+
+
+def test_dna_settings_widget_snippet_is_an_absolute_url_to_this_deployment(auth_environment: TestClient) -> None:
+    """widget_snippet is meant to be pasted into the *business's own* website
+    -- a relative "/widget/widget.js" would resolve against that site's own
+    origin and 404 there instead of loading this backend's widget (regression
+    test for that bug, see _widget_embed_snippet in src/api/schemas.py)."""
+    token = signup(auth_environment, email="owner7c@example.com").json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    created = auth_environment.post(
+        "/api/v1/businesses", json=onboarding_payload("Widget Snippet Co"), headers=headers
+    )
+    business_id = created.json()["business_id"]
+
+    settings_response = auth_environment.get(
+        f"/api/v1/businesses/{business_id}/dna", headers=headers
+    )
+    assert settings_response.status_code == 200
+    snippet = settings_response.json()["widget_snippet"]
+    assert f'data-business-id="{business_id}"' in snippet
+    assert 'src="/widget/widget.js"' not in snippet
+    assert re.search(r'src="https?://[^"]+/widget/widget\.js"', snippet)
 
 
 def test_list_my_businesses_returns_every_linked_business(auth_environment: TestClient) -> None:

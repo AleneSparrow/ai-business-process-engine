@@ -264,6 +264,10 @@ export interface BusinessDNASettings {
   booking_timezone: string;
   business_hours: Record<string, BusinessHoursWindow[]>;
   objection_responses: ObjectionResponse[];
+  /** Ready-to-paste <script> tag that mounts the customer-facing chat widget
+   * on the business's own website -- see _widget_embed_snippet in
+   * src/api/schemas.py. Absolute URL to this deployment, safe to copy as-is. */
+  widget_snippet: string;
 }
 
 export interface BusinessDNAServiceUpdate {

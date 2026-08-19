@@ -6,7 +6,7 @@ save touches vs carries over unchanged from the current active version.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
 from src.domain.auth import StaffUser
 from src.persistence.business_dna_settings_service import (
@@ -33,6 +33,7 @@ def _not_configured() -> ResourceNotFoundError:
 @router.get("/dna", response_model=BusinessDNASettingsResponse)
 def get_settings(
     business_id: BusinessIdPath,
+    request: Request,
     user: Annotated[StaffUser, Depends(require_own_business)],
     service: Annotated[BusinessDNASettingsService, Depends(get_business_dna_settings_service)],
 ) -> BusinessDNASettingsResponse:
@@ -40,13 +41,15 @@ def get_settings(
         dna = service.get_active(business_id)
     except BusinessDNANotConfiguredError as exc:
         raise _not_configured() from exc
-    return BusinessDNASettingsResponse.from_domain(dna)
+    api_base = str(request.base_url).rstrip("/")
+    return BusinessDNASettingsResponse.from_domain(dna, api_base=api_base)
 
 
 @router.put("/dna", response_model=BusinessDNASettingsResponse)
 def update_settings(
     business_id: BusinessIdPath,
     body: BusinessDNASettingsUpdateRequest,
+    request: Request,
     user: Annotated[StaffUser, Depends(require_own_business)],
     service: Annotated[BusinessDNASettingsService, Depends(get_business_dna_settings_service)],
 ) -> BusinessDNASettingsResponse:
@@ -88,4 +91,5 @@ def update_settings(
         raise _not_configured() from exc
     except ValueError as exc:
         raise RequestDataError(str(exc)) from exc
-    return BusinessDNASettingsResponse.from_domain(dna)
+    api_base = str(request.base_url).rstrip("/")
+    return BusinessDNASettingsResponse.from_domain(dna, api_base=api_base)
