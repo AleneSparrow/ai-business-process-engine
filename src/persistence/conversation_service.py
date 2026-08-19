@@ -19,11 +19,13 @@ from src.domain.conversations import (
     MessageDirection,
     MessageRole,
 )
-from src.domain.models import utc_now
+from src.domain.events import EventType
+from src.domain.models import DecisionType, ProcessEvent, utc_now
 from src.domain.commercial import BookingStatus, PaymentStatus, PaymentType, QuoteStatus
 from src.domain.qualification import IncomingMessage, LeadIntakeResult
 from src.domain.states import ProcessState
 from src.engine.customer_response_generator import CustomerResponseGenerator
+from src.engine.decision_router import DecisionRequest
 from src.engine.intent_extractor import IntentExtractor
 from src.engine.question_generator import QuestionGenerator
 from src.engine.reassurance_response_generator import ReassuranceResponseGenerator
@@ -135,6 +137,14 @@ class ConversationService:
     CHANNEL = "webchat"
     CONTEXT_MESSAGE_LIMIT = 8
     PUBLIC_HISTORY_LIMIT = 100
+    # A LOST case used to be a permanent dead end -- every message after it
+    # got the same static qualification.lost_message forever, even a
+    # customer correcting an obvious mistake ("sorry, typo, it's actually
+    # 90210"). Bounded per conversation (not unlimited) so someone
+    # repeatedly messaging a genuinely out-of-scope, correctly-closed
+    # conversation can't trigger unbounded AI intent-extraction calls --
+    # same bounded-retry shape as AnthropicProvider._MAX_STRUCTURED_OUTPUT_ATTEMPTS.
+    MAX_REACTIVATION_ATTEMPTS = 3
 
     def __init__(
         self,
@@ -402,6 +412,8 @@ class ConversationService:
             correlation_id=correlation_id,
         ))
 
+        self._maybe_reactivate_lost_case(uow, conversation, occurred_at)
+
         if conversation.status is ConversationStatus.AI_ACTIVE:
             case = (
                 uow.cases.get(conversation.business_id, conversation.case_id)
@@ -511,6 +523,59 @@ class ConversationService:
             )
         elif case.current_state not in _AUTONOMOUS_CASE_STATES:
             conversation.set_status(ConversationStatus.CLOSED, occurred_at)
+
+    def _maybe_reactivate_lost_case(
+        self,
+        uow: UnitOfWork,
+        conversation: Conversation,
+        occurred_at: datetime,
+    ) -> None:
+        """Give a LOST case one more real evaluation instead of leaving the
+        conversation stuck on the same static qualification.lost_message
+        forever. state_machine.py already models LOST -> REACTIVATION ->
+        CONTACTED, but nothing drove those transitions -- _process_message
+        closed the conversation on LOST (see _synchronize_case_status /
+        _AUTONOMOUS_CASE_STATES) and every later message just hit
+        _paused_response.
+
+        Only reactivates ProcessState.LOST specifically -- CANCELLED, PAID,
+        and COMPLETED stay genuinely terminal (state_machine.py has no
+        REACTIVATION transition defined from any of them either). This can
+        only help: the very next message goes through the normal
+        qualification path again, so a real correction (wrong zip, typo)
+        gets genuinely re-qualified, while a customer who's still
+        correctly out of scope reaches the same LOST outcome and sees the
+        same lost_message either way -- no worse than before.
+        """
+        if conversation.case_id is None or conversation.status is not ConversationStatus.CLOSED:
+            return
+        case = uow.cases.get(conversation.business_id, conversation.case_id)
+        if case is None or case.current_state is not ProcessState.LOST:
+            return
+        attempts = int(conversation.metadata.get("reactivation_attempts", 0) or 0)
+        if attempts >= self.MAX_REACTIVATION_ATTEMPTS:
+            return
+
+        for target in (ProcessState.REACTIVATION, ProcessState.CONTACTED):
+            expected = case.version
+            existing_event_count = len(case.event_history)
+            event = ProcessEvent(
+                EventType.TRIGGER_RECEIVED,
+                occurred_at=occurred_at,
+                source="conversation_service",
+                payload={
+                    "reason": "Customer sent a new message after LOST",
+                    "requested_target": target.value,
+                },
+            )
+            self.intake.process_engine.receive(case, event, DecisionRequest(DecisionType.RULE, target))
+            uow.cases.save(case, expected)
+            uow.events.add_many(
+                case.business_id, case.case_id, case.event_history[existing_event_count:]
+            )
+
+        conversation.metadata["reactivation_attempts"] = attempts + 1
+        conversation.set_status(ConversationStatus.AI_ACTIVE, occurred_at)
 
     def _run_intake(
         self,

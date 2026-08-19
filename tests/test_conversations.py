@@ -539,6 +539,70 @@ def test_externally_terminal_case_does_not_restart_qualification(conversation_en
     assert extractor.calls == 1
 
 
+def test_lost_case_reactivates_and_reevaluates_next_message(conversation_environment) -> None:
+    """LOST -> REACTIVATION -> CONTACTED (state_machine.py) used to be modeled
+    but never driven -- every message after LOST hit the same static
+    qualification.lost_message forever, even an honest correction. This
+    business enforces its service area to only 60601/60602 (see
+    load_dna/business_dna.example.json), so a message naming the service and
+    an out-of-area zip resolves straight to LOST on the very first turn."""
+    client, factory, extractor = conversation_environment
+    first = create_conversation(client, "I need AC help, my zip is 90210", "lost-1")
+    token = first.json()["conversation_token"]
+
+    assert first.json()["current_state"] == "LOST"
+    assert first.json()["status"] == "closed"
+    assert extractor.calls == 1
+
+    follow_up = send(client, token, "Sorry, typo -- it's actually 60601", "lost-2")
+
+    assert follow_up.status_code == 200
+    # The key behavior: the case was genuinely reactivated and the message
+    # actually re-evaluated (a second real intent-extraction call happened)
+    # rather than silently replaying the same static lost_message.
+    assert extractor.calls == 2
+    # The corrected zip conflicts with the already-recorded strong fact
+    # (90210) -- LeadIntakeService._merge_intent's existing conflict
+    # detection correctly declines to blindly trust a changed fact and
+    # routes it to a human instead of auto-qualifying. That's a feature, not
+    # a bug in this fix: the customer is no longer stuck on a dead end, and
+    # a human now sees the case instead of it vanishing forever.
+    assert follow_up.json()["current_state"] == "NEEDS_HUMAN"
+    assert follow_up.json()["status"] == "human_takeover_requested"
+
+
+def test_lost_reactivation_is_capped(conversation_environment) -> None:
+    """Reactivation is bounded per conversation (ConversationService.
+    MAX_REACTIVATION_ATTEMPTS) so a genuinely out-of-scope conversation can't
+    be hammered into unbounded AI intent-extraction calls after LOST."""
+    client, factory, extractor = conversation_environment
+    first = create_conversation(client, "I need AC help, my zip is 90210", "cap-1")
+    token = first.json()["conversation_token"]
+    assert first.json()["current_state"] == "LOST"
+    assert extractor.calls == 1
+
+    with factory() as uow:
+        conversation = uow.session.scalar(select(ConversationRow).where(
+            ConversationRow.business_id == "tenant-a"
+        ))
+        assert conversation is not None
+        merged_metadata = {**conversation.metadata_json, "reactivation_attempts": 3}
+        uow.session.execute(
+            update(ConversationRow)
+            .where(ConversationRow.id == conversation.id)
+            .values(metadata_json=merged_metadata, version=ConversationRow.version + 1)
+        )
+        uow.commit()
+
+    follow_up = send(client, token, "Sorry, typo -- it's actually 60601", "cap-2")
+
+    assert follow_up.status_code == 200
+    assert follow_up.json()["current_state"] == "LOST"
+    assert follow_up.json()["status"] == "closed"
+    # Cap reached -- stayed paused, no second extraction call.
+    assert extractor.calls == 1
+
+
 def test_prompt_injection_cannot_override_deterministic_rules(conversation_environment) -> None:
     client, _, _ = conversation_environment
     first = create_conversation(
