@@ -159,7 +159,7 @@ class LeadIntakeService:
         qualification = self.qualification_service.evaluate(updated_lead, intent, self.business_dna)
         if case.current_state is ProcessState.NEEDS_HUMAN:
             qualification = self._already_escalated_result(intent, qualification.service_id)
-        response = self._create_response(case, message, qualification)
+        response = self._create_response(case, message, qualification, intent)
 
         if case_created:
             self._cases[case.case_id] = case
@@ -193,6 +193,7 @@ class LeadIntakeService:
                 "confidence": intent.confidence,
                 "requires_human": intent.requires_human,
                 "qualification_answers": intent.qualification_answers,
+                "customer_tone": intent.customer_tone.value,
                 "ai": intent.ai_metadata,
             },
         ))
@@ -284,6 +285,7 @@ class LeadIntakeService:
         case: ProcessCase,
         message: IncomingMessage,
         qualification: QualificationResult,
+        intent: IntentResult,
     ) -> CustomerResponse | None:
         state = qualification.recommended_next_state
         if state is ProcessState.QUALIFYING:
@@ -293,7 +295,12 @@ class LeadIntakeService:
             )
             try:
                 question_response = self.question_generator.generate(
-                    missing, self.business_dna, message.channel, case.case_id,
+                    missing,
+                    self.business_dna,
+                    message.channel,
+                    case.case_id,
+                    customer_message=message.raw_text,
+                    customer_tone=intent.customer_tone,
                 )
             except AIInvalidOutputError as exc:
                 # The AI generator (when configured) already resampled
@@ -316,7 +323,7 @@ class LeadIntakeService:
                 question_response = self._fallback_question_generator.generate(
                     missing, self.business_dna, message.channel, case.case_id,
                 )
-            return self._with_reassurance(case, message, qualification, question_response)
+            return self._with_reassurance(case, message, qualification, intent, question_response)
         if state is ProcessState.NEEDS_HUMAN:
             text = self.business_dna["human_escalation"]["customer_message"]
             return self.customer_response_generator.generate(
@@ -326,6 +333,8 @@ class LeadIntakeService:
                 channel=message.channel,
                 case_id=case.case_id,
                 requires_human=True,
+                customer_message=message.raw_text,
+                customer_tone=intent.customer_tone,
             )
         if state is ProcessState.LOST:
             text = self.business_dna["qualification"]["lost_message"]
@@ -336,6 +345,8 @@ class LeadIntakeService:
                 channel=message.channel,
                 case_id=case.case_id,
                 requires_human=False,
+                customer_message=message.raw_text,
+                customer_tone=intent.customer_tone,
             )
         return None
 
@@ -344,6 +355,7 @@ class LeadIntakeService:
         case: ProcessCase,
         message: IncomingMessage,
         qualification: QualificationResult,
+        intent: IntentResult,
         question_response: CustomerResponse,
     ) -> CustomerResponse:
         """Prepend a reassurance to the pending question(s) whenever the AI
@@ -380,6 +392,7 @@ class LeadIntakeService:
                     self.business_dna,
                     message.channel,
                     case.case_id,
+                    customer_tone=intent.customer_tone,
                 )
             else:
                 reassurance_response = self.universal_reassurance_response_generator.generate(
@@ -388,6 +401,7 @@ class LeadIntakeService:
                     message.channel,
                     case.case_id,
                     qualification.service_id,
+                    customer_tone=intent.customer_tone,
                 )
         except AIInvalidOutputError as exc:
             # Same fallback shape as _create_response's question_generator
@@ -548,6 +562,12 @@ class LeadIntakeService:
             # message. If the customer doesn't repeat it, nothing should
             # keep re-triggering the reassurance response.
             objection_phrase=current.objection_phrase,
+            # Same one-turn-only treatment as objection_phrase above -- the
+            # tone of THIS message, not a sticky fact to preserve from an
+            # earlier turn. Without this line it would silently default back
+            # to NEUTRAL on every merged IntentResult, discarding whatever
+            # AIIntentExtractor actually classified.
+            customer_tone=current.customer_tone,
         )
 
     def _validate_business_dna(self) -> None:

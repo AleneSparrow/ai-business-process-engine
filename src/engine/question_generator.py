@@ -2,7 +2,7 @@
 
 from typing import Mapping, Protocol
 
-from src.domain.qualification import CustomerResponse, MissingInformationResult
+from src.domain.qualification import CustomerResponse, CustomerTone, MissingInformationResult
 
 
 class QuestionGenerator(Protocol):
@@ -12,11 +12,17 @@ class QuestionGenerator(Protocol):
         business_dna: Mapping[str, object],
         channel: str,
         case_id: str,
+        customer_message: str = "",
+        customer_tone: CustomerTone = CustomerTone.NEUTRAL,
     ) -> CustomerResponse: ...
 
 
 class DeterministicQuestionGenerator:
-    """Renders configured prompts without inventing industry-specific language."""
+    """Renders configured prompts without inventing industry-specific language.
+    customer_message/customer_tone are accepted for protocol compatibility with
+    AIQuestionGenerator but intentionally unused here -- this generator never
+    calls an AI, so it has no tone-adaptive wording to produce; see
+    universal-sales-cycle-model.md section 7 for the AI-backed path."""
 
     def generate(
         self,
@@ -24,6 +30,8 @@ class DeterministicQuestionGenerator:
         business_dna: Mapping[str, object],
         channel: str,
         case_id: str,
+        customer_message: str = "",
+        customer_tone: CustomerTone = CustomerTone.NEUTRAL,
     ) -> CustomerResponse:
         customer_information = business_dna.get("customer_information", {})
         field_questions = (

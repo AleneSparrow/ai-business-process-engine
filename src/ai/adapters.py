@@ -8,6 +8,7 @@ from typing import Any, Mapping, Sequence
 
 from src.domain.qualification import (
     CustomerResponse,
+    CustomerTone,
     IncomingMessage,
     IntentResult,
     MissingInformationResult,
@@ -255,6 +256,7 @@ class AIIntentExtractor:
                 objection_phrase=self._evidenced(
                     output.objection_phrase, message.raw_text, "objection phrase"
                 ),
+                customer_tone=output.customer_tone,
             )
         except AIInvalidOutputError as exc:
             # Same diagnostic as the success path above, for the collapse-to-
@@ -468,6 +470,8 @@ class AIQuestionGenerator:
         business_dna: Mapping[str, object],
         channel: str,
         case_id: str,
+        customer_message: str = "",
+        customer_tone: CustomerTone = CustomerTone.NEUTRAL,
     ) -> CustomerResponse:
         _require_permissions(business_dna, "draft_message")
         customer_information = business_dna.get("customer_information", {})
@@ -497,10 +501,18 @@ class AIQuestionGenerator:
             context={
                 "language": communication.get("language", "English"),
                 "tone": communication.get("tone"),
+                "customer_tone": customer_tone.value,
                 "channel": channel,
                 "allowed_items": allowed_items,
             },
-            customer_message="",
+            # Live finding (2026-08-20): this used to be hardcoded to "" --
+            # the model never actually saw the customer's own message, only
+            # the pre-built allowed_items questions, so it had nothing to
+            # mirror the tone/form of even though the prompt already claimed
+            # this field was for "avoiding awkward repetition". Passing the
+            # real message is what makes tone adaptation (see
+            # TONE_ADAPTATION_INSTRUCTION) actually have something to adapt to.
+            customer_message=customer_message,
         )
         request = AIRequest(
             prompt.identifier,
@@ -541,18 +553,24 @@ class AICustomerResponseGenerator:
         channel: str,
         case_id: str,
         requires_human: bool,
+        customer_message: str = "",
+        customer_tone: CustomerTone = CustomerTone.NEUTRAL,
     ) -> CustomerResponse:
         _require_permissions(business_dna, "draft_message")
         if response_type not in {"not_qualified", "human_escalation"}:
             raise ValueError("unsupported AI customer response type")
         communication = _communication(business_dna)
-        prompt = customer_response_prompt(context={
-            "response_type": response_type,
-            "approved_message": approved_message,
-            "language": communication.get("language", "English"),
-            "tone": communication.get("tone"),
-            "channel": channel,
-        })
+        prompt = customer_response_prompt(
+            context={
+                "response_type": response_type,
+                "approved_message": approved_message,
+                "language": communication.get("language", "English"),
+                "tone": communication.get("tone"),
+                "customer_tone": customer_tone.value,
+                "channel": channel,
+            },
+            customer_message=customer_message,
+        )
         request = AIRequest(
             prompt.identifier,
             prompt.version,
@@ -596,6 +614,7 @@ class AIReassuranceResponseGenerator:
         business_dna: Mapping[str, object],
         channel: str,
         case_id: str,
+        customer_tone: CustomerTone = CustomerTone.NEUTRAL,
     ) -> CustomerResponse:
         _require_permissions(business_dna, "draft_message")
         if not approved_responses:
@@ -614,6 +633,7 @@ class AIReassuranceResponseGenerator:
                 "approved_objection_responses": entries,
                 "language": communication.get("language", "English"),
                 "tone": communication.get("tone"),
+                "customer_tone": customer_tone.value,
                 "channel": channel,
             },
             customer_message=objection_phrase,
@@ -668,6 +688,7 @@ class AIUniversalReassuranceResponseGenerator:
         channel: str,
         case_id: str,
         service_id: str | None = None,
+        customer_tone: CustomerTone = CustomerTone.NEUTRAL,
     ) -> CustomerResponse:
         _require_permissions(business_dna, "draft_message")
         communication = _communication(business_dna)
@@ -677,6 +698,7 @@ class AIUniversalReassuranceResponseGenerator:
                 "objection_phrase": objection_phrase,
                 "language": communication.get("language", "English"),
                 "tone": communication.get("tone"),
+                "customer_tone": customer_tone.value,
                 "channel": channel,
                 "business": {
                     "industry": business.get("industry") if isinstance(business, Mapping) else None,

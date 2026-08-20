@@ -159,7 +159,7 @@ class PersistentLeadIntakeService:
             )
         if case.current_state is ProcessState.NEEDS_HUMAN:
             qualification = workflow._already_escalated_result(intent, qualification.service_id)
-        response = workflow._create_response(case, message, qualification)
+        response = workflow._create_response(case, message, qualification, intent)
 
         existing_event_count = len(case.event_history)
         expected_version = case.version
@@ -319,6 +319,7 @@ class PersistentLeadIntakeService:
                 "confidence": intent.confidence,
                 "requires_human": intent.requires_human,
                 "qualification_answers": intent.qualification_answers,
+                "customer_tone": intent.customer_tone.value,
                 "ai": intent.ai_metadata,
             },
         ))

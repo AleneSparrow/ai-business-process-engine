@@ -5,7 +5,7 @@ from typing import Generic, Literal, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.domain.qualification import Urgency
+from src.domain.qualification import CustomerTone, Urgency
 
 
 StructuredOutput = TypeVar("StructuredOutput", bound=BaseModel)
@@ -67,6 +67,17 @@ class IntentOutput(StrictAIModel):
             "service, an emergency, hostile, or an explicit advice/opinion request -- those are handled "
             "by confidence/requires_human above, not this field. An objection is a normal, low-risk part "
             "of a sales conversation and must NOT by itself raise requires_human or lower confidence."
+        ),
+    )
+    customer_tone: CustomerTone = Field(
+        description=(
+            "The emotional register of THIS message only, classified from wording alone -- neutral "
+            "(plain, matter-of-fact), irritated (curt, frustrated, complaining), anxious (worried, "
+            "uncertain, seeking reassurance), urgent (pressed for time, wants speed, may overlap with "
+            "urgency above but is about how they're writing, not how time-critical the service is), or "
+            "playful (casual, joking, informal). Purely descriptive -- like objection_phrase, this must "
+            "NEVER influence confidence, requires_human, service_id, or any other field above; a "
+            "message can be irritated or anxious and still be a perfectly clear, low-risk request."
         ),
     )
 

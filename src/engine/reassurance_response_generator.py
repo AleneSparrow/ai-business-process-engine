@@ -26,7 +26,7 @@ LeadIntakeService._with_reassurance for how they're chosen):
 from hashlib import sha256
 from typing import Mapping, Protocol, Sequence
 
-from src.domain.qualification import CustomerResponse
+from src.domain.qualification import CustomerResponse, CustomerTone
 
 
 class ReassuranceResponseGenerator(Protocol):
@@ -37,6 +37,7 @@ class ReassuranceResponseGenerator(Protocol):
         business_dna: Mapping[str, object],
         channel: str,
         case_id: str,
+        customer_tone: CustomerTone = CustomerTone.NEUTRAL,
     ) -> CustomerResponse: ...
 
 
@@ -44,7 +45,8 @@ class DeterministicReassuranceResponseGenerator:
     """Test/local fallback: no semantic matching, just the first configured
     entry's approved wording verbatim. The real product path is the
     AI-backed generator (src/ai/adapters.py), which actually selects the
-    relevant entry and adapts its tone."""
+    relevant entry and adapts its tone. customer_tone is accepted for
+    protocol compatibility but unused here -- no AI call, nothing to adapt."""
 
     def generate(
         self,
@@ -53,6 +55,7 @@ class DeterministicReassuranceResponseGenerator:
         business_dna: Mapping[str, object],
         channel: str,
         case_id: str,
+        customer_tone: CustomerTone = CustomerTone.NEUTRAL,
     ) -> CustomerResponse:
         if not approved_responses:
             raise ValueError("cannot generate a reassurance response without any configured entries")
@@ -76,6 +79,7 @@ class UniversalReassuranceResponseGenerator(Protocol):
         channel: str,
         case_id: str,
         service_id: str | None = None,
+        customer_tone: CustomerTone = CustomerTone.NEUTRAL,
     ) -> CustomerResponse: ...
 
 
@@ -91,7 +95,9 @@ class DeterministicUniversalReassuranceResponseGenerator:
     exact same line every time it objects -- and any added factual detail
     comes only from structurally-true facts already in Business DNA
     (fulfillment_type, booking_allowed), never a price or an invented
-    promise."""
+    promise. customer_tone is accepted for protocol compatibility with
+    AIUniversalReassuranceResponseGenerator but intentionally unused here --
+    no AI call, so no tone-adaptive rewording to produce."""
 
     _ACKNOWLEDGMENTS = (
         "That's a completely fair thing to want to be sure about.",
@@ -107,6 +113,7 @@ class DeterministicUniversalReassuranceResponseGenerator:
         channel: str,
         case_id: str,
         service_id: str | None = None,
+        customer_tone: CustomerTone = CustomerTone.NEUTRAL,
     ) -> CustomerResponse:
         digest = sha256(objection_phrase.strip().casefold().encode("utf-8")).digest()
         acknowledgment = self._ACKNOWLEDGMENTS[digest[0] % len(self._ACKNOWLEDGMENTS)]

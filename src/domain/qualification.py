@@ -18,6 +18,21 @@ class Urgency(StrEnum):
     UNKNOWN = "unknown"
 
 
+class CustomerTone(StrEnum):
+    """Emotional register of the CURRENT customer message only -- classified
+    fresh on every turn (not carried forward like Urgency), used purely to
+    adapt HOW a response is worded (length, warmth, directness). Never
+    changes WHAT is said: facts, question order, and required content stay
+    identical regardless of tone. See universal-sales-cycle-model.md section
+    7 ("Слой живой адаптации к клиенту")."""
+
+    NEUTRAL = "neutral"
+    IRRITATED = "irritated"
+    ANXIOUS = "anxious"
+    URGENT = "urgent"
+    PLAYFUL = "playful"
+
+
 @dataclass(frozen=True, slots=True)
 class IncomingMessage:
     business_id: str
@@ -79,10 +94,18 @@ class IntentResult:
     # confidence/requires_human above. See QualificationService and
     # AIQuestionGenerator's reassurance path for how this is used.
     objection_phrase: str | None = None
+    # Emotional register of THIS message only -- see CustomerTone. Purely
+    # descriptive: must never influence confidence, requires_human, service
+    # resolution, or qualification outcome, only the wording of whatever
+    # response is generated. Defaults to NEUTRAL for extractors that don't
+    # classify tone at all (DeterministicIntentExtractor).
+    customer_tone: CustomerTone = CustomerTone.NEUTRAL
 
     def __post_init__(self) -> None:
         if not isinstance(self.urgency, Urgency):
             raise TypeError("urgency must be an Urgency")
+        if not isinstance(self.customer_tone, CustomerTone):
+            raise TypeError("customer_tone must be a CustomerTone")
         if not 0.0 <= self.confidence <= 1.0:
             raise ValueError("confidence must be between 0 and 1")
         for value, name in (

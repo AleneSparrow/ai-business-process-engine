@@ -66,6 +66,13 @@ def intent_output(**changes: object) -> dict[str, object]:
         "confidence": 0.95,
         "requires_human": False,
         "qualification_answers": [],
+        # Both required fields (no default in IntentOutput -- see
+        # src/ai/models.py); a real model always supplies them via forced
+        # structured output, but this helper feeds FakeAIProvider directly,
+        # so they must be here explicitly or model_validate rejects every
+        # outcome built from this helper with "Field required".
+        "objection_phrase": None,
+        "customer_tone": "neutral",
     }
     value.update(changes)
     return value

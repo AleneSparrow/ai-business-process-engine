@@ -68,6 +68,10 @@ def test_concurrent_identical_http_requests_have_one_logical_effect(postgresql_u
         "confidence": 0.95,
         "requires_human": False,
         "qualification_answers": [],
+        # Both required in IntentOutput, no default -- see test_ai.py's
+        # intent_output() helper for the same fix and why it's needed.
+        "objection_phrase": None,
+        "customer_tone": "neutral",
     }])
     application = create_app(
         settings=Settings(database_url=postgresql_url, app_env="test"),
