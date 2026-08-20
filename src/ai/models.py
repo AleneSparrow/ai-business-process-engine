@@ -101,6 +101,29 @@ class ReassuranceOutput(StrictAIModel):
     )
 
 
+class UniversalReassuranceOutput(StrictAIModel):
+    """Zero-config counterpart to ReassuranceOutput -- used when the business has not
+    authored any objection_responses entries. No closed set to select from, so the
+    model classifies the objection and writes a short acknowledgment grounded only in
+    the facts given in context; SYSTEM_CONSTRAINTS and the caller's safety screen are
+    what keep it from inventing a price, discount, guarantee, or promise."""
+
+    objection_category: Literal[
+        "price", "timing", "trust", "comparison", "fit", "consult_someone_else", "other"
+    ]
+    message_text: str = Field(
+        min_length=1,
+        max_length=500,
+        description=(
+            "A brief, natural acknowledgment of the customer's specific concern, in your own words "
+            "-- vary the phrasing rather than reusing a fixed template. Grounded only in facts present "
+            "in BUSINESS_CONTEXT; must not state a price, discount, guarantee, or timeline that isn't "
+            "there. Must not itself ask a question or try to close the conversation -- the calling "
+            "code appends the next step separately."
+        ),
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class AIInvocationMetadata:
     provider: str

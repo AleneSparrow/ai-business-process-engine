@@ -11,7 +11,9 @@ from src.engine.intent_extractor import DeterministicIntentExtractor, IntentExtr
 from src.engine.question_generator import DeterministicQuestionGenerator, QuestionGenerator
 from src.engine.reassurance_response_generator import (
     DeterministicReassuranceResponseGenerator,
+    DeterministicUniversalReassuranceResponseGenerator,
     ReassuranceResponseGenerator,
+    UniversalReassuranceResponseGenerator,
 )
 
 from .adapters import (
@@ -19,6 +21,7 @@ from .adapters import (
     AIIntentExtractor,
     AIQuestionGenerator,
     AIReassuranceResponseGenerator,
+    AIUniversalReassuranceResponseGenerator,
 )
 from .anthropic_provider import AnthropicProvider
 from .openai_provider import OpenAIProvider
@@ -31,6 +34,7 @@ class AIRuntimeComponents:
     question_generator: QuestionGenerator
     customer_response_generator: CustomerResponseGenerator
     reassurance_response_generator: ReassuranceResponseGenerator
+    universal_reassurance_response_generator: UniversalReassuranceResponseGenerator
     provider_name: str
     model_name: str
 
@@ -42,6 +46,7 @@ def build_ai_runtime(settings: Settings) -> AIRuntimeComponents:
             DeterministicQuestionGenerator(),
             DeterministicCustomerResponseGenerator(),
             DeterministicReassuranceResponseGenerator(),
+            DeterministicUniversalReassuranceResponseGenerator(),
             "deterministic",
             "deterministic-v1",
         )
@@ -61,6 +66,7 @@ def build_ai_runtime(settings: Settings) -> AIRuntimeComponents:
             AIQuestionGenerator(provider),
             AICustomerResponseGenerator(provider),
             AIReassuranceResponseGenerator(provider),
+            AIUniversalReassuranceResponseGenerator(provider),
             "anthropic",
             settings.anthropic_model,
         )
@@ -81,6 +87,7 @@ def build_ai_runtime(settings: Settings) -> AIRuntimeComponents:
         AIQuestionGenerator(provider),
         AICustomerResponseGenerator(provider),
         AIReassuranceResponseGenerator(provider),
+        AIUniversalReassuranceResponseGenerator(provider),
         "openai",
         settings.openai_model,
     )

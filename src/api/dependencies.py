@@ -13,7 +13,10 @@ from src.domain.tenancy import Business
 from src.engine.intent_extractor import IntentExtractor
 from src.engine.customer_response_generator import CustomerResponseGenerator
 from src.engine.question_generator import QuestionGenerator
-from src.engine.reassurance_response_generator import ReassuranceResponseGenerator
+from src.engine.reassurance_response_generator import (
+    ReassuranceResponseGenerator,
+    UniversalReassuranceResponseGenerator,
+)
 from src.persistence.auth_service import AuthService, SessionInvalidError
 from src.persistence.billing_service import BillingService
 from src.persistence.business_provisioning_service import BusinessProvisioningService
@@ -45,6 +48,7 @@ class ApplicationContainer:
     question_generator: QuestionGenerator
     customer_response_generator: CustomerResponseGenerator
     reassurance_response_generator: ReassuranceResponseGenerator
+    universal_reassurance_response_generator: UniversalReassuranceResponseGenerator
     ai_provider_name: str
     ai_model_name: str
     public_chat_rate_limiter: RateLimiter
@@ -109,6 +113,7 @@ def get_intake_service(
         container.question_generator,
         customer_response_generator=container.customer_response_generator,
         reassurance_response_generator=container.reassurance_response_generator,
+        universal_reassurance_response_generator=container.universal_reassurance_response_generator,
     )
 
 
@@ -121,6 +126,7 @@ def get_conversation_service(
         container.question_generator,
         container.customer_response_generator,
         reassurance_response_generator=container.reassurance_response_generator,
+        universal_reassurance_response_generator=container.universal_reassurance_response_generator,
         token_ttl_hours=container.settings.public_conversation_token_ttl_hours,
     )
 

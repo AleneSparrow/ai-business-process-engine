@@ -15,7 +15,10 @@ from src.ai.runtime import build_ai_runtime
 from src.engine.customer_response_generator import CustomerResponseGenerator
 from src.engine.intent_extractor import IntentExtractor
 from src.engine.question_generator import QuestionGenerator
-from src.engine.reassurance_response_generator import ReassuranceResponseGenerator
+from src.engine.reassurance_response_generator import (
+    ReassuranceResponseGenerator,
+    UniversalReassuranceResponseGenerator,
+)
 from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork, create_database_engine
 
 from .dependencies import ApplicationContainer
@@ -85,6 +88,7 @@ def create_app(
     question_generator: QuestionGenerator | None = None,
     customer_response_generator: CustomerResponseGenerator | None = None,
     reassurance_response_generator: ReassuranceResponseGenerator | None = None,
+    universal_reassurance_response_generator: UniversalReassuranceResponseGenerator | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
@@ -98,6 +102,10 @@ def create_app(
         )
         configured_reassurance_generator = (
             reassurance_response_generator or ai_runtime.reassurance_response_generator
+        )
+        configured_universal_reassurance_generator = (
+            universal_reassurance_response_generator
+            or ai_runtime.universal_reassurance_response_generator
         )
         engine: Engine | None = None
         try:
@@ -126,6 +134,7 @@ def create_app(
             question_generator=configured_question_generator,
             customer_response_generator=configured_response_generator,
             reassurance_response_generator=configured_reassurance_generator,
+            universal_reassurance_response_generator=configured_universal_reassurance_generator,
             ai_provider_name=ai_runtime.provider_name,
             ai_model_name=ai_runtime.model_name,
             public_chat_rate_limiter=InMemorySlidingWindowRateLimiter(

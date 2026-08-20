@@ -33,7 +33,9 @@ from .qualification_service import QualificationService
 from .question_generator import DeterministicQuestionGenerator, QuestionGenerator
 from .reassurance_response_generator import (
     DeterministicReassuranceResponseGenerator,
+    DeterministicUniversalReassuranceResponseGenerator,
     ReassuranceResponseGenerator,
+    UniversalReassuranceResponseGenerator,
 )
 
 # Not importing src.api.observability.log_event here for the same reason
@@ -57,6 +59,14 @@ class LeadIntakeService:
         ProcessState.NEEDS_HUMAN,
     })
 
+    # Bounded per case, mirroring ConversationService.MAX_REACTIVATION_ATTEMPTS
+    # -- see universal-sales-cycle-model.md section 6 ("Ограничение
+    # настойчивости"): after this many objection->reassurance cycles in one
+    # case, stop adding reassurance text rather than looping on a customer
+    # who's still unconvinced. The ordinary qualification/question flow
+    # continues either way; this only bounds the extra reassurance layer.
+    MAX_REASSURANCE_ATTEMPTS = 3
+
     def __init__(
         self,
         business_dna: Mapping[str, Any],
@@ -66,6 +76,7 @@ class LeadIntakeService:
         process_engine: ProcessEngine | None = None,
         customer_response_generator: CustomerResponseGenerator | None = None,
         reassurance_response_generator: ReassuranceResponseGenerator | None = None,
+        universal_reassurance_response_generator: UniversalReassuranceResponseGenerator | None = None,
     ) -> None:
         self.business_dna = deepcopy(business_dna)
         self.intent_extractor = intent_extractor
@@ -75,6 +86,9 @@ class LeadIntakeService:
         )
         self.reassurance_response_generator = (
             reassurance_response_generator or DeterministicReassuranceResponseGenerator()
+        )
+        self.universal_reassurance_response_generator = (
+            universal_reassurance_response_generator or DeterministicUniversalReassuranceResponseGenerator()
         )
         self.qualification_service = qualification_service or QualificationService()
         self.process_engine = process_engine or ProcessEngine()
@@ -86,6 +100,14 @@ class LeadIntakeService:
         # after exhausting its own resample retries -- so a customer gets a
         # plain clarifying question instead of a raw 503.
         self._fallback_question_generator = DeterministicQuestionGenerator()
+        # Same pattern for the two reassurance generators (see
+        # _with_reassurance): if the configured AI-backed generator raises
+        # AIInvalidOutputError, fall back to the deterministic one for that
+        # turn instead of letting the whole request 500.
+        self._fallback_reassurance_response_generator = DeterministicReassuranceResponseGenerator()
+        self._fallback_universal_reassurance_response_generator = (
+            DeterministicUniversalReassuranceResponseGenerator()
+        )
         self._cases: dict[str, ProcessCase] = {}
         self._identity_index: dict[tuple[str, str, str], str] = {}
         self._processed_messages: dict[tuple[str, str, str], LeadIntakeResult] = {}
@@ -324,21 +346,78 @@ class LeadIntakeService:
         qualification: QualificationResult,
         question_response: CustomerResponse,
     ) -> CustomerResponse:
-        """Prepend an owner-approved reassurance to the pending question(s)
-        when the customer raised an objection this turn -- zero behavior
-        change unless both (a) the AI actually detected one and (b) the
-        owner has configured at least one objection_responses entry."""
+        """Prepend a reassurance to the pending question(s) whenever the AI
+        detected an objection this turn.
+
+        Live finding (2026-08-19): this used to also require the owner to
+        have configured at least one qualification.objection_responses
+        entry -- which no onboarding flow prompts for, so in practice it was
+        a silent no-op for every business (confirmed live: test-law-firm has
+        zero entries configured). Owner-authored entries, when present,
+        still take priority and are used verbatim-selected as before --
+        that's a deliberate override, not a requirement. Otherwise the
+        universal generator grounds a reassurance in the business's own
+        already-collected facts (service description, fulfillment type,
+        booking availability) instead of requiring manual setup -- see
+        universal-sales-cycle-model.md sections 6-7.
+
+        Capped at MAX_REASSURANCE_ATTEMPTS reassurance turns per case so a
+        customer who stays unconvinced gets handed along by the normal
+        qualification flow rather than an endless reassurance loop.
+        """
         objection_phrase = qualification.objection_phrase
-        approved_responses = self.business_dna.get("qualification", {}).get("objection_responses", [])
-        if not objection_phrase or not approved_responses:
+        if not objection_phrase:
             return question_response
-        reassurance_response = self.reassurance_response_generator.generate(
-            objection_phrase,
-            approved_responses,
-            self.business_dna,
-            message.channel,
-            case.case_id,
-        )
+        attempts = int(case.metadata.get("reassurance_attempts", 0))
+        if attempts >= self.MAX_REASSURANCE_ATTEMPTS:
+            return question_response
+        approved_responses = self.business_dna.get("qualification", {}).get("objection_responses", [])
+        try:
+            if approved_responses:
+                reassurance_response = self.reassurance_response_generator.generate(
+                    objection_phrase,
+                    approved_responses,
+                    self.business_dna,
+                    message.channel,
+                    case.case_id,
+                )
+            else:
+                reassurance_response = self.universal_reassurance_response_generator.generate(
+                    objection_phrase,
+                    self.business_dna,
+                    message.channel,
+                    case.case_id,
+                    qualification.service_id,
+                )
+        except AIInvalidOutputError as exc:
+            # Same fallback shape as _create_response's question_generator
+            # call above -- the AI-backed generator already resampled
+            # internally and still couldn't produce valid output; rather
+            # than let that become a raw 503 for the customer, fall back to
+            # the matching deterministic generator for this turn only.
+            _log_event(
+                logging.WARNING,
+                "reassurance_generator_fallback_to_deterministic",
+                business_id=self.business_dna.get("business", {}).get("id"),
+                reason=str(exc),
+            )
+            if approved_responses:
+                reassurance_response = self._fallback_reassurance_response_generator.generate(
+                    objection_phrase,
+                    approved_responses,
+                    self.business_dna,
+                    message.channel,
+                    case.case_id,
+                )
+            else:
+                reassurance_response = self._fallback_universal_reassurance_response_generator.generate(
+                    objection_phrase,
+                    self.business_dna,
+                    message.channel,
+                    case.case_id,
+                    qualification.service_id,
+                )
+        case.metadata["reassurance_attempts"] = attempts + 1
         combined_text = f"{reassurance_response.message_text.strip()}\n\n{question_response.message_text.strip()}"
         return CustomerResponse(
             message_text=combined_text,

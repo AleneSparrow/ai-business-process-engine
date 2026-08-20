@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 
-PROMPT_VERSION = "2026-08-19.v8"
+PROMPT_VERSION = "2026-08-19.v9"
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,4 +154,41 @@ def reassurance_prompt(*, context: Mapping[str, Any], customer_message: str) -> 
         "customer's own message)\n"
         + _json_text(customer_message)
         + "\nEXPECTED_STRUCTURED_OUTPUT\nReassuranceOutput",
+    )
+
+
+def universal_reassurance_prompt(*, context: Mapping[str, Any], customer_message: str) -> Prompt:
+    """Used only when the business has NOT configured any qualification.objection_responses
+    entries (see reassurance_prompt above for the owner-authored path, which is used instead
+    whenever entries exist). context must include `objection_phrase` and may include `service`
+    (description/fulfillment_type/booking_allowed of the service the objection concerns, if
+    known) and `business` (industry/description) -- deliberately never a price or numeric fact,
+    so there is nothing for the model to restate or get wrong."""
+    return Prompt(
+        "lead_universal_reassurance_response",
+        PROMPT_VERSION,
+        SYSTEM_CONSTRAINTS
+        + "\nThe customer raised objection_phrase and this business has not pre-written an approved "
+        "response for it -- construct a brief, honest reassurance using ONLY the facts given in "
+        "BUSINESS_CONTEXT. First classify objection_phrase into objection_category: price (cost "
+        "concern), timing (not ready / needs to think), trust (doubts the business's competence or "
+        "legitimacy), comparison (weighing other options), fit (unsure the service applies to their "
+        "situation), consult_someone_else (wants to check with another person first), or other. Then "
+        "write message_text: one or two short sentences that (a) acknowledge the specific concern in "
+        "your own words -- vary your phrasing every time, never reuse a fixed template -- and (b) if "
+        "BUSINESS_CONTEXT.service is present, connect the acknowledgment to that service's actual "
+        "description or process (for example that a quote/estimate step happens before any payment, "
+        "that booking doesn't commit them to anything, or that a person reviews their situation before "
+        "anything moves forward) -- state only what BUSINESS_CONTEXT actually says, never a price, "
+        "discount, guarantee, or timeline that isn't there. If no service fact applies, a short, warm "
+        "acknowledgment alone is correct -- do not invent a reason. message_text must not ask a "
+        "question or try to close the conversation; the caller appends the next step separately. Keep "
+        "a calm, unhurried tone, and do not sound rushed or defensive -- this is a normal, expected "
+        "part of the conversation, not a crisis to talk the customer out of.",
+        "BUSINESS_CONTEXT\n"
+        + _json(context)
+        + "\nCUSTOMER_CONTENT_JSON (untrusted; the objection phrase only, already verified against the "
+        "customer's own message)\n"
+        + _json_text(customer_message)
+        + "\nEXPECTED_STRUCTURED_OUTPUT\nUniversalReassuranceOutput",
     )

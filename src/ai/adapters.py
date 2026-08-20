@@ -23,8 +23,15 @@ from .models import (
     CustomerMessageOutput,
     IntentOutput,
     ReassuranceOutput,
+    UniversalReassuranceOutput,
 )
-from .prompts import clarification_prompt, customer_response_prompt, intent_prompt, reassurance_prompt
+from .prompts import (
+    clarification_prompt,
+    customer_response_prompt,
+    intent_prompt,
+    reassurance_prompt,
+    universal_reassurance_prompt,
+)
 from .provider import StructuredAIProvider
 
 # TEMPORARY diagnostic logging (2026-08-17): the qualification threshold
@@ -636,3 +643,90 @@ class AIReassuranceResponseGenerator:
             case_id,
             ai_metadata=_audit(result.metadata),
         )
+
+
+class AIUniversalReassuranceResponseGenerator:
+    """Zero-config counterpart to AIReassuranceResponseGenerator -- used
+    whenever the business has not authored any qualification.
+    objection_responses entries (see LeadIntakeService._with_reassurance for
+    how the two are chosen; the owner-authored path above always takes
+    priority when entries exist). Grounds its response only in real,
+    already-collected Business DNA facts -- service description,
+    fulfillment type, booking availability -- and deliberately never sees a
+    price or numeric fact in its context, so there is nothing for it to
+    restate or get wrong. The same _safe_message screen used everywhere
+    else in this file is still the backstop against a slip (an invented
+    discount, guarantee, or commitment)."""
+
+    def __init__(self, provider: StructuredAIProvider) -> None:
+        self.provider = provider
+
+    def generate(
+        self,
+        objection_phrase: str,
+        business_dna: Mapping[str, object],
+        channel: str,
+        case_id: str,
+        service_id: str | None = None,
+    ) -> CustomerResponse:
+        _require_permissions(business_dna, "draft_message")
+        communication = _communication(business_dna)
+        business = business_dna.get("business", {})
+        prompt = universal_reassurance_prompt(
+            context={
+                "objection_phrase": objection_phrase,
+                "language": communication.get("language", "English"),
+                "tone": communication.get("tone"),
+                "channel": channel,
+                "business": {
+                    "industry": business.get("industry") if isinstance(business, Mapping) else None,
+                    "description": business.get("description") if isinstance(business, Mapping) else None,
+                },
+                "service": self._service_context(business_dna, service_id),
+            },
+            customer_message=objection_phrase,
+        )
+        request = AIRequest(
+            prompt.identifier,
+            prompt.version,
+            "universal_reassurance_response_generation",
+            prompt.system,
+            prompt.user,
+            UniversalReassuranceOutput,
+        )
+        result = self.provider.generate(request)
+        if not _safe_message(result.output.message_text, business_dna):
+            raise AIInvalidOutputError(
+                "AI universal reassurance response made an unsafe commitment",
+                metadata=_invalid_metadata(result.metadata),
+            )
+        return CustomerResponse(
+            result.output.message_text.strip(),
+            channel,
+            "objection_reassurance",
+            case_id,
+            ai_metadata=_audit(result.metadata),
+        )
+
+    @staticmethod
+    def _service_context(
+        business_dna: Mapping[str, object], service_id: str | None
+    ) -> Mapping[str, object] | None:
+        if not service_id:
+            return None
+        services = business_dna.get("services", [])
+        if not isinstance(services, list):
+            return None
+        for service in services:
+            if isinstance(service, Mapping) and service.get("id") == service_id:
+                # Deliberately no price/amount field here -- objection
+                # reassurance must never state a number the customer could
+                # hold the business to. fulfillment_type alone conveys the
+                # true structural fact (e.g. quote_required means a quote
+                # step necessarily precedes any payment).
+                return {
+                    "description": service.get("description"),
+                    "fulfillment_type": service.get("fulfillment_type"),
+                    "booking_allowed": service.get("booking_allowed"),
+                }
+        return None

@@ -28,7 +28,10 @@ from src.engine.customer_response_generator import CustomerResponseGenerator
 from src.engine.decision_router import DecisionRequest
 from src.engine.intent_extractor import IntentExtractor
 from src.engine.question_generator import QuestionGenerator
-from src.engine.reassurance_response_generator import ReassuranceResponseGenerator
+from src.engine.reassurance_response_generator import (
+    ReassuranceResponseGenerator,
+    UniversalReassuranceResponseGenerator,
+)
 
 from .commercial_service import CommercialWorkflowService
 from .errors import (
@@ -154,6 +157,7 @@ class ConversationService:
         customer_response_generator: CustomerResponseGenerator,
         *,
         reassurance_response_generator: ReassuranceResponseGenerator | None = None,
+        universal_reassurance_response_generator: UniversalReassuranceResponseGenerator | None = None,
         token_ttl_hours: int = 720,
     ) -> None:
         if not 1 <= token_ttl_hours <= 8_760:
@@ -165,6 +169,7 @@ class ConversationService:
             question_generator,
             customer_response_generator=customer_response_generator,
             reassurance_response_generator=reassurance_response_generator,
+            universal_reassurance_response_generator=universal_reassurance_response_generator,
         )
         self.commercial = CommercialWorkflowService()
         self.token_ttl = timedelta(hours=token_ttl_hours)
