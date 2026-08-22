@@ -772,6 +772,9 @@ class CommercialWorkflowService:
             case.lead.email,
             case.lead.phone,
             attributes,
+            # Carried forward -- see the matching comment in
+            # PersistentLeadIntakeService.receive_in_unit_of_work.
+            sms_consent=case.lead.sms_consent,
         )
         case.update_lead(updated_lead)
         uow.leads.save(case.business_id, updated_lead, occurred_at)

@@ -2,7 +2,7 @@
 
 import hashlib
 from datetime import datetime, timezone
-from typing import Any, Mapping
+from typing import Any, Mapping, Sequence
 
 from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
@@ -136,6 +136,10 @@ class SQLAlchemyBusinessRepository:
         if row is None:
             return None
         return _business_from_row(row)
+
+    def list_all(self) -> tuple[Business, ...]:
+        rows = self.session.scalars(select(BusinessRow).order_by(BusinessRow.id))
+        return tuple(_business_from_row(row) for row in rows)
 
     def update_billing(
         self,
@@ -420,6 +424,7 @@ class SQLAlchemyLeadRepository:
             normalized_phone=lead.phone,
             email=lead.email,
             normalized_email=lead.email,
+            sms_consent=lead.sms_consent,
             metadata_json=_json_value(lead.attributes),
             created_at=created_at,
             updated_at=created_at,
@@ -435,6 +440,7 @@ class SQLAlchemyLeadRepository:
                 normalized_phone=lead.phone,
                 email=lead.email,
                 normalized_email=lead.email,
+                sms_consent=lead.sms_consent,
                 metadata_json=_json_value(lead.attributes),
                 updated_at=updated_at,
             )
@@ -471,7 +477,7 @@ class SQLAlchemyLeadRepository:
 
     @staticmethod
     def _to_domain(row: LeadRow) -> Lead:
-        return Lead(row.id, row.name, row.email, row.phone, row.metadata_json)
+        return Lead(row.id, row.name, row.email, row.phone, row.metadata_json, sms_consent=row.sms_consent)
 
 
 class SQLAlchemyProcessEventRepository:
@@ -586,6 +592,24 @@ class SQLAlchemyProcessCaseRepository:
             select(ProcessCaseRow)
             .where(ProcessCaseRow.business_id == business_id)
             .order_by(ProcessCaseRow.updated_at.desc())
+            .limit(limit)
+        )
+        return tuple(self._to_domain(row) for row in rows)
+
+    def list_by_state(
+        self,
+        business_id: str,
+        states: Sequence[ProcessState],
+        *,
+        limit: int = 500,
+    ) -> tuple[ProcessCase, ...]:
+        rows = self.session.scalars(
+            select(ProcessCaseRow)
+            .where(
+                ProcessCaseRow.business_id == business_id,
+                ProcessCaseRow.current_state.in_([state.value for state in states]),
+            )
+            .order_by(ProcessCaseRow.updated_at.asc())
             .limit(limit)
         )
         return tuple(self._to_domain(row) for row in rows)

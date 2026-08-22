@@ -45,6 +45,13 @@ class IncomingMessage:
     email: str | None = None
     case_id: str | None = None
     conversation_context: ConversationContext | None = None
+    # Structured, explicit opt-in for proactive follow-up SMS (a UI
+    # checkbox the customer ticks), NEVER inferred from raw_text -- see
+    # Lead.sms_consent for why this must stay a deliberate action rather
+    # than something the AI extracts from conversation content. Defaults
+    # False; LeadIntakeService._updated_lead ORs it into the lead so one
+    # message setting it True is enough for the whole case going forward.
+    sms_consent: bool = False
 
     def __post_init__(self) -> None:
         for value, name in (

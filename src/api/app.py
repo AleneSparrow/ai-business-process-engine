@@ -35,6 +35,7 @@ from .routes import (
     dashboard,
     health,
     integrations,
+    internal,
     lead_intake,
     onboarding,
     public_conversations,
@@ -186,6 +187,7 @@ def create_app(
     application.include_router(public_conversations.router)
     application.include_router(sms.router)
     application.include_router(sms.public_router)
+    application.include_router(internal.router)
     application.mount(
         "/widget",
         StaticFiles(directory=Path(__file__).parents[2] / "web" / "widget", html=True),

@@ -230,6 +230,12 @@ class PublicConversationCreateRequest(ApiModel):
         str | None,
         Field(min_length=43, max_length=43, pattern=r"^[A-Za-z0-9_-]{43}$"),
     ] = None
+    # Sticky, explicit opt-in for proactive follow-up SMS (a widget
+    # checkbox) -- see Lead.sms_consent/IncomingMessage.sms_consent. Once
+    # sent as True on any message in a conversation, LeadIntakeService._
+    # updated_lead ORs it in permanently; sending False here never revokes
+    # a prior True.
+    sms_consent: bool = False
 
     @model_validator(mode="after")
     def require_complete_first_message(self) -> "PublicConversationCreateRequest":
@@ -251,6 +257,8 @@ class PublicConversationCreateRequest(ApiModel):
 class PublicConversationMessageRequest(ApiModel):
     message: Annotated[str, Field(min_length=1, max_length=10_000)]
     external_message_id: Annotated[str, Field(min_length=1, max_length=255)]
+    # See PublicConversationCreateRequest.sms_consent.
+    sms_consent: bool = False
 
     @field_validator("external_message_id")
     @classmethod

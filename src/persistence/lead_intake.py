@@ -135,6 +135,11 @@ class PersistentLeadIntakeService:
                 phone=None if "phone" in identity_conflicts else updated_lead.phone,
                 email=None if "email" in identity_conflicts else updated_lead.email,
                 attributes=updated_lead.attributes,
+                # Carried forward, not dropped: reconstructing a Lead here
+                # without this would silently reset consent to False for
+                # every case that ever hits an identity conflict, even
+                # though nothing about sms_consent caused the conflict.
+                sms_consent=updated_lead.sms_consent,
             )
             preliminary = self.qualification_service.evaluate(
                 updated_lead, intent, workflow.business_dna

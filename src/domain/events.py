@@ -29,3 +29,7 @@ class EventType(StrEnum):
     PAYMENT_REQUEST_CREATED = "PAYMENT_REQUEST_CREATED"
     PAYMENT_REQUEST_EXPIRED = "PAYMENT_REQUEST_EXPIRED"
     HUMAN_REPLY_SENT = "HUMAN_REPLY_SENT"
+    # Proactive re-contact of a stalled lead (universal-sales-cycle-model.md
+    # section 8) -- recorded by PersistentFollowUpRunner, never by the
+    # reactive LeadIntakeService.receive() path.
+    FOLLOW_UP_SENT = "FOLLOW_UP_SENT"

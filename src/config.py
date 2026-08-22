@@ -49,6 +49,13 @@ class Settings:
     # inbound SMS when a number is purchased for a business (see
     # TwilioClient.purchase_phone_number). Distinct from frontend_base_url.
     public_api_base_url: str | None = None
+    # Shared secret gating POST /api/v1/internal/follow-up/run (see
+    # src/api/routes/internal.py) -- this endpoint has no per-user auth (it's
+    # meant to be hit by a Railway Cron Job, not a signed-in staff account),
+    # so a bearer secret is the only thing standing between it and anyone
+    # who finds the URL. None (the default) means the endpoint is disabled
+    # entirely, not "open" -- see that route for the check.
+    internal_task_secret: str | None = field(default=None, repr=False)
 
     @property
     def sms_configured(self) -> bool:
@@ -191,6 +198,7 @@ class Settings:
                 public_api_base_url=(
                     public_api_base_url.rstrip("/") if public_api_base_url else None
                 ),
+                internal_task_secret=os.getenv("INTERNAL_TASK_SECRET"),
             )
         except ValueError as exc:
             raise RuntimeError(str(exc)) from exc

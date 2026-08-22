@@ -3,12 +3,13 @@
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Mapping, Protocol
+from typing import Any, Mapping, Protocol, Sequence
 
 from src.domain.auth import StaffSession, StaffUser
 from src.domain.models import Lead, ProcessCase, ProcessEvent
 from src.domain.conversations import Conversation, ConversationMessage
 from src.domain.commercial import Booking, PaymentRequest, PaymentType, Quote
+from src.domain.states import ProcessState
 from src.domain.tenancy import Business, BusinessDNAVersion
 
 
@@ -33,6 +34,12 @@ class BusinessRepository(Protocol):
     def get(self, business_id: str) -> Business | None: ...
     def get_by_payment_customer_id(self, payment_customer_id: str) -> Business | None: ...
     def get_by_payment_subscription_id(self, payment_subscription_id: str) -> Business | None: ...
+    def list_all(self) -> tuple[Business, ...]:
+        """Every tenant, unfiltered -- for platform-wide sweeps (currently
+        just PersistentFollowUpRunner) rather than anything scoped to a
+        single authenticated owner. No pagination yet: fine at today's
+        business count, would need one before this becomes a bottleneck."""
+        ...
     def update_billing(
         self,
         business_id: str,
@@ -76,6 +83,19 @@ class ProcessCaseRepository(Protocol):
     def find_active_for_lead(self, business_id: str, lead_id: str) -> ProcessCase | None: ...
     def save(self, case: ProcessCase, expected_version: int) -> None: ...
     def list_for_business(self, business_id: str, *, limit: int = 200) -> tuple[ProcessCase, ...]: ...
+    def list_by_state(
+        self,
+        business_id: str,
+        states: Sequence[ProcessState],
+        *,
+        limit: int = 500,
+    ) -> tuple[ProcessCase, ...]:
+        """Oldest-updated-first, unlike list_for_business (most-recent-
+        first) -- built for PersistentFollowUpRunner, where the cases that
+        matter are exactly the ones NOT recently touched. Most-recent-first
+        with a limit would silently starve genuinely stale cases out of the
+        window on any business with more active cases than the limit."""
+        ...
 
 
 class ProcessEventRepository(Protocol):

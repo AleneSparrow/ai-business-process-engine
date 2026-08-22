@@ -159,6 +159,7 @@ def create_conversation(
         external_message_id=payload.external_message_id,
         correlation_id=getattr(request.state, "request_id", None),
         conversation_token=payload.conversation_token,
+        sms_consent=payload.sms_consent,
     )
     request.state.conversation_id = result.internal_conversation_id
     request.state.resulting_state = result.current_state.value if result.current_state else None
@@ -200,6 +201,7 @@ def send_conversation_message(
         message_text=payload.message,
         external_message_id=payload.external_message_id,
         correlation_id=getattr(request.state, "request_id", None),
+        sms_consent=payload.sms_consent,
     )
     request.state.conversation_id = result.internal_conversation_id
     request.state.resulting_state = result.current_state.value if result.current_state else None

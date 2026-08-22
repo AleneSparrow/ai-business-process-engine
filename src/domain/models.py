@@ -47,6 +47,16 @@ class Lead:
     email: str | None = None
     phone: str | None = None
     attributes: Mapping[str, Any] = field(default_factory=dict)
+    # Explicit, sticky opt-in for proactive outbound SMS (universal-sales-
+    # cycle-model.md section 8) -- set only from a deliberate UI action
+    # (a consent checkbox), never inferred by the AI from conversation
+    # text. Once True it must never revert to False on a later message
+    # that simply omits it -- see LeadIntakeService._updated_lead, which
+    # ORs this in rather than overwriting it. This gates ONLY the
+    # follow-up sweep (PersistentFollowUpRunner); it has no effect on the
+    # ordinary reactive reply the customer is already mid-conversation
+    # for, which needs no separate consent.
+    sms_consent: bool = False
 
     def __post_init__(self) -> None:
         _require_text(self.lead_id, "lead_id")

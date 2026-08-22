@@ -186,6 +186,9 @@ class LeadRow(Base):
     normalized_phone: Mapped[str | None] = mapped_column(String(32))
     email: Mapped[str | None] = mapped_column(String(320))
     normalized_email: Mapped[str | None] = mapped_column(String(320))
+    # Proactive follow-up SMS opt-in (universal-sales-cycle-model.md section
+    # 8) -- see Lead.sms_consent for why this is sticky and never AI-set.
+    sms_consent: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSON_VALUE, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

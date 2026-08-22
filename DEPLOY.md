@@ -164,6 +164,46 @@ Once both are live:
   is `CORS_ALLOWED_ORIGINS` not exactly matching the frontend's origin
   (scheme + host, no trailing slash) — check step 3.
 
+## 6. Proactive follow-up SMS (optional)
+
+Re-contacts a stalled lead (never replied, still `NEW_LEAD`/`CONTACTED`/
+`QUALIFYING`) after the delays configured in Business DNA's
+`sales.follow_up` (24h/72h/168h by default, up to 3 attempts). Requires SMS
+already set up (a business has provisioned a Twilio number from Settings)
+and, per lead, an explicit consent checkbox ticked in the widget -- no
+consent, no follow-up, ever (see `src/domain/models.py`'s `Lead.sms_consent`
+docstring). Skip this whole section if you don't want proactive follow-up
+yet; nothing else in the deploy depends on it.
+
+1. On the backend service, set `INTERNAL_TASK_SECRET` to a long random
+   value (e.g. `openssl rand -hex 32`) in Railway's Variables tab. Leaving
+   it unset disables the endpoint entirely -- it refuses every request
+   rather than running unauthenticated.
+2. In the same Railway project, **+ New → Cron Job** (or **Empty Service**
+   configured as a scheduled job, depending on what your Railway plan
+   offers). Point it at the backend service's public URL and have it run,
+   on whatever cadence you want checked (hourly is reasonable given the
+   24h/72h/168h defaults):
+   ```
+   curl -X POST https://your-backend.up.railway.app/api/v1/internal/follow-up/run \
+     -H "X-Internal-Task-Secret: <the same value as INTERNAL_TASK_SECRET>"
+   ```
+3. You can also just call it by hand any time (same curl command) to run a
+   sweep immediately instead of waiting for the schedule.
+
+Deliberately NOT an automatic in-process background loop -- see
+`src/persistence/follow_up_service.py`'s module docstring for why (mainly:
+it stays safe to trigger from more than one place, or scale to more than
+one replica, without double-sending).
+
+**Not yet done, before this should carry real customer traffic:** the
+widget's consent checkbox text (`web/widget/widget.js`) is a placeholder
+shape, not reviewed by a lawyer -- see the delivery notes for this feature.
+Also, only the website chat widget captures consent right now; a lead that
+only ever came in over inbound SMS or the direct API has no consent-capture
+path yet and will simply never qualify for follow-up (safe by default, just
+incomplete coverage).
+
 ## Known limitation carried over from local dev
 
 The in-memory rate limiter (`src/api/rate_limit.py`) is process-local — fine

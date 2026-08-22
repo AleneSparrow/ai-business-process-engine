@@ -509,6 +509,9 @@ class LeadIntakeService:
             phone=lead.phone or LeadIntakeService._normalize_phone(message.phone or intent.phone),
             email=lead.email or LeadIntakeService._normalize_email(message.email or intent.email),
             attributes=attributes,
+            # Sticky-true, never sourced from the AI -- see IncomingMessage.
+            # sms_consent and Lead.sms_consent docstrings.
+            sms_consent=lead.sms_consent or message.sms_consent,
         )
 
     @staticmethod

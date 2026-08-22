@@ -95,6 +95,8 @@
 .aibp-chat__service-button:hover { color: #fff; background: var(--aibp-color); }
 .aibp-chat__status { flex: none; min-height: 1.2rem; margin: .25rem 1rem; color: #536179; font-size: .8rem; }
 .aibp-chat__status--error { color: #a11; }
+.aibp-chat__consent { display: flex; align-items: flex-start; gap: .4rem; flex: none; margin: 0 1rem .5rem; color: #536179; font-size: .75rem; line-height: 1.3; cursor: pointer; }
+.aibp-chat__consent input { flex: none; margin-top: .15rem; }
 .aibp-chat__form { display: grid; flex: none; grid-template-columns: 1fr auto; gap: .5rem; padding: .5rem 1rem 1rem; }
 .aibp-chat__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .aibp-chat__form textarea { resize: none; border: 1px solid #aeb8c8; border-radius: .5rem; padding: .55rem; }

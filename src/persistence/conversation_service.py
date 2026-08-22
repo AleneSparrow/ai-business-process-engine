@@ -182,6 +182,7 @@ class ConversationService:
         external_message_id: str | None = None,
         correlation_id: str | None = None,
         conversation_token: str | None = None,
+        sms_consent: bool = False,
     ) -> PublicConversation:
         if (message_text is None) != (external_message_id is None):
             raise ValueError("message_text and external_message_id must be supplied together")
@@ -217,6 +218,7 @@ class ConversationService:
                         correlation_id,
                         dna,
                         save_conversation=True,
+                        sms_consent=sms_consent,
                     )
                 else:
                     duplicate = True
@@ -247,6 +249,7 @@ class ConversationService:
                     correlation_id,
                     dna,
                     save_conversation=True,
+                    sms_consent=sms_consent,
                 )
             snapshot = self._snapshot(uow, conversation, token, duplicate=duplicate)
             uow.commit()
@@ -260,6 +263,7 @@ class ConversationService:
         message_text: str,
         external_message_id: str,
         correlation_id: str | None = None,
+        sms_consent: bool = False,
     ) -> PublicConversation:
         token_hash = self.hash_token(conversation_token)
         with self.unit_of_work_factory() as uow:
@@ -279,6 +283,7 @@ class ConversationService:
                 correlation_id,
                 dna,
                 save_conversation=True,
+                sms_consent=sms_consent,
             )
             snapshot = self._snapshot(
                 uow, conversation, conversation_token, duplicate=duplicate
@@ -378,6 +383,7 @@ class ConversationService:
         dna: Mapping[str, Any],
         *,
         save_conversation: bool,
+        sms_consent: bool = False,
     ) -> bool:
         fingerprint = hashlib.sha256(message_text.encode("utf-8")).hexdigest()
         existing = uow.conversation_messages.get_by_external_id(
@@ -451,6 +457,7 @@ class ConversationService:
                     external_message_id,
                     occurred_at,
                     prior_messages,
+                    sms_consent=sms_consent,
                 )
                 conversation.link_case(result.lead_id, result.case_id)
                 response_text, response_reason = self._response_for_result(result, dna)
@@ -590,6 +597,8 @@ class ConversationService:
         external_message_id: str,
         occurred_at: datetime,
         prior_messages: tuple[ConversationMessage, ...],
+        *,
+        sms_consent: bool = False,
     ) -> LeadIntakeResult:
         context = self._context(uow, conversation, prior_messages)
         internal_message_id = "chat:" + hashlib.sha256(
@@ -603,6 +612,7 @@ class ConversationService:
             timestamp=occurred_at,
             case_id=conversation.case_id,
             conversation_context=context,
+            sms_consent=sms_consent,
         ))
 
     def _context(

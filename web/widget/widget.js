@@ -84,6 +84,31 @@
   status.className = "aibp-chat__status";
   status.setAttribute("role", "status");
 
+  // Explicit, deliberate opt-in for proactive follow-up SMS -- NEVER
+  // inferred from anything the customer types (see Lead.sms_consent /
+  // universal-sales-cycle-model.md section 8). Unchecked by default;
+  // persisted per-browser the same way conversationToken already is, so a
+  // returning visitor in the same conversation doesn't have to re-tick it
+  // every time they reopen the widget. The label text below is a
+  // placeholder shape (informational, not marketing, with a STOP opt-out
+  // mention) -- NOT reviewed by a lawyer; see the delivery notes for why
+  // this needs legal review per-state before relying on it.
+  const consentKey = `${storageKey}:sms-consent`;
+  let smsConsent = window.localStorage.getItem(consentKey) === "true";
+  const consentRow = document.createElement("label");
+  consentRow.className = "aibp-chat__consent";
+  const consentCheckbox = document.createElement("input");
+  consentCheckbox.type = "checkbox";
+  consentCheckbox.id = "aibp-chat-sms-consent";
+  consentCheckbox.checked = smsConsent;
+  consentCheckbox.addEventListener("change", function () {
+    smsConsent = consentCheckbox.checked;
+    window.localStorage.setItem(consentKey, String(smsConsent));
+  });
+  const consentText = document.createElement("span");
+  consentText.textContent = "It's okay to text me updates about my request (reply STOP to opt out).";
+  consentRow.append(consentCheckbox, consentText);
+
   const form = document.createElement("form");
   form.className = "aibp-chat__form";
   const label = document.createElement("label");
@@ -100,7 +125,7 @@
   send.type = "submit";
   send.textContent = "Send";
   form.append(label, input, send);
-  panel.append(header, history, slotOptions, status, form);
+  panel.append(header, history, slotOptions, status, consentRow, form);
   root.append(launcher, panel);
   document.body.append(root);
 
@@ -331,7 +356,7 @@
       renderConversation(retried);
       return;
     }
-    const message = { message: text, external_message_id: messageId() };
+    const message = { message: text, external_message_id: messageId(), sms_consent: smsConsent };
     let data;
     if (conversationToken) {
       data = await request(`/conversations/${encodeURIComponent(conversationToken)}/messages`, {
