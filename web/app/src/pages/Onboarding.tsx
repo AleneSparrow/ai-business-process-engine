@@ -301,15 +301,15 @@ export default function Onboarding() {
                     <div className="grid sm:grid-cols-2 gap-3">
                       <AreaOption
                         icon={Globe}
-                        label="Anywhere"
-                        desc="Fully remote or online — no fixed location. Every lead qualifies regardless of where they're based."
+                        label="Serve customers anywhere"
+                        desc="For remote, online, or nationwide businesses. Location never disqualifies a lead."
                         active={areaMode === "remote"}
                         onClick={() => setAreaMode("remote")}
                       />
                       <AreaOption
                         icon={MapPin}
-                        label="A specific area"
-                        desc="Only leads inside the zip codes you list book automatically — others go to you instead."
+                        label="Only selected ZIP codes"
+                        desc="Use this when travel or licensing limits where you can serve. Leads outside the list won't book automatically."
                         active={areaMode === "local"}
                         onClick={() => setAreaMode("local")}
                       />

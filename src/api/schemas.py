@@ -595,10 +595,27 @@ class DashboardCaseSummarySchema(ApiModel):
     updated_at: datetime
     event_count: int
     latest_event_type: str | None
+    category: str | None = None
 
     @classmethod
-    def from_domain(cls, case: ProcessCase) -> "DashboardCaseSummarySchema":
+    def from_domain(
+        cls,
+        case: ProcessCase,
+        *,
+        service_names: Mapping[str, str] | None = None,
+    ) -> "DashboardCaseSummarySchema":
         latest = case.event_history[-1] if case.event_history else None
+        service_id = next(
+            (
+                value
+                for event in reversed(case.event_history)
+                if isinstance((value := event.payload.get("service_id")), str) and value
+            ),
+            None,
+        )
+        category = None
+        if service_id is not None:
+            category = (service_names or {}).get(service_id, service_id.replace("-", " ").title())
         return cls(
             case_id=case.case_id,
             lead=DashboardLeadSchema.from_domain(case.lead),
@@ -607,6 +624,7 @@ class DashboardCaseSummarySchema(ApiModel):
             updated_at=case.updated_at,
             event_count=len(case.event_history),
             latest_event_type=str(latest.event_type) if latest else None,
+            category=category,
         )
 
 
@@ -674,6 +692,8 @@ class DashboardConversationSchema(ApiModel):
     case_id: str | None
     lead_id: str | None
     lead_name: str | None
+    lead_phone: str | None = None
+    lead_email: str | None = None
     case_state: ProcessState | None
     channel: str
     status: ConversationStatus
@@ -686,6 +706,8 @@ class DashboardConversationSchema(ApiModel):
         conversation: Conversation,
         *,
         lead_name: str | None = None,
+        lead_phone: str | None = None,
+        lead_email: str | None = None,
         case_state: ProcessState | None = None,
     ) -> "DashboardConversationSchema":
         return cls(
@@ -693,6 +715,8 @@ class DashboardConversationSchema(ApiModel):
             case_id=conversation.case_id,
             lead_id=conversation.lead_id,
             lead_name=lead_name,
+            lead_phone=lead_phone,
+            lead_email=lead_email,
             case_state=case_state,
             channel=conversation.channel,
             status=conversation.status,

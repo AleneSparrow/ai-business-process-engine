@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Bell, ArrowUpRight, Clock, Phone, Mail, Loader2 } from "lucide-react";
+import { Search, Bell, ArrowUpRight, Clock, Phone, Mail, Loader2, ArrowUpDown } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { useAuth, describeError } from "../auth/AuthContext";
 import { api, type DashboardCaseSummary } from "../api/client";
@@ -16,6 +16,7 @@ import {
 } from "../components/Shared";
 
 const FILTERS: (CaseState | "ALL")[] = ["ALL", "NEEDS_HUMAN", "QUALIFYING", "BOOKED", "LOST", "COMPLETED"];
+type SortKey = "date" | "name" | "category";
 
 function StatCard({ label, value, sub, tone }: { label: string; value: string | number; sub?: string; tone?: string }) {
   return (
@@ -35,6 +36,8 @@ export default function Dashboard() {
   const [cases, setCases] = useState<DashboardCaseSummary[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<CaseState | "ALL">("ALL");
+  const [sortBy, setSortBy] = useState<SortKey>("date");
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -67,10 +70,25 @@ export default function Dashboard() {
     [cases],
   );
 
-  const filtered = useMemo(
-    () => (filter === "ALL" ? decorated : decorated.filter((c) => c.caseState === filter)),
-    [decorated, filter],
-  );
+  const filtered = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase();
+    const visible = (filter === "ALL" ? [...decorated] : decorated.filter((c) => c.caseState === filter)).filter((c) => {
+      if (!query) return true;
+      return [c.lead.name, c.lead.phone, c.lead.email, c.category, c.case_id, c.lead.lead_id]
+        .some((value) => value?.toLocaleLowerCase().includes(query));
+    });
+    return visible.sort((left, right) => {
+      if (sortBy === "date") {
+        return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+      }
+      const leftValue = sortBy === "name" ? left.lead.name : left.category;
+      const rightValue = sortBy === "name" ? right.lead.name : right.category;
+      if (!leftValue && !rightValue) return 0;
+      if (!leftValue) return 1;
+      if (!rightValue) return -1;
+      return leftValue.localeCompare(rightValue, undefined, { sensitivity: "base" });
+    });
+  }, [decorated, filter, searchQuery, sortBy]);
 
   const selected = useMemo(
     () => decorated.find((c) => c.case_id === selectedId) ?? decorated[0] ?? null,
@@ -131,7 +149,13 @@ export default function Dashboard() {
           <div className="flex items-center gap-3">
             <div className="relative hidden sm:block">
               <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9C9488]" />
-              <input placeholder="Search leads..." className="pl-9 pr-3 py-2 rounded-lg bg-white border border-[#E7E5DE] text-sm w-52 outline-none focus:ring-2 focus:ring-[#B8733333]" />
+              <input
+                aria-label="Search leads"
+                placeholder="Search leads..."
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className="pl-9 pr-3 py-2 rounded-lg bg-white border border-[#E7E5DE] text-sm w-52 outline-none focus:ring-2 focus:ring-[#B8733333]"
+              />
             </div>
             <button className="relative w-9 h-9 rounded-lg bg-white border border-[#E7E5DE] flex items-center justify-center">
               <Bell size={16} strokeWidth={2} />
@@ -165,23 +189,42 @@ export default function Dashboard() {
           ) : (
             <div className="flex flex-col lg:flex-row gap-6">
               <div className="flex-1 min-w-0 bg-white rounded-2xl border border-[#E7E5DE] overflow-hidden">
-                <div className="flex items-center gap-2 px-5 py-3 border-b border-[#E7E5DE] overflow-x-auto">
-                  {FILTERS.map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => setFilter(s)}
-                      className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors"
-                      style={{ backgroundColor: filter === s ? "#151515" : "transparent", color: filter === s ? "#fff" : "#6B6459" }}
+                <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-[#E7E5DE]">
+                  <div className="flex items-center gap-2 overflow-x-auto">
+                    {FILTERS.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setFilter(s)}
+                        className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors"
+                        style={{ backgroundColor: filter === s ? "#151515" : "transparent", color: filter === s ? "#fff" : "#6B6459" }}
+                      >
+                        {s === "ALL" ? "All" : STATE_META[s].label}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="flex items-center gap-1.5 shrink-0 text-xs text-[#6B6459]">
+                    <ArrowUpDown size={13} />
+                    <span className="sr-only">Sort leads</span>
+                    <select
+                      aria-label="Sort leads"
+                      value={sortBy}
+                      onChange={(event) => setSortBy(event.target.value as SortKey)}
+                      className="bg-white border border-[#E7E5DE] rounded-lg px-2.5 py-1.5 outline-none"
                     >
-                      {s === "ALL" ? "All" : STATE_META[s].label}
-                    </button>
-                  ))}
+                      <option value="date">Newest first</option>
+                      <option value="name">Name A–Z</option>
+                      <option value="category">Category A–Z</option>
+                    </select>
+                  </label>
                 </div>
                 <ul>
+                  {filtered.length === 0 && (
+                    <li className="px-5 py-10 text-center text-sm text-[#6B6459]">No leads match your search and filters.</li>
+                  )}
                   {filtered.map((c) => (
                     <li
                       key={c.case_id}
-                      onClick={() => setSelectedId(c.case_id)}
+                      onClick={() => navigate(`/app/conversations?case=${c.case_id}`)}
                       className="px-5 py-4 border-b border-[#F0EFE9] last:border-0 cursor-pointer transition-colors"
                       style={{ backgroundColor: selected?.case_id === c.case_id ? "#FAFAF7" : "transparent" }}
                     >
@@ -191,7 +234,7 @@ export default function Dashboard() {
                             <span className="text-sm font-semibold truncate">{c.lead.name || "Unnamed lead"}</span>
                             <span className="text-[11px] text-[#9C9488]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{c.case_id.slice(0, 8)}</span>
                           </div>
-                          <div className="text-sm text-[#6B6459] truncate">{c.detail}</div>
+                          <div className="text-sm text-[#6B6459] truncate">{c.category ?? "Uncategorized"} · {c.detail}</div>
                         </div>
                         <div className="flex flex-col items-end gap-2 shrink-0">
                           <StatePill state={c.caseState} />

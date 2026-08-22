@@ -19,6 +19,8 @@ export default function Conversation() {
 
   const [conversations, setConversations] = useState<DashboardConversationSummary[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [requestedCaseMissing, setRequestedCaseMissing] = useState(false);
   const [detail, setDetail] = useState<DashboardConversationDetail | null>(null);
   const [caseDetail, setCaseDetail] = useState<DashboardCaseDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -64,7 +66,12 @@ export default function Conversation() {
         if (cancelled) return;
         setConversations(res.conversations);
         const byCase = requestedCaseId ? res.conversations.find((c) => c.case_id === requestedCaseId) : undefined;
-        setSelectedId((prev) => prev ?? byCase?.conversation_id ?? res.conversations[0]?.conversation_id ?? null);
+        setRequestedCaseMissing(Boolean(requestedCaseId && !byCase));
+        setSelectedId((prev) => (
+          requestedCaseId
+            ? byCase?.conversation_id ?? null
+            : prev ?? res.conversations[0]?.conversation_id ?? null
+        ));
       })
       .catch((err) => {
         if (!cancelled) setError(describeError(err));
@@ -73,7 +80,23 @@ export default function Conversation() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, businessId]);
+  }, [token, businessId, requestedCaseId]);
+
+  const filteredConversations = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase();
+    if (!query) return conversations ?? [];
+    return (conversations ?? []).filter((conversation) =>
+      [
+        conversation.lead_name,
+        conversation.lead_phone,
+        conversation.lead_email,
+        conversation.case_id,
+        conversation.conversation_id,
+        conversation.channel,
+        conversation.status.replace(/_/g, " "),
+      ].some((value) => value?.toLocaleLowerCase().includes(query)),
+    );
+  }, [conversations, searchQuery]);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,7 +157,13 @@ export default function Conversation() {
             <div className="px-4 py-4 border-b border-[#E7E5DE]">
               <div className="relative">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9C9488]" />
-                <input placeholder="Search conversations..." className="w-full pl-8 pr-3 py-2 rounded-lg bg-white border border-[#E7E5DE] text-sm outline-none" />
+                <input
+                  aria-label="Search conversations"
+                  placeholder="Search conversations..."
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  className="w-full pl-8 pr-3 py-2 rounded-lg bg-white border border-[#E7E5DE] text-sm outline-none"
+                />
               </div>
             </div>
             {error && (
@@ -150,9 +179,11 @@ export default function Conversation() {
               )
             ) : conversations.length === 0 ? (
               <div className="px-4 py-8 text-sm text-[#6B6459] text-center">No conversations yet.</div>
+            ) : filteredConversations.length === 0 ? (
+              <div className="px-4 py-8 text-sm text-[#6B6459] text-center">No conversations match your search.</div>
             ) : (
               <ul className="flex-1 overflow-y-auto">
-                {conversations.map((c) => {
+                {filteredConversations.map((c) => {
                   const meta = mapProcessState(c.case_state ?? "NEW_LEAD");
                   return (
                     <li
@@ -176,8 +207,12 @@ export default function Conversation() {
 
           <div className="flex-1 min-w-0 flex flex-col">
             {!selectedId ? (
-              <div className="flex-1 flex items-center justify-center text-sm text-[#6B6459]">
-                {conversations === null ? "Loading…" : "Select a conversation"}
+              <div className="flex-1 flex items-center justify-center text-sm text-[#6B6459] px-6 text-center">
+                {conversations === null
+                  ? "Loading…"
+                  : requestedCaseMissing
+                    ? "No conversation is linked to this lead yet."
+                    : "Select a conversation"}
               </div>
             ) : !detail ? (
               <div className="flex-1 flex items-center justify-center text-sm text-[#6B6459]">

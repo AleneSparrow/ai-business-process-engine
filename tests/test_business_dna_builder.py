@@ -1,6 +1,8 @@
 """Onboarding defaults -- see business_dna_builder.py for the live-traffic
 finding (2026-08-19) that motivated the timezone default below."""
 
+import pytest
+
 from src.domain.business_dna_builder import (
     OnboardingInput,
     OnboardingService,
@@ -37,3 +39,20 @@ def test_new_business_defaults_to_a_real_us_timezone_not_utc() -> None:
     assert dna["booking"]["timezone"] == "America/New_York"
     assert dna["business"]["timezone"] != "UTC"
     assert dna["booking"]["timezone"] != "UTC"
+
+
+@pytest.mark.parametrize(
+    ("preset", "expected"),
+    (
+        ("Friendly & direct", "friendly, direct, and concise"),
+        ("Formal & precise", "formal, precise, and professional"),
+        ("Casual & brief", "casual, brief, and plainspoken"),
+    ),
+)
+def test_customer_voice_presets_create_distinct_promptable_business_tones(
+    preset: str,
+    expected: str,
+) -> None:
+    dna = build_business_dna(_onboarding(tone=preset))
+
+    assert dna["communication"]["tone"] == expected

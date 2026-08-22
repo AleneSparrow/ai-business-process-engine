@@ -6,6 +6,7 @@ actions are possible even with a valid session token for a different
 business.
 """
 
+from collections.abc import Mapping
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
@@ -54,8 +55,17 @@ def list_cases(
 ) -> DashboardCaseListResponse:
     with unit_of_work_factory() as unit_of_work:
         cases = unit_of_work.cases.list_for_business(business_id)
+        dna = unit_of_work.business_dna.get_active(business_id)
+        service_names = {
+            str(service["id"]): str(service["name"])
+            for service in (dna.configuration.get("services", ()) if dna is not None else ())
+            if isinstance(service, Mapping) and service.get("id") and service.get("name")
+        }
     return DashboardCaseListResponse(
-        cases=tuple(DashboardCaseSummarySchema.from_domain(case) for case in cases)
+        cases=tuple(
+            DashboardCaseSummarySchema.from_domain(case, service_names=service_names)
+            for case in cases
+        )
     )
 
 
@@ -84,16 +94,24 @@ def list_conversations(
         schemas = []
         for conversation in conversations:
             lead_name = None
+            lead_phone = None
+            lead_email = None
             if conversation.lead_id is not None:
                 lead = unit_of_work.leads.get(business_id, conversation.lead_id)
                 lead_name = lead.name if lead is not None else None
+                lead_phone = lead.phone if lead is not None else None
+                lead_email = lead.email if lead is not None else None
             case_state = None
             if conversation.case_id is not None:
                 case = unit_of_work.cases.get(business_id, conversation.case_id)
                 case_state = case.current_state if case is not None else None
             schemas.append(
                 DashboardConversationSchema.from_domain(
-                    conversation, lead_name=lead_name, case_state=case_state
+                    conversation,
+                    lead_name=lead_name,
+                    lead_phone=lead_phone,
+                    lead_email=lead_email,
+                    case_state=case_state,
                 )
             )
     return DashboardConversationListResponse(conversations=tuple(schemas))
@@ -111,9 +129,13 @@ def get_conversation(
         if conversation is None:
             raise ResourceNotFoundError("conversation_not_found", "Conversation was not found")
         lead_name = None
+        lead_phone = None
+        lead_email = None
         if conversation.lead_id is not None:
             lead = unit_of_work.leads.get(business_id, conversation.lead_id)
             lead_name = lead.name if lead is not None else None
+            lead_phone = lead.phone if lead is not None else None
+            lead_email = lead.email if lead is not None else None
         case_state = None
         if conversation.case_id is not None:
             case = unit_of_work.cases.get(business_id, conversation.case_id)
@@ -121,7 +143,11 @@ def get_conversation(
         messages = unit_of_work.conversation_messages.list_for_conversation(business_id, conversation_id)
     return DashboardConversationDetailResponse(
         conversation=DashboardConversationSchema.from_domain(
-            conversation, lead_name=lead_name, case_state=case_state
+            conversation,
+            lead_name=lead_name,
+            lead_phone=lead_phone,
+            lead_email=lead_email,
+            case_state=case_state,
         ),
         messages=tuple(
             DashboardMessageSchema(

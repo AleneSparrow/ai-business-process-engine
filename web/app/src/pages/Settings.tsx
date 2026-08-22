@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Check, ChevronLeft, ChevronRight, Copy, Globe, Loader2, MapPin, MessageSquare, Plus, RotateCcw, X } from "lucide-react";
+import { ArrowLeft, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Globe, Loader2, MapPin, MessageSquare, Plus, RotateCcw, X } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { AreaOption, Field, formatRelativeTime, inputCls, ToneOption } from "../components/Shared";
 import { useAuth, describeError } from "../auth/AuthContext";
-import { api, type BusinessDNASettings, type CommercialPath, type SmsStatus } from "../api/client";
+import { API_BASE, api, type BusinessDNASettings, type CommercialPath, type SmsStatus } from "../api/client";
 
 // Grouped by the task a business owner actually has, not by which Business
 // DNA schema section a field happens to live in -- "Services" and "Booking"
@@ -14,6 +14,7 @@ import { api, type BusinessDNASettings, type CommercialPath, type SmsStatus } fr
 // "how the engine should handle the conversation." Four stops instead of
 // seven the owner has to click through to find anything.
 const SETTINGS_TABS = [
+  { key: "widget", label: "Install widget" },
   { key: "basics", label: "Basics" },
   { key: "services", label: "Services & booking" },
   { key: "conversation", label: "Conversation" },
@@ -188,7 +189,7 @@ export default function Settings() {
   // instead of always resetting to "business".
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const tab: TabKey = isTabKey(tabParam) ? tabParam : "basics";
+  const tab: TabKey = isTabKey(tabParam) ? tabParam : "widget";
   const setTab = (next: TabKey) => {
     setSearchParams((prev) => {
       const params = new URLSearchParams(prev);
@@ -505,6 +506,52 @@ export default function Settings() {
                 </button>
               </div>
 
+              {tab === "widget" && (
+                <div>
+                  <div className="rounded-2xl border p-5 md:p-6" style={{ borderColor: "#D9B48F", backgroundColor: "#FFF9F2" }}>
+                    <div className="flex items-start gap-3 mb-5">
+                      <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-white" style={{ backgroundColor: "#B87333" }}>
+                        <MessageSquare size={18} />
+                      </span>
+                      <div>
+                        <h2 className="text-lg font-semibold">Put Flywheel on your website</h2>
+                        <p className="text-sm text-[#6B6459] mt-1 leading-relaxed">
+                          Copy this code and paste it into your website just before <code>&lt;/body&gt;</code>. Once published, customers can start a conversation from any page.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="relative">
+                      <pre
+                        className="text-xs p-4 pr-24 rounded-lg border overflow-x-auto bg-white"
+                        style={{ borderColor: "#E7E5DE", fontFamily: "'IBM Plex Mono', monospace" }}
+                      >
+                        <code>{widgetSnippet ?? "Loading…"}</code>
+                      </pre>
+                      <button
+                        onClick={copyWidgetSnippet}
+                        disabled={!widgetSnippet}
+                        className="absolute top-2.5 right-2.5 text-xs font-medium px-3 py-2 rounded-md flex items-center gap-1.5 text-white disabled:opacity-50"
+                        style={{ backgroundColor: "#151515" }}
+                      >
+                        {snippetCopied ? <Check size={13} /> : <Copy size={13} />}
+                        {snippetCopied ? "Copied" : "Copy code"}
+                      </button>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4">
+                      <p className="text-xs text-[#6B6459]">Using Wix, Squarespace, Webflow, WordPress, or another site builder? Add this as a custom code or HTML snippet.</p>
+                      <a
+                        href={`${API_BASE}/widget/demo.html?business_id=${encodeURIComponent(businessId ?? "")}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-[#E7E5DE] bg-white text-xs font-medium"
+                      >
+                        Preview widget <ExternalLink size={12} />
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {tab === "basics" && (
                 <div>
                   <Field label="Business name"><input className={inputCls} value={state.name} onChange={(e) => setState({ ...state, name: e.target.value })} /></Field>
@@ -527,15 +574,15 @@ export default function Settings() {
                   <div className="grid sm:grid-cols-2 gap-3 mb-5">
                     <AreaOption
                       icon={Globe}
-                      label="Anywhere"
-                      desc="Fully remote or online — no fixed location. Every lead qualifies regardless of where they're based."
+                      label="Serve customers anywhere"
+                      desc="For remote, online, or nationwide businesses. Location never disqualifies a lead."
                       active={state.areaMode === "remote"}
                       onClick={() => setState({ ...state, areaMode: "remote" })}
                     />
                     <AreaOption
                       icon={MapPin}
-                      label="A specific area"
-                      desc="Only leads inside the zip codes you list book automatically — others go to you instead."
+                      label="Only selected ZIP codes"
+                      desc="Use this when travel or licensing limits where you can serve. Leads outside the list won't book automatically."
                       active={state.areaMode === "local"}
                       onClick={() => setState({ ...state, areaMode: "local" })}
                     />
@@ -546,29 +593,6 @@ export default function Settings() {
                       {zipList.length === 0 && <p className="text-xs mt-2" style={{ color: "#B4483A" }}>At least one zip code is required.</p>}
                     </Field>
                   )}
-
-                  <div className="text-sm font-semibold mt-8 mb-2 pt-6 border-t border-[#F0EFE9]">Website widget code</div>
-                  <p className="text-xs text-[#6B6459] mb-3">
-                    Paste this into your website's HTML — right before <code>&lt;/body&gt;</code> works well — to add the
-                    chat widget your customers use to talk to your business.
-                  </p>
-                  <div className="relative">
-                    <pre
-                      className="text-xs p-4 pr-20 rounded-lg border overflow-x-auto"
-                      style={{ borderColor: "#E7E5DE", backgroundColor: "#FAFAF8", fontFamily: "'IBM Plex Mono', monospace" }}
-                    >
-                      <code>{widgetSnippet ?? "Loading…"}</code>
-                    </pre>
-                    <button
-                      onClick={copyWidgetSnippet}
-                      disabled={!widgetSnippet}
-                      className="absolute top-2.5 right-2.5 text-xs font-medium px-2.5 py-1.5 rounded-md border flex items-center gap-1 bg-white disabled:opacity-50"
-                      style={{ borderColor: "#E7E5DE" }}
-                    >
-                      {snippetCopied ? <Check size={12} /> : <Copy size={12} />}
-                      {snippetCopied ? "Copied" : "Copy"}
-                    </button>
-                  </div>
                 </div>
               )}
 

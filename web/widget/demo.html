@@ -10,6 +10,12 @@
     <h1>Website chat widget demo</h1>
     <p>Open the chat launcher and ask for an AC diagnostic visit.</p>
   </main>
-  <script src="/widget/widget.js" data-business-id="acme-home-services"></script>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const widget = document.createElement("script");
+    widget.src = "/widget/widget.js";
+    widget.setAttribute("data-business-id", params.get("business_id") || "acme-home-services");
+    document.body.append(widget);
+  </script>
 </body>
 </html>

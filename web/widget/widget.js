@@ -149,7 +149,9 @@
     typingBubble = document.createElement("div");
     typingBubble.className = "aibp-chat__message aibp-chat__message--assistant aibp-chat__typing";
     typingBubble.setAttribute("aria-label", "Assistant is typing");
-    typingBubble.innerHTML = "<span></span><span></span><span></span>";
+    for (let index = 0; index < 3; index += 1) {
+      typingBubble.append(document.createElement("span"));
+    }
     history.append(typingBubble);
     history.scrollTop = history.scrollHeight;
   }

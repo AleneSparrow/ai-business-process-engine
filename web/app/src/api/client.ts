@@ -170,6 +170,7 @@ export interface DashboardCaseSummary {
   updated_at: string;
   event_count: number;
   latest_event_type: string | null;
+  category: string | null;
 }
 
 export interface DashboardCaseListResponse {
@@ -198,6 +199,8 @@ export interface DashboardConversationSummary {
   case_id: string | null;
   lead_id: string | null;
   lead_name: string | null;
+  lead_phone: string | null;
+  lead_email: string | null;
   case_state: ProcessState | null;
   channel: string;
   status: "ai_active" | "human_takeover_requested" | "human_takeover_active" | "closed";

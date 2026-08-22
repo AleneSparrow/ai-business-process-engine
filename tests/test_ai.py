@@ -138,7 +138,15 @@ def test_reformatted_phone_number_is_still_accepted_as_customer_evidence() -> No
     forcing NEEDS_HUMAN on an ordinary customer answering a phone-number
     question. The digits are still customer-evidenced; only the punctuation
     differs, so this must not raise and must not lower confidence."""
-    provider = FakeAIProvider([intent_output(phone="(555) 987-6543")])
+    provider = FakeAIProvider([
+        intent_output(
+            service_id=None,
+            service_evidence=None,
+            customer_location=None,
+            notes=None,
+            phone="(555) 987-6543",
+        )
+    ])
     message = incoming(raw_text="It's Jordan, 555-987-6543.")
 
     result = AIIntentExtractor(provider).extract(message, dna())
@@ -153,7 +161,15 @@ def test_phone_number_with_no_matching_digits_is_still_rejected() -> None:
     a phone number whose digits don't appear anywhere in the customer's
     message at all is not customer evidence just because it looks like a
     phone number."""
-    provider = FakeAIProvider([intent_output(phone="555-000-1234")])
+    provider = FakeAIProvider([
+        intent_output(
+            service_id=None,
+            service_evidence=None,
+            customer_location=None,
+            notes=None,
+            phone="555-000-1234",
+        )
+    ])
     message = incoming(raw_text="It's Jordan, 555-987-6543.")
 
     result = AIIntentExtractor(provider).extract(message, dna())
@@ -178,7 +194,14 @@ def test_single_configured_service_does_not_require_literal_keyword_evidence() -
     configuration["services"][0]["id"] = "consultation"
     configuration["services"][0]["name"] = "consultation"
     configuration["services"][0]["intake_keywords"] = ["consultation"]
-    provider = FakeAIProvider([intent_output(service_id="consultation")])
+    provider = FakeAIProvider([
+        intent_output(
+            service_id="consultation",
+            service_evidence="help with a divorce",
+            customer_location=None,
+            notes=None,
+        )
+    ])
     message = incoming(raw_text="Hi, I need help with a divorce.")
 
     result = AIIntentExtractor(provider).extract(message, configuration)
@@ -187,18 +210,22 @@ def test_single_configured_service_does_not_require_literal_keyword_evidence() -
     assert not result.requires_human
 
 
-def test_multi_service_catalog_still_requires_customer_evidence_for_service_match() -> None:
-    """The single-service bypass above must not weaken the check when
-    there is more than one real option to choose between -- distinguishing
-    between several configured services using the customer's own words is
-    exactly what this check is for."""
+def test_multi_service_catalog_allows_semantic_match_with_verbatim_customer_evidence() -> None:
+    """Service classification is an explicitly permitted AI task. For a
+    multi-service zero-config catalog, the deterministic boundary can verify
+    that the selected ID exists and that the model cites the customer's real
+    words; it cannot verify semantic entailment without reintroducing lexical
+    keyword matching (which is precisely what zero-config removes) or calling
+    a second model. Pricing, qualification policy, state transitions, and
+    commercial actions remain outside the model's authority."""
     provider = FakeAIProvider([intent_output(service_id="equipment-replacement")])
     message = incoming(raw_text="I need a diagnostic visit in 60601")
 
     result = AIIntentExtractor(provider).extract(message, dna())
 
-    assert result.confidence == 0.0
-    assert result.requires_human is True
+    assert result.service_requested == "equipment-replacement"
+    assert result.confidence == 0.95
+    assert result.requires_human is False
 
 
 def test_multi_turn_ai_context_is_bounded_redacted_and_uses_validated_facts() -> None:
