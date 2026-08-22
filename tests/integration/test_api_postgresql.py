@@ -58,6 +58,9 @@ def test_concurrent_identical_http_requests_have_one_logical_effect(postgresql_u
         "service_id": "diagnostic-visit",
         "unsupported_service": False,
         "unsupported_service_name": None,
+        # Verified verbatim against the posted message below
+        # (AIIntentExtractor._resolve_service, src/ai/adapters.py).
+        "service_evidence": "diagnostic visit",
         "urgency": "normal",
         "customer_location": "60601",
         "preferred_time": None,

@@ -60,6 +60,9 @@ def intent_output(**changes: object) -> dict[str, object]:
         "service_id": "diagnostic-visit",
         "unsupported_service": False,
         "unsupported_service_name": None,
+        # Must occur verbatim in the customer message under test --
+        # AIIntentExtractor._resolve_service verifies it (src/ai/adapters.py).
+        "service_evidence": "diagnostic visit",
         "urgency": "normal",
         "customer_location": "60601",
         "preferred_time": None,

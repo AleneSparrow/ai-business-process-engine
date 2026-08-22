@@ -95,7 +95,7 @@ export default function Onboarding() {
   const { user, setUser, selectBusiness, token } = useAuth();
 
   const [step, setStep] = useState(0);
-  const [business, setBusiness] = useState({ name: "", industry: "", tone: "Friendly & direct" });
+  const [business, setBusiness] = useState({ name: "", industry: "", description: "", tone: "Friendly & direct" });
   const [services, setServices] = useState<string[]>([]);
   const [newService, setNewService] = useState("");
   const [areaMode, setAreaMode] = useState<"remote" | "local" | null>(null);
@@ -154,6 +154,7 @@ export default function Onboarding() {
       const created = await api.createBusiness(token, {
         business_name: business.name.trim() || "Untitled business",
         industry: business.industry.trim(),
+        description: business.description.trim(),
         tone: business.tone,
         services: servicePayloads,
         service_zip_codes: areaMode === "local" ? zipList : [],
@@ -236,6 +237,22 @@ export default function Onboarding() {
                         ))}
                       </datalist>
                       {attemptedContinue && !business.industry.trim() && <p className="text-xs mt-1.5" style={{ color: "#B4483A" }}>Type your industry — anything works.</p>}
+                    </Field>
+                    {/* Optional, but it is what lets the engine understand a
+                        customer's own wording ("my roof is leaking") without
+                        anyone configuring keyword synonyms -- see
+                        AIIntentExtractor._business_context. */}
+                    <Field label="What does your business do? (optional)">
+                      <textarea
+                        className={`${inputCls} min-h-[76px] resize-y`}
+                        placeholder="e.g. Family law practice handling divorce, custody and child support"
+                        maxLength={1000}
+                        value={business.description}
+                        onChange={(e) => setBusiness({ ...business, description: e.target.value })}
+                      />
+                      <p className="text-xs mt-1.5 text-[#6B6459]">
+                        A sentence in plain language. It helps your engine recognise what customers are asking for when they describe it in their own words.
+                      </p>
                     </Field>
                     <Field label="How should it sound to customers?">
                       <div className="grid sm:grid-cols-3 gap-2.5">

@@ -47,6 +47,20 @@ class IntentOutput(StrictAIModel):
             "customer's own words. Null whenever service_id is set."
         ),
     )
+    service_evidence: str | None = Field(
+        max_length=300,
+        description=(
+            "The customer's OWN words that justify the service_id you chose -- a short phrase "
+            "copied VERBATIM from the current customer message, never a paraphrase and never the "
+            "service's own name unless the customer actually used it. It does not need to look "
+            "like the service name: for a business whose BUSINESS_CONTEXT describes it as a "
+            "family law practice, a customer saying 'I need help with my divorce' justifies a "
+            "'Consultation' service with service_evidence='help with my divorce'. Set this "
+            "whenever service_id is chosen from the current message. Null only when service_id "
+            "is null, or when the service was already established earlier in "
+            "CONVERSATION_CONTEXT and the current message does not restate it."
+        ),
+    )
     urgency: Urgency
     customer_location: str | None = Field(max_length=500)
     preferred_time: str | None = Field(max_length=500)

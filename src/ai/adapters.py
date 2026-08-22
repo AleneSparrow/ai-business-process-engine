@@ -131,27 +131,25 @@ class AIIntentExtractor:
                     prompt = question.get("prompt")
                     if isinstance(question_id, str) and isinstance(prompt, str):
                         questions.append({"id": question_id, "prompt": prompt})
+                description = service.get("description")
                 services_context.append({
                     "id": service.get("id"),
                     "name": service.get("name"),
+                    "description": description if isinstance(description, str) else "",
                     "aliases": service.get("intake_keywords", []),
                     "qualification_questions": questions,
                 })
-        # TEMPORARY diagnostic (2026-08-17): services_context is catalog
-        # configuration (ids/names/configured alias keywords/question ids),
-        # never customer content -- safe to log. Investigating whether the
-        # "supported service without customer evidence" rejections are an
-        # AI bug or a business-DNA catalog gap (narrow intake_keywords).
-        _log_event(
-            logging.INFO,
-            "services_context_diagnostic",
-            services=[
-                {"id": s.get("id"), "name": s.get("name"), "aliases": s.get("aliases")}
-                for s in services_context
-            ],
-        )
         prompt = intent_prompt(
             context={
+                # The industry and free-text descriptions the owner typed at
+                # onboarding are the ONLY per-business adaptation the prompt
+                # gets: they let the model map a customer's everyday wording
+                # ("my roof is leaking") onto this catalog without the owner
+                # hand-configuring synonyms for every phrasing. The sales-cycle
+                # skeleton, the guardrails, and the catalog itself stay fixed
+                # for every business -- see prompts.py, which states that limit
+                # to the model explicitly.
+                "business": self._business_context(business_dna),
                 "services": services_context,
                 "human_escalation_triggers": business_dna.get("human_escalation", {}).get(
                     "triggers", []
@@ -338,28 +336,33 @@ class AIIntentExtractor:
         unique_ids = {service_id for service_id, _ in matches}
         if len(unique_ids) != 1:
             raise AIInvalidOutputError("AI returned a service outside the supplied catalog")
-        customer_text = customer_message.casefold()
         known_matches = isinstance(known_service, str) and known_service == matches[0][0]
-        # A business with exactly one configured service has nothing to
-        # disambiguate: `output.service_id` already had to resolve, via the
-        # lookup above, to that one real catalog entry -- the AI cannot
-        # invent an arbitrary service here, only select the sole option
-        # that actually exists. Live target-audience testing found this
-        # check otherwise forces every self-serve business with a single
-        # generic service (the common case for a solo practice) to
-        # escalate almost every real customer message, since intake
-        # keywords default to just the service's own name (see
-        # business_dna_builder.py) and there is currently no UI to add
-        # synonyms. For a business with two or more services the check
-        # stays exactly as strict as before -- distinguishing between
-        # several real options is exactly what it's for.
-        single_service_catalog = len(services) == 1
-        if (
-            not known_matches
-            and not single_service_catalog
-            and not any(_contains_term(customer_text, term) for _, terms in matches for term in terms)
-        ):
-            raise AIInvalidOutputError("AI returned a supported service without customer evidence")
+        # Anti-hallucination guarantee, restated for semantic matching
+        # (2026-08-22). The old check demanded that one of the catalog's own
+        # terms appear literally in the customer's message -- but no real
+        # customer writes the service label. They write "I need help with my
+        # divorce", not "Consultation". That forced an escalation on nearly
+        # every genuine message, so on 2026-08-17 single-service businesses
+        # were exempted from the check outright: the common self-serve case
+        # ended up with no evidence check at all, while multi-service
+        # businesses stayed unusable without hand-configured synonyms that
+        # have no UI to configure.
+        #
+        # The model now returns service_evidence -- the customer's own words
+        # that justified its choice -- and we verify that phrase actually
+        # occurs in this message. The guarantee is unchanged in kind and now
+        # applies uniformly to every business, single- or multi-service: the
+        # model still cannot invent a service (it must resolve to a real
+        # catalog entry above) and still cannot invent the justification (the
+        # quote must be the customer's real words). What it may now do is map
+        # meaning onto the catalog instead of matching strings, which is what
+        # makes intake work with zero configuration in any vertical.
+        if not known_matches:
+            evidence = AIIntentExtractor._clean(output.service_evidence)
+            if evidence is None or not _contains_term(customer_message, evidence):
+                raise AIInvalidOutputError(
+                    "AI returned a supported service without customer evidence"
+                )
         return matches[0][0]
 
     @staticmethod
@@ -419,6 +422,25 @@ class AIIntentExtractor:
         if not any(candidate and candidate in message_digits for candidate in candidates):
             raise AIInvalidOutputError("AI returned phone without customer evidence")
         return cleaned
+
+    @staticmethod
+    def _business_context(business_dna: Mapping[str, object]) -> Mapping[str, object]:
+        """Industry + owner-written description, for interpreting customer wording.
+
+        Catalog configuration only -- never customer content. Both fields are
+        owner-supplied free text from onboarding and may be empty; the prompt
+        degrades to name/alias matching when they are, which is exactly the
+        pre-2026-08-22 behaviour.
+        """
+        business = business_dna.get("business")
+        if not isinstance(business, Mapping):
+            return {}
+        industry = business.get("industry")
+        description = business.get("description")
+        return {
+            "industry": industry if isinstance(industry, str) else "",
+            "description": description if isinstance(description, str) else "",
+        }
 
     @staticmethod
     def _conversation_context(message: IncomingMessage) -> Mapping[str, object]:

@@ -46,6 +46,11 @@ def slugify(value: str, *, fallback: str = "item") -> str:
 class OnboardingService:
     name: str
     questions: tuple[str, ...] = ()
+    # Optional free text ("divorce, custody and child support matters").
+    # Fed to the intent prompt so a customer's own wording resolves to this
+    # service without the owner configuring keyword synonyms. Empty is fine --
+    # the service name is used instead, which is the pre-2026-08-22 behaviour.
+    description: str = ""
 
     def __post_init__(self) -> None:
         if not self.name.strip():
@@ -68,6 +73,11 @@ class OnboardingInput:
     # src/domain/qualification.py, consumed by QualificationService.evaluate).
     escalate_on_high_urgency: bool = True
     escalate_on_emergency: bool = True
+    # Optional free text describing what the business does. Together with
+    # `industry` this is the only per-business adaptation the intent prompt
+    # receives; it lets the model read a customer's everyday wording against
+    # what this business actually does. Empty is fine.
+    description: str = ""
 
     def __post_init__(self) -> None:
         if not self.business_id.strip():
@@ -108,7 +118,7 @@ def _build_services(services: tuple[OnboardingService, ...]) -> list[dict]:
         built.append({
             "id": service_id,
             "name": service.name,
-            "description": service.name,
+            "description": service.description.strip() or service.name,
             "duration_minutes": 60,
             "fulfillment_type": "human_review",
             "pricing": {"model": "custom_quote", "tax_included": False},
@@ -158,7 +168,7 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
             "id": onboarding.business_id,
             "name": onboarding.business_name,
             "industry": onboarding.industry,
-            "description": "",
+            "description": onboarding.description.strip(),
             "timezone": _DEFAULT_TIMEZONE,
             "currency": "USD",
         },

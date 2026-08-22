@@ -123,6 +123,10 @@ export interface OnboardingServicePayload {
 export interface OnboardingPayload {
   business_name: string;
   industry: string;
+  /** Optional plain-language description of what the business does. With
+   * `industry`, this is what lets the engine map a customer's own wording onto
+   * the service catalog without configured keyword synonyms. */
+  description?: string;
   tone: string;
   services: OnboardingServicePayload[];
   /** Empty means "no fixed service area" (a remote/nationwide business) --

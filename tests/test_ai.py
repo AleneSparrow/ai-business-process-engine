@@ -56,6 +56,11 @@ def intent_output(**changes: object) -> dict[str, object]:
         "service_id": "diagnostic-visit",
         "unsupported_service": False,
         "unsupported_service_name": None,
+        # Must be a phrase that really occurs in the default raw_text below --
+        # AIIntentExtractor._resolve_service verifies it against the customer
+        # message, which is the anti-hallucination guarantee for semantic
+        # service matching (src/ai/adapters.py).
+        "service_evidence": "diagnostic visit",
         "urgency": "normal",
         "customer_location": "60601",
         "preferred_time": None,

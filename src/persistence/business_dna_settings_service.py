@@ -70,6 +70,10 @@ class SettingsServiceInput:
     id: str | None
     name: str
     questions: tuple[str, ...]
+    # Optional plain-language description, fed to the intent prompt so a
+    # customer's own wording resolves to this service without configured
+    # keyword synonyms. Empty means "not edited" -- see _apply.
+    description: str = ""
     # What this service does once a lead qualifies for it -- one of
     # _COMMERCIAL_PATHS. See BusinessDNASettingsService._apply, which maps
     # this onto fulfillment_type/booking_allowed/quoting/direct_next_step_message.
@@ -268,6 +272,14 @@ class BusinessDNASettingsService:
                     "qualification_questions": [],
                 }
             service["name"] = item.name
+            # Only overwrite when the client actually sent something: an empty
+            # value means "not edited", not "clear it". A service that has
+            # never had a description falls back to its name, as before.
+            described = getattr(item, "description", "") or ""
+            if described.strip():
+                service["description"] = described.strip()
+            elif not str(service.get("description", "")).strip():
+                service["description"] = item.name
             service["intake_keywords"] = sorted(
                 {*service.get("intake_keywords", []), item.name.strip().casefold()}
             )

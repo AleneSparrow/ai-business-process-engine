@@ -486,6 +486,9 @@ class SessionResponse(ApiModel):
 
 class OnboardingServiceRequest(ApiModel):
     name: Annotated[str, Field(min_length=1, max_length=120)]
+    # Optional plain-language description of this service. Used to resolve a
+    # customer's own wording onto this service without configured synonyms.
+    description: Annotated[str, Field(max_length=500)] = ""
     questions: Annotated[list[Annotated[str, Field(min_length=1, max_length=300)]], Field(max_length=20)] = []
 
 
@@ -494,6 +497,10 @@ class OnboardingRequest(ApiModel):
     # No longer defaulted to a specific vertical -- the wizard now requires the
     # owner to type their own industry (any business, not just home services).
     industry: Annotated[str, Field(min_length=1, max_length=120)]
+    # Optional plain-language description of what the business does. With
+    # `industry`, this is the only per-business adaptation the intent prompt
+    # receives (see src/ai/adapters.py::_business_context).
+    description: Annotated[str, Field(max_length=1000)] = ""
     tone: Annotated[str, Field(min_length=1, max_length=60)] = "Friendly & direct"
     services: Annotated[list[OnboardingServiceRequest], Field(min_length=1, max_length=50)]
     # Empty means "no fixed service area" (a remote/nationwide business) -- see
@@ -856,6 +863,10 @@ class BusinessDNASettingsResponse(ApiModel):
 class BusinessDNAServiceUpdateSchema(ApiModel):
     id: Annotated[str | None, Field(min_length=1, max_length=128)] = None
     name: Annotated[str, Field(min_length=1, max_length=200)]
+    # Optional; empty leaves an existing service's description untouched (and
+    # falls back to the name for a newly added one) so a client that does not
+    # send the field cannot silently wipe it.
+    description: Annotated[str, Field(max_length=500)] = ""
     questions: Annotated[tuple[Annotated[str, Field(min_length=1, max_length=500)], ...], Field(max_length=20)] = ()
     # "booking" | "quote" | "direct_step" | "human_review" -- validated against
     # the actual recognized set in BusinessDNASettingsService.SettingsServiceInput.

@@ -52,12 +52,18 @@ def create_business(
         industry=body.industry,
         tone=body.tone,
         services=tuple(
-            OnboardingService(service.name, tuple(service.questions)) for service in body.services
+            OnboardingService(
+                service.name,
+                tuple(service.questions),
+                description=service.description,
+            )
+            for service in body.services
         ),
         service_zip_codes=tuple(body.service_zip_codes),
         enforce_service_area=body.enforce_service_area,
         escalate_on_high_urgency=body.escalate_on_high_urgency,
         escalate_on_emergency=body.escalate_on_emergency,
+        description=body.description,
     )
     business = provisioning_service.create_business(user, onboarding)
     return BusinessCreatedResponse.from_domain(business, api_base=api_base)

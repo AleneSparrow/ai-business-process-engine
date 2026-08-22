@@ -67,6 +67,7 @@ def update_settings(
                     id=item.id,
                     name=item.name,
                     questions=item.questions,
+                    description=item.description,
                     commercial_path=item.commercial_path,
                     quote_price=item.quote_price,
                     next_step_message=item.next_step_message,
