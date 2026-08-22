@@ -16,7 +16,7 @@ import {
 } from "../components/Shared";
 
 const FILTERS: (CaseState | "ALL")[] = ["ALL", "NEEDS_HUMAN", "QUALIFYING", "BOOKED", "LOST", "COMPLETED"];
-type SortKey = "date" | "name" | "category";
+type SortKey = "date" | "name";
 type SortDirection = "asc" | "desc";
 
 function StatCard({ label, value, sub, tone }: { label: string; value: string | number; sub?: string; tone?: string }) {
@@ -84,8 +84,8 @@ export default function Dashboard() {
         const comparison = new Date(left.created_at).getTime() - new Date(right.created_at).getTime();
         return sortDirection === "asc" ? comparison : -comparison;
       }
-      const leftValue = sortBy === "name" ? left.lead.name : left.category;
-      const rightValue = sortBy === "name" ? right.lead.name : right.category;
+      const leftValue = left.lead.name;
+      const rightValue = right.lead.name;
       if (!leftValue && !rightValue) return 0;
       if (!leftValue) return 1;
       if (!rightValue) return -1;
@@ -226,7 +226,6 @@ export default function Dashboard() {
                     >
                       <option value="date">Date added</option>
                       <option value="name">Name</option>
-                      <option value="category">Category</option>
                     </select>
                     </label>
                     <button
