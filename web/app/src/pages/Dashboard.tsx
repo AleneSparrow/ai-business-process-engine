@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Bell, ArrowUpRight, Clock, Phone, Mail, Loader2, ArrowUpDown } from "lucide-react";
+import { Search, Bell, ArrowUpRight, Clock, Phone, Mail, Loader2, ArrowDown, ArrowUp } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { useAuth, describeError } from "../auth/AuthContext";
 import { api, type DashboardCaseSummary } from "../api/client";
@@ -17,6 +17,7 @@ import {
 
 const FILTERS: (CaseState | "ALL")[] = ["ALL", "NEEDS_HUMAN", "QUALIFYING", "BOOKED", "LOST", "COMPLETED"];
 type SortKey = "date" | "name" | "category";
+type SortDirection = "asc" | "desc";
 
 function StatCard({ label, value, sub, tone }: { label: string; value: string | number; sub?: string; tone?: string }) {
   return (
@@ -37,6 +38,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<CaseState | "ALL">("ALL");
   const [sortBy, setSortBy] = useState<SortKey>("date");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
@@ -79,16 +81,27 @@ export default function Dashboard() {
     });
     return visible.sort((left, right) => {
       if (sortBy === "date") {
-        return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+        const comparison = new Date(left.created_at).getTime() - new Date(right.created_at).getTime();
+        return sortDirection === "asc" ? comparison : -comparison;
       }
       const leftValue = sortBy === "name" ? left.lead.name : left.category;
       const rightValue = sortBy === "name" ? right.lead.name : right.category;
       if (!leftValue && !rightValue) return 0;
       if (!leftValue) return 1;
       if (!rightValue) return -1;
-      return leftValue.localeCompare(rightValue, undefined, { sensitivity: "base" });
+      const comparison = leftValue.localeCompare(rightValue, undefined, { sensitivity: "base" });
+      return sortDirection === "asc" ? comparison : -comparison;
     });
-  }, [decorated, filter, searchQuery, sortBy]);
+  }, [decorated, filter, searchQuery, sortBy, sortDirection]);
+
+  const changeSort = (nextSort: SortKey) => {
+    setSortBy(nextSort);
+    setSortDirection(nextSort === "date" ? "desc" : "asc");
+  };
+
+  const sortDirectionLabel = sortBy === "date"
+    ? sortDirection === "desc" ? "Newest first" : "Oldest first"
+    : sortDirection === "asc" ? "A to Z" : "Z to A";
 
   const selected = useMemo(
     () => decorated.find((c) => c.case_id === selectedId) ?? decorated[0] ?? null,
@@ -202,20 +215,31 @@ export default function Dashboard() {
                       </button>
                     ))}
                   </div>
-                  <label className="flex items-center gap-1.5 shrink-0 text-xs text-[#6B6459]">
-                    <ArrowUpDown size={13} />
+                  <div className="flex items-center gap-1.5 shrink-0 text-xs text-[#6B6459]">
+                    <label>
                     <span className="sr-only">Sort leads</span>
                     <select
                       aria-label="Sort leads"
                       value={sortBy}
-                      onChange={(event) => setSortBy(event.target.value as SortKey)}
+                      onChange={(event) => changeSort(event.target.value as SortKey)}
                       className="bg-white border border-[#E7E5DE] rounded-lg px-2.5 py-1.5 outline-none"
                     >
-                      <option value="date">Newest first</option>
-                      <option value="name">Name A–Z</option>
-                      <option value="category">Category A–Z</option>
+                      <option value="date">Date added</option>
+                      <option value="name">Name</option>
+                      <option value="category">Category</option>
                     </select>
-                  </label>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setSortDirection((current) => current === "asc" ? "desc" : "asc")}
+                      aria-label={`Sort direction: ${sortDirectionLabel}. Click to reverse.`}
+                      title={`${sortDirectionLabel} — click to reverse`}
+                      className="w-8 h-8 rounded-lg bg-white border border-[#E7E5DE] flex items-center justify-center hover:border-[#B87333] transition-colors"
+                    >
+                      {sortDirection === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                    </button>
+                    <span className="hidden xl:inline min-w-[68px]">{sortDirectionLabel}</span>
+                  </div>
                 </div>
                 <ul>
                   {filtered.length === 0 && (
