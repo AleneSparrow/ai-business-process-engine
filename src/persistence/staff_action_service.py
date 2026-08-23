@@ -161,7 +161,13 @@ class StaffActionService:
         outcome: str,
     ) -> StaffActionResult:
         """Record a staff label without storing customer text or free-form PII."""
-        allowed = {"unnecessary", "missed", "wrong_service"}
+        allowed = {
+            "unnecessary",
+            "missed",
+            "wrong_service",
+            "identity_same_customer",
+            "identity_different_customer",
+        }
         if outcome not in allowed:
             raise ValueError("unsupported escalation feedback outcome")
         with self._unit_of_work_factory() as unit_of_work:

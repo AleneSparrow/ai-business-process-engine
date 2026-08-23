@@ -152,7 +152,7 @@ export default function Conversation() {
     }
   };
 
-  const handleFeedback = async (outcome: "unnecessary" | "missed" | "wrong_service") => {
+  const handleFeedback = async (outcome: "unnecessary" | "missed" | "wrong_service" | "identity_same_customer" | "identity_different_customer") => {
     if (!token || !businessId || !selectedId) return;
     setFeedbackSending(outcome);
     setActionError(null);
@@ -309,10 +309,15 @@ export default function Conversation() {
                       <div className={`text-xs font-semibold text-[#6B6459] ${escalationLabel ? "mt-3" : ""}`}>Help improve AI decisions</div>
                       <div className="mt-2.5 flex flex-wrap gap-2">
                         {([
-                          ...(escalationLabel ? [["unnecessary", "Escalation wasn't needed"]] : []),
+                          ...(detail.conversation.escalation_reason === "identity_conflict"
+                            ? [
+                                ["identity_same_customer", "Same customer — keep separate"],
+                                ["identity_different_customer", "Different customers"],
+                              ]
+                            : escalationLabel ? [["unnecessary", "Escalation wasn't needed"]] : []),
                           ["missed", "Should have escalated"],
                           ["wrong_service", "Wrong service"],
-                        ] as ["unnecessary" | "missed" | "wrong_service", string][]).map(([outcome, label]) => (
+                        ] as [("unnecessary" | "missed" | "wrong_service" | "identity_same_customer" | "identity_different_customer"), string][]).map(([outcome, label]) => (
                           <button
                             key={outcome}
                             onClick={() => handleFeedback(outcome)}

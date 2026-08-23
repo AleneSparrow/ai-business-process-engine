@@ -189,7 +189,10 @@ export interface DashboardAnalytics {
   median_first_response_seconds: number | null;
   response_samples: number;
   escalation_reasons: Record<string, number>;
-  escalation_feedback: Record<"unnecessary" | "missed" | "wrong_service", number>;
+  escalation_feedback: Record<
+    "unnecessary" | "missed" | "wrong_service" | "identity_same_customer" | "identity_different_customer",
+    number
+  >;
 }
 
 export interface DashboardEvent {
@@ -419,7 +422,7 @@ export const api = {
     token: string,
     businessId: string,
     conversationId: string,
-    outcome: "unnecessary" | "missed" | "wrong_service",
+    outcome: "unnecessary" | "missed" | "wrong_service" | "identity_same_customer" | "identity_different_customer",
   ) =>
     request<StaffActionResponse>(
       `/api/v1/businesses/${businessId}/conversations/${conversationId}/escalation-feedback`,

@@ -829,7 +829,13 @@ class StaffReplyRequest(ApiModel):
 
 
 class EscalationFeedbackRequest(ApiModel):
-    outcome: Literal["unnecessary", "missed", "wrong_service"]
+    outcome: Literal[
+        "unnecessary",
+        "missed",
+        "wrong_service",
+        "identity_same_customer",
+        "identity_different_customer",
+    ]
 
 
 class StaffActionResponse(ApiModel):

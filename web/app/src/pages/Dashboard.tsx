@@ -258,9 +258,7 @@ export default function Dashboard() {
                   <h2 className="text-sm font-semibold text-[#151515]">Why leads need attention</h2>
                   <p className="text-xs text-[#6B6459] mt-1">Based on current cases waiting for a human review.</p>
                 </div>
-                <div className="text-xs text-[#6B6459]">
-                  Feedback: {Object.values(analytics.escalation_feedback).reduce((sum, value) => sum + value, 0)} reviewed
-                </div>
+                <div className="text-xs text-[#6B6459]">Quality feedback</div>
               </div>
               <div className="flex flex-wrap gap-2 mt-4">
                 {Object.entries(analytics.escalation_reasons)
@@ -272,6 +270,21 @@ export default function Dashboard() {
                     </div>
                   ))}
               </div>
+              {(() => {
+                const feedback = analytics.escalation_feedback;
+                const reviewed = Object.values(feedback).reduce((sum, value) => sum + value, 0);
+                const avoidable = feedback.unnecessary + feedback.wrong_service;
+                const avoidableRate = reviewed ? Math.round((avoidable / reviewed) * 100) : 0;
+                return (
+                  <div className="mt-4 border-t border-[#E7E5DE] pt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-[#6B6459]">
+                    <span><strong className="text-[#151515]">{reviewed}</strong> decisions reviewed</span>
+                    <span><strong className="text-[#151515]">{avoidable}</strong> avoidable ({avoidableRate}%)</span>
+                    <span><strong className="text-[#151515]">{feedback.missed}</strong> missed handoffs</span>
+                    <span><strong className="text-[#151515]">{feedback.identity_same_customer}</strong> same-customer conflicts</span>
+                    <span><strong className="text-[#151515]">{feedback.identity_different_customer}</strong> confirmed different</span>
+                  </div>
+                );
+              })()}
             </div>
           )}
 

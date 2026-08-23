@@ -205,8 +205,14 @@ def test_staff_can_record_escalation_feedback_in_audit_trail(dashboard_environme
         headers={"Authorization": f"Bearer {token}"},
         json={"outcome": "unnecessary"},
     )
+    identity_response = client.post(
+        "/api/v1/businesses/biz-feedback/conversations/conv-1/escalation-feedback",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"outcome": "identity_different_customer"},
+    )
 
     assert response.status_code == 200
+    assert identity_response.status_code == 200
     detail = client.get(
         "/api/v1/businesses/biz-feedback/cases/case-feedback",
         headers={"Authorization": f"Bearer {token}"},
@@ -215,8 +221,10 @@ def test_staff_can_record_escalation_feedback_in_audit_trail(dashboard_environme
         event for event in detail["events"]
         if event["event_type"] == "ESCALATION_FEEDBACK_RECORDED"
     ]
-    assert len(feedback) == 1
-    assert feedback[0]["payload"]["outcome"] == "unnecessary"
+    assert [event["payload"]["outcome"] for event in feedback] == [
+        "unnecessary",
+        "identity_different_customer",
+    ]
 
 
 def test_dashboard_analytics_uses_audit_events_and_median_first_response(dashboard_environment) -> None:
@@ -280,7 +288,13 @@ def test_dashboard_analytics_uses_audit_events_and_median_first_response(dashboa
         "median_first_response_seconds": 5.0,
         "response_samples": 1,
         "escalation_reasons": {"ai_review": 1},
-        "escalation_feedback": {"unnecessary": 1, "missed": 0, "wrong_service": 0},
+        "escalation_feedback": {
+            "unnecessary": 1,
+            "missed": 0,
+            "wrong_service": 0,
+            "identity_same_customer": 0,
+            "identity_different_customer": 0,
+        },
     }
 
 

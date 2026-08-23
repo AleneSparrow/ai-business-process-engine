@@ -117,7 +117,13 @@ def get_dashboard_analytics(
         )
         lost = sum(case.current_state is ProcessState.LOST for case in cases)
         escalation_reasons: dict[str, int] = {}
-        escalation_feedback = {"unnecessary": 0, "missed": 0, "wrong_service": 0}
+        escalation_feedback = {
+            "unnecessary": 0,
+            "missed": 0,
+            "wrong_service": 0,
+            "identity_same_customer": 0,
+            "identity_different_customer": 0,
+        }
         for case in cases:
             reason = DashboardCaseSummarySchema.escalation_reason_from_domain(case)
             if reason is not None:
