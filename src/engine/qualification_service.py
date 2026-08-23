@@ -6,7 +6,11 @@ import re
 from typing import Any, Mapping
 
 from src.domain.models import Lead
-from src.domain.qualification import IntentResult, MissingInformationResult, QualificationResult
+from src.domain.qualification import (
+    IntentResult,
+    MissingInformationResult,
+    QualificationResult,
+)
 from src.domain.states import ProcessState
 
 # TEMPORARY diagnostic logging (2026-08-17): not importing
@@ -38,7 +42,7 @@ class QualificationService:
     ) -> QualificationResult:
         threshold = float(business_dna["ai_permissions"]["minimum_confidence"])
         triggers = set(business_dna["human_escalation"]["triggers"])
-        if intent.requires_human or intent.confidence < threshold:
+        if intent.requires_human:
             # TEMPORARY diagnostic logging (2026-08-17): distinguishes the
             # two ways this branch can fire -- confidence/threshold are
             # non-sensitive numeric config+model signals, never customer
@@ -46,7 +50,7 @@ class QualificationService:
             _log_event(
                 logging.INFO,
                 "qualification_needs_human_diagnostic",
-                reason="requires_human" if intent.requires_human else "below_confidence_threshold",
+                reason="requires_human",
                 confidence=intent.confidence,
                 threshold=threshold,
             )
@@ -54,6 +58,30 @@ class QualificationService:
                 ProcessState.NEEDS_HUMAN,
                 ("Intent confidence is below policy or extraction requested review",),
                 intent,
+            )
+        if intent.unintelligible or intent.confidence < threshold:
+            # A valid but uncertain extraction should stay in the automated
+            # clarification loop. Escalating every typo, fragment, or
+            # keyboard mash creates noise and teaches staff nothing. Invalid
+            # provider output remains fail-safe because the adapter marks it
+            # requires_human=True and is handled by the branch above.
+            _log_event(
+                logging.INFO,
+                "qualification_clarification_diagnostic",
+                reason="unintelligible" if intent.unintelligible else "below_confidence_threshold",
+                confidence=intent.confidence,
+                threshold=threshold,
+            )
+            return QualificationResult(
+                qualified=False,
+                reasons=("The customer request needs clarification",),
+                missing_fields=("service_id",),
+                unanswered_questions=(),
+                confidence=intent.confidence,
+                recommended_next_state=ProcessState.QUALIFYING,
+                requires_human=False,
+                booking_allowed=False,
+                service_id=None,
             )
         if intent.urgency.value in triggers:
             return self._result(

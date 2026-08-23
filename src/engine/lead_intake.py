@@ -193,6 +193,7 @@ class LeadIntakeService:
                 "notes": intent.notes,
                 "confidence": intent.confidence,
                 "requires_human": intent.requires_human,
+                "unintelligible": intent.unintelligible,
                 "qualification_answers": intent.qualification_answers,
                 "customer_tone": intent.customer_tone.value,
                 "ai": intent.ai_metadata,
@@ -573,6 +574,7 @@ class LeadIntakeService:
             # to NEUTRAL on every merged IntentResult, discarding whatever
             # AIIntentExtractor actually classified.
             customer_tone=current.customer_tone,
+            unintelligible=current.unintelligible,
         )
 
     def _validate_business_dna(self) -> None:

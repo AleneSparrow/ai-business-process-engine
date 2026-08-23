@@ -107,6 +107,15 @@ class IntentResult:
     # response is generated. Defaults to NEUTRAL for extractors that don't
     # classify tone at all (DeterministicIntentExtractor).
     customer_tone: CustomerTone = CustomerTone.NEUTRAL
+    # True only when the CURRENT message carries no interpretable request or
+    # answer at all -- random characters, a garbled fragment, keyboard noise.
+    # A one-turn signal like objection_phrase/customer_tone above, never
+    # carried forward from a previous turn. Deliberately independent of
+    # requires_human: a genuinely unintelligible message must NOT by itself
+    # set requires_human, and requires_human (emergency/hostile/advice
+    # request) must NOT be set merely because the message is hard to parse --
+    # see QualificationService.evaluate for how the two interact.
+    unintelligible: bool = False
 
     def __post_init__(self) -> None:
         if not isinstance(self.urgency, Urgency):

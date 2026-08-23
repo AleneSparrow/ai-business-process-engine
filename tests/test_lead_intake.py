@@ -109,15 +109,52 @@ def test_outside_enforced_service_area_is_lost() -> None:
     assert result.qualification.reasons == ("Customer is outside the configured service area",)
 
 
-def test_low_confidence_intent_requires_human() -> None:
+def test_low_confidence_intent_requests_clarification_without_escalation() -> None:
     intake = service_with({"msg-e": valid_intent(confidence=0.2)})
 
     result = intake.receive(message("msg-e"))
 
-    assert result.current_state is ProcessState.NEEDS_HUMAN
-    assert result.qualification.requires_human
-    assert result.response is not None and result.response.requires_human
-    assert intake.get_case(result.case_id).pending_transition is ProcessState.QUALIFIED
+    assert result.current_state is ProcessState.QUALIFYING
+    assert not result.qualification.requires_human
+    assert result.qualification.missing_fields == ("service_id",)
+    assert result.response is not None and not result.response.requires_human
+    assert result.response.message_text == "Which service do you need?"
+
+
+def test_unintelligible_input_requests_clarification_without_escalation() -> None:
+    intake = service_with({
+        "msg-gibberish": IntentResult(
+            confidence=0.95,
+            requires_human=False,
+            unintelligible=True,
+        )
+    })
+
+    result = intake.receive(message("msg-gibberish"))
+
+    assert result.current_state is ProcessState.QUALIFYING
+    assert not result.qualification.requires_human
+    assert result.qualification.missing_fields == ("service_id",)
+    assert result.response is not None
+    assert result.response.message_text == "Which service do you need?"
+
+
+def test_normal_request_after_gibberish_recovers_without_sticky_flag() -> None:
+    intake = service_with({
+        "msg-noise": IntentResult(confidence=0.1, unintelligible=True),
+        "msg-clear": valid_intent(),
+    })
+    first = intake.receive(message("msg-noise"))
+
+    second = intake.receive(message("msg-clear", case_id=first.case_id))
+
+    assert first.current_state is ProcessState.QUALIFYING
+    assert second.current_state is ProcessState.QUALIFIED
+    intent_events = [
+        event for event in intake.get_case(first.case_id).event_history
+        if event.event_type is EventType.INTENT_EXTRACTED
+    ]
+    assert [event.payload["unintelligible"] for event in intent_events] == [True, False]
 
 
 def test_emergency_intent_records_safe_escalation_reason_code() -> None:

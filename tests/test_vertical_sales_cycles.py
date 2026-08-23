@@ -112,6 +112,7 @@ def _intent_output(service_id: str, evidence: str) -> IntentOutput:
         "email": None,
         "confidence": 0.95,
         "requires_human": False,
+        "unintelligible": False,
         "qualification_answers": [],
         "objection_phrase": None,
         "customer_tone": "neutral",

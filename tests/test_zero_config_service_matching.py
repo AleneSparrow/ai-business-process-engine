@@ -31,6 +31,7 @@ def _output(**changes: object) -> IntentOutput:
         "email": None,
         "confidence": 0.95,
         "requires_human": False,
+        "unintelligible": False,
         "qualification_answers": [],
         "objection_phrase": None,
         "customer_tone": "neutral",

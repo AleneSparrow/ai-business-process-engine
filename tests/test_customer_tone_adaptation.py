@@ -72,6 +72,7 @@ def intent_output(**changes: object) -> dict[str, object]:
         "email": None,
         "confidence": 0.95,
         "requires_human": False,
+        "unintelligible": False,
         "qualification_answers": [],
         "objection_phrase": None,
         "customer_tone": "neutral",

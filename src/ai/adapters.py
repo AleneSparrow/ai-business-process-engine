@@ -95,6 +95,10 @@ _HOSTILE_CUE = re.compile(
     r"\b(?:fuck(?:ing)?|bullshit|idiot|moron|stupid|scam(?:mer)?|fraud)\b",
     re.IGNORECASE,
 )
+_HUMAN_REQUEST_CUE = re.compile(
+    r"\b(?:human|real person|live person|someone|representative|operator|agent|manager|supervisor)\b",
+    re.IGNORECASE,
+)
 
 
 def _communication(business_dna: Mapping[str, object]) -> Mapping[str, object]:
@@ -262,9 +266,22 @@ class AIIntentExtractor:
                 message.raw_text,
                 business_dna,
             )
-            final_requires_human = calibrated_requires_human or self._configured_trigger_matches(
-                calibrated_urgency, business_dna
+            # Gibberish is a clarification problem, not a staff emergency.
+            # Evidence-backed risk language always wins if the model emits
+            # the contradictory unintelligible flag.
+            evidenced_handoff = calibrated_urgency in {Urgency.HIGH, Urgency.EMERGENCY} or any(
+                pattern.search(message.raw_text)
+                for pattern in (
+                    _SAFETY_CUE,
+                    _ADVICE_OR_COMMITMENT_CUE,
+                    _HOSTILE_CUE,
+                    _HUMAN_REQUEST_CUE,
+                )
             )
+            unintelligible = output.unintelligible and not evidenced_handoff
+            final_requires_human = (
+                calibrated_requires_human and evidenced_handoff
+            ) or self._configured_trigger_matches(calibrated_urgency, business_dna)
             _log_event(
                 logging.INFO,
                 "intent_extracted_diagnostic",
@@ -294,6 +311,7 @@ class AIIntentExtractor:
                     output.objection_phrase, message.raw_text, "objection phrase"
                 ),
                 customer_tone=output.customer_tone,
+                unintelligible=unintelligible,
             )
         except AIInvalidOutputError as exc:
             # Same diagnostic as the success path above, for the collapse-to-
@@ -598,10 +616,11 @@ class AIIntentExtractor:
     ) -> bool:
         """Suppress only unexplained flags on clear, ordinary catalog requests.
 
-        Low confidence, unresolved/unsupported services, explicit urgency,
-        emergencies, advice/commitment requests, and hostile content remain
-        human-reviewed.  A 0.90 floor intentionally makes this narrower than
-        the normal configurable acceptance threshold.
+        This method preserves the provider signal for uncertain requests; the
+        caller then requires evidence-backed risk, urgency, hostility, advice,
+        or an explicit request for a person before turning it into a handoff.
+        A 0.90 floor intentionally makes suppression of unexplained flags on
+        clear requests narrower than the normal configurable threshold.
         """
         if any(pattern.search(customer_message) for pattern in (
             _SAFETY_CUE,

@@ -70,6 +70,7 @@ def intent_output(**changes: object) -> dict[str, object]:
         "email": None,
         "confidence": 0.95,
         "requires_human": False,
+        "unintelligible": False,
         "qualification_answers": [],
         # Both required fields (no default in IntentOutput -- see
         # src/ai/models.py); a real model always supplies them via forced
@@ -311,6 +312,98 @@ def test_storm_repair_without_time_pressure_is_not_treated_as_high_urgency() -> 
 
     assert result.urgency.value == "normal"
     assert not result.requires_human
+
+
+@pytest.mark.parametrize("raw_text", ("asdfghjkl", "qwe zxc 123", "ывапролдж"))
+def test_random_characters_are_clarified_not_escalated(raw_text: str) -> None:
+    workflow, _ = ai_workflow([
+        intent_output(
+            service_id=None,
+            service_evidence=None,
+            customer_location=None,
+            notes=None,
+            confidence=0.1,
+            requires_human=True,
+            unintelligible=True,
+        ),
+        {
+            "addressed_items": ["field:service_id"],
+            "message_text": "Could you tell me which service you need?",
+        },
+    ])
+
+    result = workflow.receive(incoming(raw_text=raw_text))
+
+    assert result.current_state is ProcessState.QUALIFYING
+    assert not result.qualification.requires_human
+    assert result.response is not None
+    assert "service" in result.response.message_text.casefold()
+
+
+def test_service_typo_can_continue_without_handoff() -> None:
+    provider = FakeAIProvider([
+        intent_output(
+            service_id="diagnostic-visit",
+            service_evidence="diagnostc vist",
+            customer_location=None,
+            notes=None,
+            confidence=0.86,
+            requires_human=False,
+        )
+    ])
+
+    result = AIIntentExtractor(provider).extract(
+        incoming(raw_text="I need a diagnostc vist"),
+        dna(),
+    )
+
+    assert result.service_requested == "diagnostic-visit"
+    assert not result.unintelligible
+    assert not result.requires_human
+
+
+def test_safety_language_cannot_be_hidden_by_unintelligible_flag() -> None:
+    provider = FakeAIProvider([
+        intent_output(
+            service_id=None,
+            service_evidence=None,
+            customer_location=None,
+            notes=None,
+            confidence=0.1,
+            requires_human=True,
+            unintelligible=True,
+            urgency="emergency",
+        )
+    ])
+
+    result = AIIntentExtractor(provider).extract(
+        incoming(raw_text="I cannot breathe and have severe chest pain"),
+        dna(),
+    )
+
+    assert not result.unintelligible
+    assert result.requires_human
+    assert result.urgency.value == "emergency"
+
+
+def test_explicit_request_for_person_still_escalates() -> None:
+    provider = FakeAIProvider([
+        intent_output(
+            service_id=None,
+            service_evidence=None,
+            customer_location=None,
+            notes=None,
+            confidence=0.4,
+            requires_human=True,
+        )
+    ])
+
+    result = AIIntentExtractor(provider).extract(
+        incoming(raw_text="I want to speak to a real person"),
+        dna(),
+    )
+
+    assert result.requires_human
 
 
 def test_explicit_time_pressure_preserves_high_urgency_handoff() -> None:
@@ -739,12 +832,17 @@ def test_configured_human_trigger_cannot_be_suppressed_by_ai_output() -> None:
     assert result.current_state is ProcessState.NEEDS_HUMAN
 
 
-def test_low_confidence_and_invalid_output_escalate_safely() -> None:
+def test_low_confidence_clarifies_but_invalid_output_escalates_safely() -> None:
     low_workflow, _ = ai_workflow([
-        intent_output(service_id=None, customer_location=None, confidence=0.2),
+        intent_output(
+            service_id=None,
+            customer_location=None,
+            confidence=0.2,
+            requires_human=True,
+        ),
         {
-            "response_type": "human_escalation",
-            "message_text": "A team member will review your request and follow up.",
+            "addressed_items": ["field:service_id"],
+            "message_text": "Could you tell me which service you need?",
         },
     ])
     invalid_workflow, _ = ai_workflow([
@@ -758,7 +856,9 @@ def test_low_confidence_and_invalid_output_escalate_safely() -> None:
     low = low_workflow.receive(incoming("low", raw_text="I am not sure what I need"))
     invalid = invalid_workflow.receive(incoming("invalid", raw_text="ambiguous request"))
 
-    assert low.current_state is ProcessState.NEEDS_HUMAN
+    assert low.current_state is ProcessState.QUALIFYING
+    assert not low.qualification.requires_human
+    assert low.response is not None and "service" in low.response.message_text.casefold()
     assert invalid.current_state is ProcessState.NEEDS_HUMAN
     intent_event = next(
         event for event in invalid_workflow.get_case(invalid.case_id).event_history

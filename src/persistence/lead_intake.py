@@ -332,6 +332,7 @@ class PersistentLeadIntakeService:
                 "notes": intent.notes,
                 "confidence": intent.confidence,
                 "requires_human": intent.requires_human,
+                "unintelligible": intent.unintelligible,
                 "qualification_answers": intent.qualification_answers,
                 "customer_tone": intent.customer_tone.value,
                 "ai": intent.ai_metadata,

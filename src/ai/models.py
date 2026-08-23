@@ -70,6 +70,19 @@ class IntentOutput(StrictAIModel):
     email: str | None = Field(max_length=320)
     confidence: float = Field(ge=0.0, le=1.0)
     requires_human: bool
+    unintelligible: bool = Field(
+        description=(
+            "True ONLY when the current customer message carries no interpretable request or answer "
+            "at all -- random characters, a keyboard-mashed string, a meaningless fragment. Must be "
+            "false for ANY message that expresses a clear request or answer, even a very short or "
+            "incomplete one ('divorce', 'yes', a phone number, a name) -- those are handled by "
+            "confidence/requires_human/missing fields elsewhere, not this field. Also false whenever "
+            "requires_human is true for an emergency, hostile content, or an advice request -- those "
+            "are comprehensible messages, just ones that need a human, never unintelligible ones. "
+            "Independent of confidence and requires_human: must never itself raise requires_human or "
+            "lower confidence."
+        )
+    )
     qualification_answers: list[QualificationAnswerOutput] = Field(max_length=50)
     objection_phrase: str | None = Field(
         max_length=300,

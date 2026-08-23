@@ -70,6 +70,7 @@ def test_concurrent_identical_http_requests_have_one_logical_effect(postgresql_u
         "email": None,
         "confidence": 0.95,
         "requires_human": False,
+        "unintelligible": False,
         "qualification_answers": [],
         # Both required in IntentOutput, no default -- see test_ai.py's
         # intent_output() helper for the same fix and why it's needed.
