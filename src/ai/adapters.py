@@ -363,7 +363,51 @@ class AIIntentExtractor:
                 raise AIInvalidOutputError(
                     "AI returned a supported service without customer evidence"
                 )
+            AIIntentExtractor._reject_cross_service_evidence(
+                evidence, matches[0][0], matches[0][1], services
+            )
         return matches[0][0]
+
+    @staticmethod
+    def _reject_cross_service_evidence(
+        evidence: str,
+        chosen_id: str,
+        chosen_terms: tuple[str, ...],
+        services: list[dict[str, object]],
+    ) -> None:
+        """Catch a real quote paired with the wrong service.
+
+        Verifying only that the quote is the customer's real words is not
+        enough on a multi-service catalog: the model can lift any true phrase
+        from the message and attach it to any listed service. Observed case --
+        message "I need a diagnostic visit in 60601", model returns
+        service_id="equipment-replacement" quoting "diagnostic visit". Both
+        halves are individually valid, so the lead is silently routed to the
+        wrong service, with that service's qualification questions and
+        commercial path.
+
+        This does NOT reintroduce lexical keyword matching: nothing here is
+        required to match for an ordinary request to pass. The check only
+        fires when the quote literally names a DIFFERENT catalog service and
+        says nothing matching the chosen one -- a self-contradicting
+        justification. Everyday customer wording ("my roof is leaking",
+        "help with my divorce") names no service at all and is untouched,
+        which is exactly what zero-config semantic matching needs.
+        """
+        if any(term and _contains_term(evidence, term) for term in chosen_terms):
+            return
+        for service in services:
+            service_id = service.get("id")
+            if not isinstance(service_id, str) or service_id == chosen_id:
+                continue
+            other_terms = [service.get("id"), service.get("name"), *service.get("aliases", [])]
+            if any(
+                isinstance(term, str) and term.strip() and _contains_term(evidence, term.strip())
+                for term in other_terms
+            ):
+                raise AIInvalidOutputError(
+                    "AI justified the service with another service's own words"
+                )
 
     @staticmethod
     def _clean(value: str | None) -> str | None:

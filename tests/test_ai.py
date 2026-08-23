@@ -210,22 +210,29 @@ def test_single_configured_service_does_not_require_literal_keyword_evidence() -
     assert not result.requires_human
 
 
-def test_multi_service_catalog_allows_semantic_match_with_verbatim_customer_evidence() -> None:
-    """Service classification is an explicitly permitted AI task. For a
-    multi-service zero-config catalog, the deterministic boundary can verify
-    that the selected ID exists and that the model cites the customer's real
-    words; it cannot verify semantic entailment without reintroducing lexical
-    keyword matching (which is precisely what zero-config removes) or calling
-    a second model. Pricing, qualification policy, state transitions, and
-    commercial actions remain outside the model's authority."""
-    provider = FakeAIProvider([intent_output(service_id="equipment-replacement")])
+def test_evidence_naming_a_different_service_is_rejected() -> None:
+    """A real quote paired with the wrong service must still be refused.
+
+    Verifying only that the quote is genuine is not enough on a multi-service
+    catalog: here the model quotes "diagnostic visit" -- a true phrase from
+    the message -- while selecting "equipment-replacement". Accepting that
+    silently routes the lead to the wrong service, with the wrong
+    qualification questions and the wrong commercial path.
+
+    Full semantic entailment indeed cannot be verified deterministically, but
+    this specific contradiction can: the quote literally names another
+    catalog service and nothing of the chosen one. Rejecting it costs
+    zero-config nothing, because ordinary customer wording names no service
+    at all (see tests/test_zero_config_service_matching.py)."""
+    provider = FakeAIProvider([
+        intent_output(service_id="equipment-replacement", service_evidence="diagnostic visit")
+    ])
     message = incoming(raw_text="I need a diagnostic visit in 60601")
 
     result = AIIntentExtractor(provider).extract(message, dna())
 
-    assert result.service_requested == "equipment-replacement"
-    assert result.confidence == 0.95
-    assert result.requires_human is False
+    assert result.confidence == 0.0
+    assert result.requires_human is True
 
 
 def test_multi_turn_ai_context_is_bounded_redacted_and_uses_validated_facts() -> None:
