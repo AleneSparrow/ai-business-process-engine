@@ -3,7 +3,7 @@
 import json
 import logging
 import re
-from typing import Any, Mapping
+from typing import Any, Mapping, MutableMapping
 
 from src.domain.models import Lead
 from src.domain.qualification import (
@@ -34,11 +34,22 @@ class QualificationService:
         re.IGNORECASE,
     )
 
+    # Bounded per case, mirroring LeadIntakeService.MAX_REASSURANCE_ATTEMPTS --
+    # see universal-sales-cycle-model.md section 6 ("Ограничение
+    # настойчивости"). A message the AI could not interpret at all
+    # (intent.unintelligible) stays in the automated clarification loop
+    # instead of escalating immediately, but only up to this many attempts
+    # per case; once exhausted it escalates like any other unresolved case.
+    # Without this cap a customer who never sends an interpretable message
+    # would loop with the bot forever and never reach a human.
+    MAX_CLARIFICATION_ATTEMPTS = 3
+
     def evaluate(
         self,
         lead: Lead,
         intent: IntentResult,
         business_dna: Mapping[str, Any],
+        case_metadata: MutableMapping[str, Any] | None = None,
     ) -> QualificationResult:
         threshold = float(business_dna["ai_permissions"]["minimum_confidence"])
         triggers = set(business_dna["human_escalation"]["triggers"])
@@ -59,29 +70,41 @@ class QualificationService:
                 ("Intent confidence is below policy or extraction requested review",),
                 intent,
             )
-        if intent.unintelligible or intent.confidence < threshold:
-            # A valid but uncertain extraction should stay in the automated
-            # clarification loop. Escalating every typo, fragment, or
-            # keyboard mash creates noise and teaches staff nothing. Invalid
-            # provider output remains fail-safe because the adapter marks it
-            # requires_human=True and is handled by the branch above.
+        if intent.unintelligible:
+            attempts = self._clarification_attempts(case_metadata)
+            if attempts >= self.MAX_CLARIFICATION_ATTEMPTS:
+                _log_event(
+                    logging.INFO,
+                    "qualification_needs_human_diagnostic",
+                    reason="unintelligible_attempts_exhausted",
+                    confidence=intent.confidence,
+                    threshold=threshold,
+                    attempts=attempts,
+                )
+                return self._result(
+                    ProcessState.NEEDS_HUMAN,
+                    ("Customer message could not be interpreted after repeated clarification attempts",),
+                    intent,
+                )
+            self._record_clarification_attempt(case_metadata, attempts)
+            # Treated as "no new information this turn" and falls through to
+            # the ordinary missing-fields flow below -- same as any other
+            # message that doesn't add a fact, never a special-cased
+            # response. This also means confidence.threshold is deliberately
+            # NOT checked for this turn: an unintelligible message's
+            # confidence score isn't a meaningful signal either way.
+        elif intent.confidence < threshold:
             _log_event(
                 logging.INFO,
-                "qualification_clarification_diagnostic",
-                reason="unintelligible" if intent.unintelligible else "below_confidence_threshold",
+                "qualification_needs_human_diagnostic",
+                reason="below_confidence_threshold",
                 confidence=intent.confidence,
                 threshold=threshold,
             )
-            return QualificationResult(
-                qualified=False,
-                reasons=("The customer request needs clarification",),
-                missing_fields=("service_id",),
-                unanswered_questions=(),
-                confidence=intent.confidence,
-                recommended_next_state=ProcessState.QUALIFYING,
-                requires_human=False,
-                booking_allowed=False,
-                service_id=None,
+            return self._result(
+                ProcessState.NEEDS_HUMAN,
+                ("Intent confidence is below policy or extraction requested review",),
+                intent,
             )
         if intent.urgency.value in triggers:
             return self._result(
@@ -298,6 +321,17 @@ class QualificationService:
     @staticmethod
     def _has_value(value: Any) -> bool:
         return value is not None and (not isinstance(value, str) or bool(value.strip()))
+
+    @staticmethod
+    def _clarification_attempts(case_metadata: MutableMapping[str, Any] | None) -> int:
+        if case_metadata is None:
+            return 0
+        return int(case_metadata.get("clarification_attempts", 0))
+
+    @staticmethod
+    def _record_clarification_attempt(case_metadata: MutableMapping[str, Any] | None, attempts: int) -> None:
+        if case_metadata is not None:
+            case_metadata["clarification_attempts"] = attempts + 1
 
     @staticmethod
     def _service_id(service: Mapping[str, Any] | None) -> str | None:

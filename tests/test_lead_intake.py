@@ -109,19 +109,23 @@ def test_outside_enforced_service_area_is_lost() -> None:
     assert result.qualification.reasons == ("Customer is outside the configured service area",)
 
 
-def test_low_confidence_intent_requests_clarification_without_escalation() -> None:
+def test_low_confidence_intent_requires_human() -> None:
     intake = service_with({"msg-e": valid_intent(confidence=0.2)})
 
     result = intake.receive(message("msg-e"))
 
-    assert result.current_state is ProcessState.QUALIFYING
-    assert not result.qualification.requires_human
-    assert result.qualification.missing_fields == ("service_id",)
-    assert result.response is not None and not result.response.requires_human
-    assert result.response.message_text == "Which service do you need?"
+    assert result.current_state is ProcessState.NEEDS_HUMAN
+    assert result.qualification.requires_human
+    assert result.response is not None and result.response.requires_human
+    assert intake.get_case(result.case_id).pending_transition is ProcessState.QUALIFIED
 
 
 def test_unintelligible_input_requests_clarification_without_escalation() -> None:
+    """Live defect (2026-08-23): a customer message the AI could not
+    interpret at all (e.g. "ропапа" in answer to a name/phone question) used
+    to escalate straight to NEEDS_HUMAN. It must instead be treated like "no
+    new information this turn" -- missing fields computed exactly as they
+    would be for any other turn, not a hardcoded stand-in."""
     intake = service_with({
         "msg-gibberish": IntentResult(
             confidence=0.95,
@@ -134,9 +138,37 @@ def test_unintelligible_input_requests_clarification_without_escalation() -> Non
 
     assert result.current_state is ProcessState.QUALIFYING
     assert not result.qualification.requires_human
-    assert result.qualification.missing_fields == ("service_id",)
+    assert result.qualification.missing_fields == ("service_address", "service_id")
     assert result.response is not None
-    assert result.response.message_text == "Which service do you need?"
+    assert result.response.message_text == "What is the service ZIP code? Which service do you need?"
+
+
+def test_unintelligible_input_escalates_after_clarification_attempts_exhausted() -> None:
+    """MAX_CLARIFICATION_ATTEMPTS bounds the automated retry loop -- a
+    customer whose messages are never interpretable must still reach a
+    human eventually, mirroring MAX_REASSURANCE_ATTEMPTS."""
+    from src.engine.qualification_service import QualificationService
+
+    gibberish = IntentResult(confidence=0.95, unintelligible=True)
+    intake = service_with({f"msg-{index}": gibberish for index in range(QualificationService.MAX_CLARIFICATION_ATTEMPTS + 1)})
+
+    case_id = None
+    results = []
+    for index in range(QualificationService.MAX_CLARIFICATION_ATTEMPTS + 1):
+        result = intake.receive(message(f"msg-{index}", case_id=case_id))
+        case_id = result.case_id
+        results.append(result)
+
+    assert [result.current_state for result in results[:-1]] == [ProcessState.QUALIFYING] * QualificationService.MAX_CLARIFICATION_ATTEMPTS
+    assert results[-1].current_state is ProcessState.NEEDS_HUMAN
+    assert results[-1].qualification.requires_human
+    qualification_event = next(
+        event
+        for event in intake.get_case(case_id).event_history
+        if event.event_type is EventType.QUALIFICATION_EVALUATED
+        and event.payload["recommended_next_state"] == "NEEDS_HUMAN"
+    )
+    assert qualification_event.payload["escalation_reason"] == "unintelligible"
 
 
 def test_normal_request_after_gibberish_recovers_without_sticky_flag() -> None:

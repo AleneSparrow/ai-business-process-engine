@@ -12,6 +12,7 @@ class EscalationReason(StrEnum):
     URGENT_REQUEST = "urgent_request"
     LOW_CONFIDENCE = "low_confidence"
     SERVICE_UNCLEAR = "service_unclear"
+    UNINTELLIGIBLE = "unintelligible"
     AI_REVIEW = "ai_review"
     SERVICE_AREA_UNCERTAIN = "service_area_uncertain"
     POLICY_REVIEW = "policy_review"
@@ -28,6 +29,8 @@ def escalation_reason(
     if not qualification.requires_human:
         return None
     reasons = " ".join(qualification.reasons).casefold()
+    if "could not be interpreted" in reasons:
+        return EscalationReason.UNINTELLIGIBLE.value
     if "already awaiting" in reasons:
         return EscalationReason.ALREADY_PENDING.value
     if "contact identity" in reasons:

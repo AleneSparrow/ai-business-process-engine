@@ -157,7 +157,9 @@ class LeadIntakeService:
         intent = self._merge_intent(case.lead, extracted)
         updated_lead = self._updated_lead(case.lead, message, intent)
         self._validate_identity_available(case, updated_lead)
-        qualification = self.qualification_service.evaluate(updated_lead, intent, self.business_dna)
+        qualification = self.qualification_service.evaluate(
+            updated_lead, intent, self.business_dna, case_metadata=case.metadata,
+        )
         if case.current_state is ProcessState.NEEDS_HUMAN:
             qualification = self._already_escalated_result(intent, qualification.service_id)
         response = self._create_response(case, message, qualification, intent)

@@ -133,7 +133,7 @@ def test_business_endpoint_returns_safe_metadata_only(api_environment) -> None:
         ("valid", {}, "QUALIFIED", False),
         ("missing-phone", {"phone": None}, "QUALIFYING", False),
         ("unsupported", {"message": "I need a roof replacement"}, "LOST", False),
-        ("low-confidence", {"message": "I am not sure what I need"}, "QUALIFYING", False),
+        ("low-confidence", {"message": "I am not sure what I need"}, "NEEDS_HUMAN", True),
     ),
 )
 def test_lead_intake_outcomes(
@@ -155,10 +155,8 @@ def test_lead_intake_outcomes(
     assert body["current_state"] == expected_state
     assert body["requires_human"] is requires_human
     if expected_state == "QUALIFYING":
-        expected_field = "phone" if external_id == "missing-phone" else "service_id"
-        assert body["qualification"]["missing_fields"] == [expected_field]
-        expected_word = "phone" if expected_field == "phone" else "service"
-        assert expected_word in body["customer_response"]["message_text"].casefold()
+        assert body["qualification"]["missing_fields"] == ["phone"]
+        assert "phone" in body["customer_response"]["message_text"].casefold()
 
 
 def test_duplicate_replay_is_stable_and_does_not_duplicate_audit_events(api_environment) -> None:
