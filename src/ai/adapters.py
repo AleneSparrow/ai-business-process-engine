@@ -68,6 +68,34 @@ _UNSAFE_CUSTOMER_COMMITMENT = re.compile(
 _EMAIL = re.compile(r"\b[^@\s]+@[^@\s]+\.[^@\s]+\b")
 _PHONE = re.compile(r"(?<!\w)(?:\+?\d[\d .()\-]{5,}\d)(?!\w)")
 
+# A provider occasionally over-escalates an otherwise clear sales inquiry
+# because the subject merely sounds sensitive ("my daughter needs algebra
+# help") or because a problem is unpleasant but not explicitly time-critical
+# ("the ceiling leaked after the storm").  These expressions are a narrow
+# deterministic backstop for that live failure mode.  They do not attempt to
+# classify the whole message; they only decide whether it is safe to override
+# an unexplained provider flag on a high-confidence, catalog-resolved request.
+_HIGH_URGENCY_CUE = re.compile(
+    r"\b(?:urgent(?:ly)?|asap|right away|immediately|today|tonight|now|"
+    r"cannot wait|can't wait|time[- ]sensitive)\b",
+    re.IGNORECASE,
+)
+_SAFETY_CUE = re.compile(
+    r"\b(?:emergency|cannot breathe|can't breathe|trouble breathing|chest pain|"
+    r"hurt myself|kill myself|suicid\w*|unconscious|severe bleeding|gas leak|"
+    r"on fire|electrical sparks?|in danger|unsafe)\b",
+    re.IGNORECASE,
+)
+_ADVICE_OR_COMMITMENT_CUE = re.compile(
+    r"\b(?:tell me exactly|what should i|should i|advise me|legal advice|"
+    r"medical advice|diagnose me|decide for me|guarantee|promise|invest it)\b",
+    re.IGNORECASE,
+)
+_HOSTILE_CUE = re.compile(
+    r"\b(?:fuck(?:ing)?|bullshit|idiot|moron|stupid|scam(?:mer)?|fraud)\b",
+    re.IGNORECASE,
+)
+
 
 def _communication(business_dna: Mapping[str, object]) -> Mapping[str, object]:
     value = business_dna.get("communication", {})
@@ -225,8 +253,17 @@ class AIIntentExtractor:
                         f"(question_id={answer.question_id}, loosely_matches_normalized={loosely_matches})"
                     )
                 answers[answer.question_id] = answer_value
-            final_requires_human = output.requires_human or self._configured_trigger_matches(
-                message.raw_text, business_dna
+            calibrated_urgency = self._calibrated_urgency(message.raw_text, output.urgency)
+            calibrated_requires_human = self._calibrated_requires_human(
+                output.requires_human,
+                output.confidence,
+                service_requested,
+                calibrated_urgency,
+                message.raw_text,
+                business_dna,
+            )
+            final_requires_human = calibrated_requires_human or self._configured_trigger_matches(
+                calibrated_urgency, business_dna
             )
             _log_event(
                 logging.INFO,
@@ -234,13 +271,15 @@ class AIIntentExtractor:
                 service_requested=service_requested,
                 confidence=output.confidence,
                 ai_requires_human=output.requires_human,
+                requires_human_calibrated=output.requires_human and not calibrated_requires_human,
                 trigger_matched=final_requires_human and not output.requires_human,
-                urgency=output.urgency.value if output.urgency is not None else None,
+                urgency=calibrated_urgency.value,
+                urgency_calibrated=calibrated_urgency is not output.urgency,
                 prompt_version=prompt.version,
             )
             return IntentResult(
                 service_requested=service_requested,
-                urgency=output.urgency,
+                urgency=calibrated_urgency,
                 customer_location=customer_location,
                 preferred_time=preferred_time,
                 notes=self._notes(output.notes, message.raw_text),
@@ -514,16 +553,75 @@ class AIIntentExtractor:
 
     @staticmethod
     def _configured_trigger_matches(
+        urgency: Urgency,
+        business_dna: Mapping[str, object],
+    ) -> bool:
+        """Match configured urgency levels, never incidental customer words.
+
+        The old implementation searched the raw message for trigger strings.
+        That made "high school algebra" match the configured HIGH urgency
+        trigger and escalated an ordinary tutoring lead.  Triggers are enum
+        values in Business DNA, so compare them to the calibrated enum value.
+        """
+        escalation = business_dna.get("human_escalation", {})
+        triggers = escalation.get("triggers", []) if isinstance(escalation, Mapping) else []
+        return urgency.value in {
+            trigger.strip().casefold()
+            for trigger in triggers
+            if isinstance(trigger, str) and trigger.strip()
+        }
+
+    @staticmethod
+    def _calibrated_urgency(customer_message: str, urgency: Urgency) -> Urgency:
+        """Keep HIGH only when the customer actually expresses time pressure.
+
+        EMERGENCY is never downgraded here: safety is deliberately fail-safe.
+        The backstop only corrects the observed semantic drift where a model
+        equated the seriousness of a repair topic with customer urgency.
+        """
+        if _SAFETY_CUE.search(customer_message):
+            return Urgency.EMERGENCY
+        if urgency is not Urgency.HIGH:
+            return urgency
+        if _HIGH_URGENCY_CUE.search(customer_message):
+            return urgency
+        return Urgency.NORMAL
+
+    @staticmethod
+    def _calibrated_requires_human(
+        provider_requires_human: bool,
+        confidence: float,
+        service_requested: str | None,
+        urgency: Urgency,
         customer_message: str,
         business_dna: Mapping[str, object],
     ) -> bool:
-        escalation = business_dna.get("human_escalation", {})
-        triggers = escalation.get("triggers", []) if isinstance(escalation, Mapping) else []
-        return any(
-            _contains_term(customer_message, trigger.replace("_", " "))
-            for trigger in triggers
-            if isinstance(trigger, str) and trigger.strip()
+        """Suppress only unexplained flags on clear, ordinary catalog requests.
+
+        Low confidence, unresolved/unsupported services, explicit urgency,
+        emergencies, advice/commitment requests, and hostile content remain
+        human-reviewed.  A 0.90 floor intentionally makes this narrower than
+        the normal configurable acceptance threshold.
+        """
+        if any(pattern.search(customer_message) for pattern in (
+            _SAFETY_CUE,
+            _ADVICE_OR_COMMITMENT_CUE,
+            _HOSTILE_CUE,
+        )):
+            return True
+        if not provider_requires_human:
+            return False
+        permissions = business_dna.get("ai_permissions", {})
+        configured_threshold = (
+            float(permissions.get("minimum_confidence", 0.8))
+            if isinstance(permissions, Mapping)
+            else 0.8
         )
+        if confidence < max(0.9, configured_threshold) or service_requested is None:
+            return True
+        if urgency in {Urgency.HIGH, Urgency.EMERGENCY}:
+            return True
+        return False
 
 
 class AIQuestionGenerator:

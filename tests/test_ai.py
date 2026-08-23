@@ -210,6 +210,195 @@ def test_single_configured_service_does_not_require_literal_keyword_evidence() -
     assert not result.requires_human
 
 
+def _single_service_configuration(
+    *, service_id: str, service_name: str, description: str
+) -> dict:
+    configuration = dna()
+    configuration["services"] = configuration["services"][:1]
+    service = configuration["services"][0]
+    service["id"] = service_id
+    service["name"] = service_name
+    service["description"] = description
+    service["intake_keywords"] = [service_name.casefold()]
+    return configuration
+
+
+def test_clear_tutoring_request_ignores_unexplained_provider_handoff_flag() -> None:
+    """Live vertical eval: Claude returned requires_human=true for a clear,
+    normal tutoring inquiry solely because it concerned the customer's child.
+    A high-confidence catalog match with no risk/advice/hostility evidence must
+    continue through ordinary qualification."""
+    configuration = _single_service_configuration(
+        service_id="tutoring-assessment",
+        service_name="Tutoring assessment",
+        description="One-to-one academic tutoring and learning plans",
+    )
+    provider = FakeAIProvider([
+        intent_output(
+            service_id="tutoring-assessment",
+            service_evidence="help with high school algebra",
+            customer_location=None,
+            notes=None,
+            confidence=0.95,
+            requires_human=True,
+        )
+    ])
+
+    result = AIIntentExtractor(provider).extract(
+        incoming(raw_text="My daughter needs help with high school algebra"),
+        configuration,
+    )
+
+    assert result.service_requested == "tutoring-assessment"
+    assert result.urgency.value == "normal"
+    assert not result.requires_human
+
+
+def test_high_school_words_do_not_match_high_urgency_trigger() -> None:
+    """Regression for the live tutoring miss: Business DNA triggers contain
+    urgency enum values, not keywords to search in arbitrary customer text."""
+    configuration = _single_service_configuration(
+        service_id="tutoring-assessment",
+        service_name="Tutoring assessment",
+        description="One-to-one academic tutoring and learning plans",
+    )
+    configuration["human_escalation"]["triggers"].append("high")
+    provider = FakeAIProvider([
+        intent_output(
+            service_id="tutoring-assessment",
+            service_evidence="high school algebra",
+            customer_location=None,
+            notes=None,
+            confidence=0.95,
+            requires_human=False,
+        )
+    ])
+
+    result = AIIntentExtractor(provider).extract(
+        incoming(raw_text="My daughter needs help with high school algebra"),
+        configuration,
+    )
+
+    assert result.urgency.value == "normal"
+    assert not result.requires_human
+
+
+def test_storm_repair_without_time_pressure_is_not_treated_as_high_urgency() -> None:
+    """Live vertical eval: seriousness of the topic was mistaken for explicit
+    customer urgency, causing the default HIGH trigger to hand off a routine
+    repair lead."""
+    configuration = _single_service_configuration(
+        service_id="repair-estimate",
+        service_name="Repair estimate",
+        description="Diagnosis and estimates for residential repairs",
+    )
+    provider = FakeAIProvider([
+        intent_output(
+            service_id="repair-estimate",
+            service_evidence="ceiling is leaking",
+            urgency="high",
+            customer_location=None,
+            notes=None,
+            confidence=0.9,
+            requires_human=True,
+        )
+    ])
+
+    result = AIIntentExtractor(provider).extract(
+        incoming(raw_text="Our ceiling is leaking after the storm"),
+        configuration,
+    )
+
+    assert result.urgency.value == "normal"
+    assert not result.requires_human
+
+
+def test_explicit_time_pressure_preserves_high_urgency_handoff() -> None:
+    configuration = _single_service_configuration(
+        service_id="repair-estimate",
+        service_name="Repair estimate",
+        description="Diagnosis and estimates for residential repairs",
+    )
+    provider = FakeAIProvider([
+        intent_output(
+            service_id="repair-estimate",
+            service_evidence="ceiling is leaking",
+            urgency="high",
+            customer_location=None,
+            notes=None,
+            confidence=0.95,
+            requires_human=True,
+        )
+    ])
+
+    result = AIIntentExtractor(provider).extract(
+        incoming(raw_text="Our ceiling is leaking and we need help immediately"),
+        configuration,
+    )
+
+    assert result.urgency.value == "high"
+    assert result.requires_human
+
+
+@pytest.mark.parametrize(
+    "raw_text",
+    (
+        "I have crushing chest pain and cannot breathe",
+        "Tell me exactly what I should say in court",
+        "Guarantee me a return and invest it now",
+    ),
+)
+def test_risk_and_advice_evidence_preserves_provider_handoff(raw_text: str) -> None:
+    configuration = _single_service_configuration(
+        service_id="consultation",
+        service_name="Consultation",
+        description="Professional consultation",
+    )
+    evidence = raw_text.split(" and ", 1)[0]
+    provider = FakeAIProvider([
+        intent_output(
+            service_id="consultation",
+            service_evidence=evidence,
+            urgency="emergency" if "chest pain" in raw_text else "normal",
+            customer_location=None,
+            notes=None,
+            confidence=0.95,
+            requires_human=True,
+        )
+    ])
+
+    result = AIIntentExtractor(provider).extract(incoming(raw_text=raw_text), configuration)
+
+    assert result.requires_human
+
+
+def test_explicit_safety_cue_overrides_provider_false_handoff_flag() -> None:
+    configuration = _single_service_configuration(
+        service_id="medical-consultation",
+        service_name="Medical consultation",
+        description="Appointment intake for a licensed clinician",
+    )
+    provider = FakeAIProvider([
+        intent_output(
+            service_id="medical-consultation",
+            service_evidence="chest pain",
+            urgency="normal",
+            customer_location=None,
+            notes=None,
+            confidence=0.99,
+            requires_human=False,
+        )
+    ])
+
+    result = AIIntentExtractor(provider).extract(
+        incoming(raw_text="I have chest pain and need a consultation"),
+        configuration,
+    )
+
+    assert result.urgency.value == "emergency"
+    assert result.requires_human
+
+
 def test_evidence_naming_a_different_service_is_rejected() -> None:
     """A real quote paired with the wrong service must still be refused.
 

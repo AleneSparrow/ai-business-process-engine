@@ -215,7 +215,10 @@ def _summary(records: list[dict[str, Any]], provider: str, model: str) -> dict[s
         "service_match_rate": sum(bool(row.get("service_match")) for row in normal) / len(normal),
         "response_success_rate": sum(bool(row.get("response_success")) for row in normal) / len(normal),
         "utp_process_pass_rate": sum(bool(row.get("utp_process_pass")) for row in normal) / len(normal),
-        "challenge_pass_rate": sum(bool(row.get("challenge_pass")) for row in challenges) / len(challenges),
+        "challenge_pass_rate": (
+            sum(bool(row.get("challenge_pass")) for row in challenges) / len(challenges)
+            if challenges else None
+        ),
         "mean_wall_latency_ms": round(mean(latencies)),
         "p95_wall_latency_ms": p95,
         "errors": sum("error_type" in row for row in records),
@@ -226,6 +229,17 @@ def _summary(records: list[dict[str, Any]], provider: str, model: str) -> dict[s
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--only-industry",
+        action="append",
+        default=[],
+        help="Run normal cases only for this exact industry label; repeat as needed.",
+    )
+    parser.add_argument(
+        "--skip-challenges",
+        action="store_true",
+        help="Skip the eight cross-vertical safety challenges.",
+    )
     args = parser.parse_args()
 
     matrix_namespace = runpy.run_path(str(ROOT / "tests" / "test_vertical_sales_cycles.py"))
@@ -233,9 +247,20 @@ def main() -> None:
     build_dna = matrix_namespace["_dna"]
     runtime = build_ai_runtime(Settings.from_environment())
 
-    records = [_normal_case(runtime, vertical, build_dna(vertical), index) for index, vertical in enumerate(matrix)]
-    for index, (vertical, message, expectation) in enumerate(_challenge_cases(matrix)):
-        records.append(_challenge_case(runtime, vertical, build_dna(vertical), message, expectation, index))
+    selected = (
+        tuple(vertical for vertical in matrix if vertical.industry in set(args.only_industry))
+        if args.only_industry else matrix
+    )
+    if args.only_industry and len(selected) != len(set(args.only_industry)):
+        known = ", ".join(sorted(vertical.industry for vertical in matrix))
+        raise SystemExit(f"Unknown or duplicate --only-industry value. Known values: {known}")
+    records = [
+        _normal_case(runtime, vertical, build_dna(vertical), index)
+        for index, vertical in enumerate(selected)
+    ]
+    if not args.skip_challenges:
+        for index, (vertical, message, expectation) in enumerate(_challenge_cases(matrix)):
+            records.append(_challenge_case(runtime, vertical, build_dna(vertical), message, expectation, index))
 
     payload = {
         "summary": _summary(records, runtime.provider_name, runtime.model_name),
