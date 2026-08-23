@@ -171,10 +171,23 @@ export interface DashboardCaseSummary {
   event_count: number;
   latest_event_type: string | null;
   category: string | null;
+  escalation_reason: string | null;
 }
 
 export interface DashboardCaseListResponse {
   cases: DashboardCaseSummary[];
+}
+
+export interface DashboardAnalytics {
+  total_cases: number;
+  booked_cases: number;
+  escalated_cases: number;
+  lost_cases: number;
+  booking_conversion_rate: number;
+  escalation_rate: number;
+  lost_rate: number;
+  median_first_response_seconds: number | null;
+  response_samples: number;
 }
 
 export interface DashboardEvent {
@@ -192,6 +205,7 @@ export interface DashboardCaseDetail {
   created_at: string;
   updated_at: string;
   events: DashboardEvent[];
+  escalation_reason: string | null;
 }
 
 export interface DashboardConversationSummary {
@@ -206,6 +220,7 @@ export interface DashboardConversationSummary {
   status: "ai_active" | "human_takeover_requested" | "human_takeover_active" | "closed";
   created_at: string;
   last_activity_at: string;
+  escalation_reason: string | null;
 }
 
 export interface DashboardConversationListResponse {
@@ -364,6 +379,9 @@ export const api = {
   listCases: (token: string, businessId: string) =>
     request<DashboardCaseListResponse>(`/api/v1/businesses/${businessId}/cases`, { method: "GET" }, token),
 
+  getDashboardAnalytics: (token: string, businessId: string) =>
+    request<DashboardAnalytics>(`/api/v1/businesses/${businessId}/analytics`, { method: "GET" }, token),
+
   getCase: (token: string, businessId: string, caseId: string) =>
     request<DashboardCaseDetail>(`/api/v1/businesses/${businessId}/cases/${caseId}`, { method: "GET" }, token),
 
@@ -392,6 +410,18 @@ export const api = {
     request<StaffActionResponse>(
       `/api/v1/businesses/${businessId}/conversations/${conversationId}/resolve`,
       { method: "POST", body: JSON.stringify({}) },
+      token,
+    ),
+
+  recordEscalationFeedback: (
+    token: string,
+    businessId: string,
+    conversationId: string,
+    outcome: "unnecessary" | "missed" | "wrong_service",
+  ) =>
+    request<StaffActionResponse>(
+      `/api/v1/businesses/${businessId}/conversations/${conversationId}/escalation-feedback`,
+      { method: "POST", body: JSON.stringify({ outcome }) },
       token,
     ),
 

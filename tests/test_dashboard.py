@@ -1,7 +1,7 @@
 """Staff dashboard/conversation API (Milestone 8 slice 2): real cases, conversations,
 and audit trail, scoped to the authenticated staff user's own business."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -144,6 +144,108 @@ def test_case_summary_exposes_human_readable_service_category() -> None:
     )
 
     assert summary.category == "Drain cleaning"
+
+
+def test_case_summary_exposes_latest_non_sensitive_escalation_reason() -> None:
+    case = ProcessCase(
+        "case-escalation",
+        "biz-1",
+        Lead("lead-escalation", name="Ada"),
+        ProcessState.NEEDS_HUMAN,
+        NOW,
+        NOW,
+    )
+    case.record(ProcessEvent(
+        "QUALIFICATION_EVALUATED",
+        occurred_at=NOW,
+        payload={"escalation_reason": "low_confidence"},
+    ))
+
+    summary = DashboardCaseSummarySchema.from_domain(case)
+
+    assert summary.escalation_reason == "low_confidence"
+
+
+def test_staff_can_record_escalation_feedback_in_audit_trail(dashboard_environment) -> None:
+    client, factory = dashboard_environment
+    token = signup_and_login(client, "feedback-owner@example.com")
+    me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}).json()
+    seed_case_with_conversation(
+        factory, business_id="biz-feedback", case_id="case-feedback", lead_id="lead-feedback"
+    )
+    link_business(factory, business_id="biz-feedback", user_id=me["user_id"])
+
+    response = client.post(
+        "/api/v1/businesses/biz-feedback/conversations/conv-1/escalation-feedback",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"outcome": "unnecessary"},
+    )
+
+    assert response.status_code == 200
+    detail = client.get(
+        "/api/v1/businesses/biz-feedback/cases/case-feedback",
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()
+    feedback = [
+        event for event in detail["events"]
+        if event["event_type"] == "ESCALATION_FEEDBACK_RECORDED"
+    ]
+    assert len(feedback) == 1
+    assert feedback[0]["payload"]["outcome"] == "unnecessary"
+
+
+def test_dashboard_analytics_uses_audit_events_and_median_first_response(dashboard_environment) -> None:
+    client, factory = dashboard_environment
+    token = signup_and_login(client, "analytics-owner@example.com")
+    me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}).json()
+    seed_case_with_conversation(
+        factory, business_id="biz-analytics", case_id="case-analytics", lead_id="lead-analytics"
+    )
+    link_business(factory, business_id="biz-analytics", user_id=me["user_id"])
+    with factory() as unit_of_work:
+        unit_of_work.events.add(
+            "biz-analytics",
+            "case-analytics",
+            ProcessEvent(
+                "QUALIFICATION_EVALUATED",
+                occurred_at=NOW,
+                payload={"requires_human": True, "escalation_reason": "ai_review"},
+            ),
+        )
+        unit_of_work.events.add(
+            "biz-analytics",
+            "case-analytics",
+            ProcessEvent("BOOKING_CREATED", occurred_at=NOW),
+        )
+        unit_of_work.conversation_messages.add(ConversationMessage(
+            message_id="msg-analytics-outbound",
+            business_id="biz-analytics",
+            conversation_id="conv-1",
+            sequence_number=2,
+            direction=MessageDirection.OUTBOUND,
+            role=MessageRole.ASSISTANT,
+            text="How can we help?",
+            created_at=NOW + timedelta(seconds=5),
+        ))
+        unit_of_work.commit()
+
+    response = client.get(
+        "/api/v1/businesses/biz-analytics/analytics",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "total_cases": 1,
+        "booked_cases": 1,
+        "escalated_cases": 1,
+        "lost_cases": 0,
+        "booking_conversion_rate": 1.0,
+        "escalation_rate": 1.0,
+        "lost_rate": 0.0,
+        "median_first_response_seconds": 5.0,
+        "response_samples": 1,
+    }
 
 
 def test_list_cases_returns_seeded_case(dashboard_environment) -> None:

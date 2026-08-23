@@ -152,3 +152,41 @@ class StaffActionService:
 
             unit_of_work.commit()
             return StaffActionResult(conversation=conversation, case=case)
+
+    def record_escalation_feedback(
+        self,
+        business_id: str,
+        conversation_id: str,
+        staff_user: StaffUser,
+        outcome: str,
+    ) -> StaffActionResult:
+        """Record a staff label without storing customer text or free-form PII."""
+        allowed = {"unnecessary", "missed", "wrong_service"}
+        if outcome not in allowed:
+            raise ValueError("unsupported escalation feedback outcome")
+        with self._unit_of_work_factory() as unit_of_work:
+            conversation = unit_of_work.conversations.get(
+                business_id, conversation_id, for_update=True
+            )
+            if conversation is None:
+                raise StaffConversationNotFoundError("Conversation was not found")
+            if conversation.case_id is None:
+                raise ConversationNotLinkedError("This conversation isn't linked to a case yet")
+            case = unit_of_work.cases.get(business_id, conversation.case_id)
+            if case is None:
+                raise ConversationNotLinkedError("The linked case was not found")
+            unit_of_work.events.add(
+                business_id,
+                case.case_id,
+                ProcessEvent(
+                    EventType.ESCALATION_FEEDBACK_RECORDED,
+                    occurred_at=utc_now(),
+                    source="staff_action",
+                    payload={
+                        "outcome": outcome,
+                        "staff_user_id": staff_user.user_id,
+                    },
+                ),
+            )
+            unit_of_work.commit()
+            return StaffActionResult(conversation=conversation, case=case)

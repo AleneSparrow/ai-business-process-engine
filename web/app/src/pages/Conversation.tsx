@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, Search, Send, Check, Phone, Mail, Loader2 } from "lucide-react";
+import { ArrowLeft, Search, Send, Check, Phone, Mail, Loader2, AlertTriangle } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { STAGES, StatePill, Stepper, mapProcessState, describeEvent, formatRelativeTime } from "../components/Shared";
 import { useAuth, describeError } from "../auth/AuthContext";
@@ -20,6 +20,7 @@ export default function Conversation() {
   const [conversations, setConversations] = useState<DashboardConversationSummary[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [attentionOnly, setAttentionOnly] = useState(false);
   const [requestedCaseMissing, setRequestedCaseMissing] = useState(false);
   const [detail, setDetail] = useState<DashboardConversationDetail | null>(null);
   const [caseDetail, setCaseDetail] = useState<DashboardCaseDetail | null>(null);
@@ -28,6 +29,8 @@ export default function Conversation() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const [feedbackSending, setFeedbackSending] = useState<string | null>(null);
+  const [feedbackSaved, setFeedbackSaved] = useState<string | null>(null);
 
   const refreshList = useCallback(() => {
     if (!token || !businessId) return;
@@ -84,9 +87,10 @@ export default function Conversation() {
 
   const filteredConversations = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase();
-    if (!query) return conversations ?? [];
-    return (conversations ?? []).filter((conversation) =>
-      [
+    return (conversations ?? []).filter((conversation) => {
+      if (attentionOnly && conversation.case_state !== "NEEDS_HUMAN") return false;
+      if (!query) return true;
+      return [
         conversation.lead_name,
         conversation.lead_phone,
         conversation.lead_email,
@@ -94,9 +98,9 @@ export default function Conversation() {
         conversation.conversation_id,
         conversation.channel,
         conversation.status.replace(/_/g, " "),
-      ].some((value) => value?.toLocaleLowerCase().includes(query)),
-    );
-  }, [conversations, searchQuery]);
+      ].some((value) => value?.toLocaleLowerCase().includes(query));
+    });
+  }, [attentionOnly, conversations, searchQuery]);
 
   useEffect(() => {
     let cancelled = false;
@@ -148,6 +152,35 @@ export default function Conversation() {
     }
   };
 
+  const handleFeedback = async (outcome: "unnecessary" | "missed" | "wrong_service") => {
+    if (!token || !businessId || !selectedId) return;
+    setFeedbackSending(outcome);
+    setActionError(null);
+    try {
+      await api.recordEscalationFeedback(token, businessId, selectedId, outcome);
+      setFeedbackSaved(outcome);
+      await refreshDetail(selectedId);
+    } catch (err) {
+      setActionError(describeError(err));
+    } finally {
+      setFeedbackSending(null);
+    }
+  };
+
+  const escalationLabel = detail?.conversation.escalation_reason
+    ? ({
+        safety_emergency: "Safety or emergency language",
+        urgent_request: "Customer requested urgent help",
+        low_confidence: "Low confidence in the request",
+        service_unclear: "Requested service was unclear",
+        ai_review: "AI requested human review",
+        service_area_uncertain: "Service area could not be confirmed",
+        policy_review: "Business policy requires review",
+        identity_conflict: "Contact details match another lead",
+        already_pending: "Already waiting for review",
+      } as Record<string, string>)[detail.conversation.escalation_reason] ?? "Human review requested"
+    : null;
+
   return (
     <div className="min-h-screen w-full flex" style={{ backgroundColor: "#F5F1EA", fontFamily: "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif", color: "#151515" }}>
       <Sidebar />
@@ -165,6 +198,13 @@ export default function Conversation() {
                   className="w-full pl-8 pr-3 py-2 rounded-lg bg-white border border-[#E7E5DE] text-sm outline-none"
                 />
               </div>
+              <button
+                onClick={() => setAttentionOnly((current) => !current)}
+                className="mt-2 w-full rounded-lg px-3 py-1.5 text-xs font-medium border border-[#E7E5DE]"
+                style={{ backgroundColor: attentionOnly ? "#151515" : "#fff", color: attentionOnly ? "#fff" : "#6B6459" }}
+              >
+                Needs attention only
+              </button>
             </div>
             {error && (
               <div className="mx-4 mt-3 px-3 py-2 rounded-lg text-xs" style={{ backgroundColor: "#FBEBE9", color: "#8A3225" }}>
@@ -256,6 +296,35 @@ export default function Conversation() {
                 </div>
 
                 <div className="border-t border-[#E7E5DE] p-4">
+                  {caseDetail && (
+                    <div className="mb-3 rounded-xl border border-[#E8CFAF] bg-[#FFF8EE] p-3">
+                      {escalationLabel && (
+                        <>
+                          <div className="flex items-center gap-2 text-xs font-semibold text-[#8A561B]">
+                            <AlertTriangle size={14} /> Why this needs attention
+                          </div>
+                          <p className="mt-1 text-sm text-[#6B6459]">{escalationLabel}</p>
+                        </>
+                      )}
+                      <div className={`text-xs font-semibold text-[#6B6459] ${escalationLabel ? "mt-3" : ""}`}>Help improve AI decisions</div>
+                      <div className="mt-2.5 flex flex-wrap gap-2">
+                        {([
+                          ...(escalationLabel ? [["unnecessary", "Escalation wasn't needed"]] : []),
+                          ["missed", "Should have escalated"],
+                          ["wrong_service", "Wrong service"],
+                        ] as ["unnecessary" | "missed" | "wrong_service", string][]).map(([outcome, label]) => (
+                          <button
+                            key={outcome}
+                            onClick={() => handleFeedback(outcome)}
+                            disabled={feedbackSending !== null || feedbackSaved === outcome}
+                            className="rounded-lg border border-[#E8CFAF] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#6B6459] disabled:opacity-50"
+                          >
+                            {feedbackSending === outcome ? "Saving…" : feedbackSaved === outcome ? "Saved" : label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   {actionError && (
                     <div className="mb-2.5 px-3 py-2 rounded-lg text-xs" style={{ backgroundColor: "#FBEBE9", color: "#8A3225" }}>
                       {actionError}

@@ -7,11 +7,13 @@ business.
 """
 
 from collections.abc import Mapping
+from statistics import median
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status
 
 from src.domain.auth import StaffUser
+from src.domain.states import ProcessState
 from src.persistence.staff_action_service import StaffActionService
 
 from ..dependencies import (
@@ -27,10 +29,12 @@ from ..schemas import (
     DashboardCaseDetailResponse,
     DashboardCaseListResponse,
     DashboardCaseSummarySchema,
+    DashboardAnalyticsSchema,
     DashboardConversationDetailResponse,
     DashboardConversationListResponse,
     DashboardConversationSchema,
     DashboardMessageSchema,
+    EscalationFeedbackRequest,
     StaffActionResponse,
     StaffReplyRequest,
 )
@@ -83,6 +87,70 @@ def get_case(
     return DashboardCaseDetailResponse.from_domain(case)
 
 
+@router.get("/analytics", response_model=DashboardAnalyticsSchema)
+def get_dashboard_analytics(
+    business_id: BusinessIdPath,
+    user: Annotated[StaffUser, Depends(require_own_business)],
+    unit_of_work_factory: Annotated[UnitOfWorkFactory, Depends(get_unit_of_work_factory)],
+) -> DashboardAnalyticsSchema:
+    """Compute transparent owner metrics from persisted audit data.
+
+    Rates use all cases as the denominator. Booked/escalated are historical
+    ever-events, while lost is the current terminal state. Response time is
+    the median first outbound message after the first inbound message per
+    conversation, which is robust to a few very slow conversations.
+    """
+    with unit_of_work_factory() as unit_of_work:
+        cases = unit_of_work.cases.list_for_business(business_id)
+        total = len(cases)
+        booked = sum(
+            any(event.event_type == "BOOKING_CREATED" for event in case.event_history)
+            for case in cases
+        )
+        escalated = sum(
+            any(
+                event.event_type == "QUALIFICATION_EVALUATED"
+                and event.payload.get("requires_human") is True
+                for event in case.event_history
+            )
+            for case in cases
+        )
+        lost = sum(case.current_state is ProcessState.LOST for case in cases)
+        first_response_seconds: list[float] = []
+        for conversation in unit_of_work.conversations.list_for_business(business_id):
+            messages = unit_of_work.conversation_messages.list_for_conversation(
+                business_id, conversation.conversation_id
+            )
+            inbound_at = next(
+                (message.created_at for message in messages if message.direction.value == "inbound"),
+                None,
+            )
+            if inbound_at is None:
+                continue
+            outbound_at = next(
+                (
+                    message.created_at
+                    for message in messages
+                    if message.direction.value == "outbound" and message.created_at >= inbound_at
+                ),
+                None,
+            )
+            if outbound_at is not None:
+                first_response_seconds.append((outbound_at - inbound_at).total_seconds())
+    denominator = total or 1
+    return DashboardAnalyticsSchema(
+        total_cases=total,
+        booked_cases=booked,
+        escalated_cases=escalated,
+        lost_cases=lost,
+        booking_conversion_rate=booked / denominator if total else 0.0,
+        escalation_rate=escalated / denominator if total else 0.0,
+        lost_rate=lost / denominator if total else 0.0,
+        median_first_response_seconds=(median(first_response_seconds) if first_response_seconds else None),
+        response_samples=len(first_response_seconds),
+    )
+
+
 @router.get("/conversations", response_model=DashboardConversationListResponse)
 def list_conversations(
     business_id: BusinessIdPath,
@@ -105,6 +173,11 @@ def list_conversations(
             if conversation.case_id is not None:
                 case = unit_of_work.cases.get(business_id, conversation.case_id)
                 case_state = case.current_state if case is not None else None
+            escalation_reason = (
+                DashboardCaseSummarySchema.escalation_reason_from_domain(case)
+                if conversation.case_id is not None and case is not None
+                else None
+            )
             schemas.append(
                 DashboardConversationSchema.from_domain(
                     conversation,
@@ -112,6 +185,7 @@ def list_conversations(
                     lead_phone=lead_phone,
                     lead_email=lead_email,
                     case_state=case_state,
+                    escalation_reason=escalation_reason,
                 )
             )
     return DashboardConversationListResponse(conversations=tuple(schemas))
@@ -140,6 +214,11 @@ def get_conversation(
         if conversation.case_id is not None:
             case = unit_of_work.cases.get(business_id, conversation.case_id)
             case_state = case.current_state if case is not None else None
+        escalation_reason = (
+            DashboardCaseSummarySchema.escalation_reason_from_domain(case)
+            if conversation.case_id is not None and case is not None
+            else None
+        )
         messages = unit_of_work.conversation_messages.list_for_conversation(business_id, conversation_id)
     return DashboardConversationDetailResponse(
         conversation=DashboardConversationSchema.from_domain(
@@ -148,6 +227,7 @@ def get_conversation(
             lead_phone=lead_phone,
             lead_email=lead_email,
             case_state=case_state,
+            escalation_reason=escalation_reason,
         ),
         messages=tuple(
             DashboardMessageSchema(
@@ -209,4 +289,22 @@ def resolve_conversation_case(
     unit_of_work_factory: Annotated[UnitOfWorkFactory, Depends(get_unit_of_work_factory)],
 ) -> StaffActionResponse:
     result = staff_actions.resolve(business_id, conversation_id, user)
+    return _staff_action_response(unit_of_work_factory, business_id, result)
+
+
+@router.post(
+    "/conversations/{conversation_id}/escalation-feedback",
+    response_model=StaffActionResponse,
+)
+def record_escalation_feedback(
+    business_id: BusinessIdPath,
+    conversation_id: str,
+    body: EscalationFeedbackRequest,
+    user: Annotated[StaffUser, Depends(require_own_business)],
+    staff_actions: Annotated[StaffActionService, Depends(get_staff_action_service)],
+    unit_of_work_factory: Annotated[UnitOfWorkFactory, Depends(get_unit_of_work_factory)],
+) -> StaffActionResponse:
+    result = staff_actions.record_escalation_feedback(
+        business_id, conversation_id, user, body.outcome
+    )
     return _staff_action_response(unit_of_work_factory, business_id, result)

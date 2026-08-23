@@ -7,6 +7,7 @@ from typing import Any, Mapping
 from uuid import uuid4
 
 from src.domain.events import EventType
+from src.domain.escalations import escalation_reason
 from src.domain.models import Lead, ProcessCase, ProcessEvent
 from src.domain.qualification import (
     CustomerResponse,
@@ -169,7 +170,14 @@ class PersistentLeadIntakeService:
         existing_event_count = len(case.event_history)
         expected_version = case.version
         case.update_lead(updated_lead)
-        self._record_business_events(case, message, intent, qualification, dna_version.version)
+        self._record_business_events(
+            case,
+            message,
+            intent,
+            qualification,
+            dna_version.version,
+            workflow.business_dna,
+        )
         workflow._progress_case(case, message, qualification)
         if response is not None:
             self._record_response(case, message, response)
@@ -295,6 +303,7 @@ class PersistentLeadIntakeService:
         intent: IntentResult,
         qualification: QualificationResult,
         business_dna_version: int,
+        business_dna: Mapping[str, Any],
     ) -> None:
         intake_event_id = LeadIntakeService._event_id(message, "intake")
         case.record(ProcessEvent(
@@ -343,6 +352,7 @@ class PersistentLeadIntakeService:
                 "requires_human": qualification.requires_human,
                 "booking_allowed": qualification.booking_allowed,
                 "service_id": qualification.service_id,
+                "escalation_reason": escalation_reason(intent, qualification, business_dna),
                 "business_dna_version": business_dna_version,
             },
         ))

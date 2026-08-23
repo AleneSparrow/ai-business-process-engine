@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Search, Bell, ArrowUpRight, Clock, Phone, Mail, Loader2, ArrowDown, ArrowUp } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { useAuth, describeError } from "../auth/AuthContext";
-import { api, type DashboardCaseSummary } from "../api/client";
+import { api, type DashboardAnalytics, type DashboardCaseSummary } from "../api/client";
 import {
   STAGES,
   STATE_META,
@@ -18,6 +18,27 @@ import {
 const FILTERS: (CaseState | "ALL")[] = ["ALL", "NEEDS_HUMAN", "QUALIFYING", "BOOKED", "LOST", "COMPLETED"];
 type SortKey = "date" | "name";
 type SortDirection = "asc" | "desc";
+
+const ESCALATION_LABELS: Record<string, string> = {
+  safety_emergency: "Safety or emergency language",
+  urgent_request: "Customer requested urgent help",
+  low_confidence: "Low confidence in the request",
+  service_unclear: "Requested service was unclear",
+  ai_review: "AI requested human review",
+  service_area_uncertain: "Service area could not be confirmed",
+  policy_review: "Business policy requires review",
+  identity_conflict: "Contact details match another lead",
+  already_pending: "Already waiting for review",
+};
+
+function nextStep(state: CaseState): string {
+  if (state === "NEEDS_HUMAN") return "Review the conversation and reply";
+  if (state === "QUALIFYING") return "Collect the remaining qualification details";
+  if (state === "BOOKED") return "Prepare for the appointment";
+  if (state === "LOST") return "Review whether reactivation is appropriate";
+  if (state === "COMPLETED") return "Request a review or referral";
+  return "Open the conversation to review the next action";
+}
 
 function StatCard({ label, value, sub, tone }: { label: string; value: string | number; sub?: string; tone?: string }) {
   return (
@@ -35,6 +56,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { token, businessId } = useAuth();
   const [cases, setCases] = useState<DashboardCaseSummary[] | null>(null);
+  const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<CaseState | "ALL">("ALL");
   const [sortBy, setSortBy] = useState<SortKey>("date");
@@ -57,6 +79,14 @@ export default function Dashboard() {
       .catch((err) => {
         if (!cancelled) setError(describeError(err));
       });
+    api
+      .getDashboardAnalytics(token, businessId)
+      .then((result) => {
+        if (!cancelled) setAnalytics(result);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(describeError(err));
+      });
     return () => {
       cancelled = true;
     };
@@ -67,7 +97,9 @@ export default function Dashboard() {
       (cases ?? []).map((c) => {
         const { caseState, stage } = mapProcessState(c.current_state);
         const detail = c.latest_event_type ? describeEvent(c.latest_event_type).label : "No activity yet";
-        return { ...c, caseState, stage, detail };
+        const followUpDue = ["QUALIFYING", "FOLLOW_UP"].includes(c.current_state)
+          && Date.now() - new Date(c.updated_at).getTime() > 24 * 60 * 60 * 1000;
+        return { ...c, caseState, stage, detail, followUpDue };
       }),
     [cases],
   );
@@ -109,11 +141,12 @@ export default function Dashboard() {
   );
 
   const counts = useMemo(() => {
-    const c = { needsHuman: 0, booked: 0, qualifying: 0 };
+    const c = { needsHuman: 0, booked: 0, qualifying: 0, followUpDue: 0 };
     decorated.forEach((x) => {
       if (x.caseState === "NEEDS_HUMAN") c.needsHuman++;
       if (x.caseState === "BOOKED") c.booked++;
       if (x.caseState === "QUALIFYING") c.qualifying++;
+      if (x.followUpDue) c.followUpDue++;
     });
     return c;
   }, [decorated]);
@@ -170,7 +203,11 @@ export default function Dashboard() {
                 className="pl-9 pr-3 py-2 rounded-lg bg-white border border-[#E7E5DE] text-sm w-52 outline-none focus:ring-2 focus:ring-[#B8733333]"
               />
             </div>
-            <button className="relative w-9 h-9 rounded-lg bg-white border border-[#E7E5DE] flex items-center justify-center">
+            <button
+              onClick={() => setFilter("NEEDS_HUMAN")}
+              aria-label="Show leads that need attention"
+              className="relative w-9 h-9 rounded-lg bg-white border border-[#E7E5DE] flex items-center justify-center"
+            >
               <Bell size={16} strokeWidth={2} />
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[10px] flex items-center justify-center text-white font-medium" style={{ backgroundColor: "#C97A1F" }}>{counts.needsHuman}</span>
             </button>
@@ -188,7 +225,30 @@ export default function Dashboard() {
             <StatCard label="Needs your attention" value={counts.needsHuman} tone="#C97A1F" />
             <StatCard label="Qualifying now" value={counts.qualifying} tone="#B87333" />
             <StatCard label="Booked" value={counts.booked} tone="#1E7B52" />
-            <StatCard label="Total cases" value={decorated.length} />
+            <StatCard label="Follow-up due" value={counts.followUpDue} tone="#C97A1F" />
+            <StatCard
+              label="Booking rate"
+              value={analytics ? `${Math.round(analytics.booking_conversion_rate * 100)}%` : "—"}
+              sub={analytics ? `${analytics.booked_cases}/${analytics.total_cases}` : undefined}
+              tone="#1E7B52"
+            />
+            <StatCard
+              label="Escalation rate"
+              value={analytics ? `${Math.round(analytics.escalation_rate * 100)}%` : "—"}
+              sub={analytics ? `${analytics.escalated_cases}/${analytics.total_cases}` : undefined}
+              tone="#C97A1F"
+            />
+            <StatCard
+              label="Lost rate"
+              value={analytics ? `${Math.round(analytics.lost_rate * 100)}%` : "—"}
+              sub={analytics ? `${analytics.lost_cases}/${analytics.total_cases}` : undefined}
+            />
+            <StatCard
+              label="Median first response"
+              value={analytics?.median_first_response_seconds != null ? `${Math.round(analytics.median_first_response_seconds)}s` : "—"}
+              sub={analytics ? `${analytics.response_samples} samples` : undefined}
+              tone="#1E7B52"
+            />
           </div>
 
           {cases === null && !error ? (
@@ -258,6 +318,7 @@ export default function Dashboard() {
                             <span className="text-[11px] text-[#9C9488]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{c.case_id.slice(0, 8)}</span>
                           </div>
                           <div className="text-sm text-[#6B6459] truncate">{c.category ?? "Uncategorized"} · {c.detail}</div>
+                          {c.followUpDue && <div className="mt-1 text-[11px] font-medium text-[#C97A1F]">Follow-up overdue</div>}
                         </div>
                         <div className="flex flex-col items-end gap-2 shrink-0">
                           <StatePill state={c.caseState} />
@@ -287,6 +348,18 @@ export default function Dashboard() {
                   </div>
                   <div className="rounded-xl p-3 mb-5" style={{ backgroundColor: "#FAFAF7" }}>
                     <p className="text-sm leading-relaxed">{selected.detail}</p>
+                  </div>
+                  {selected.escalation_reason && (
+                    <div className="rounded-xl border border-[#E8CFAF] bg-[#FFF8EE] p-3 mb-4">
+                      <div className="text-xs font-medium text-[#8A561B] mb-1">Why it needs attention</div>
+                      <p className="text-sm text-[#6B6459]">
+                        {ESCALATION_LABELS[selected.escalation_reason] ?? "Human review requested"}
+                      </p>
+                    </div>
+                  )}
+                  <div className="mb-5">
+                    <div className="text-xs font-medium text-[#9C9488] mb-1">Recommended next step</div>
+                    <p className="text-sm">{nextStep(selected.caseState)}</p>
                   </div>
                   {actionError && (
                     <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ backgroundColor: "#FBEBE9", color: "#8A3225" }}>

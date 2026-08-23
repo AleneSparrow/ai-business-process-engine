@@ -596,6 +596,22 @@ class DashboardCaseSummarySchema(ApiModel):
     event_count: int
     latest_event_type: str | None
     category: str | None = None
+    escalation_reason: str | None = None
+
+    @staticmethod
+    def escalation_reason_from_domain(case: ProcessCase) -> str | None:
+        if case.current_state is not ProcessState.NEEDS_HUMAN:
+            return None
+        return next(
+            (
+                value
+                for event in reversed(case.event_history)
+                if event.event_type == "QUALIFICATION_EVALUATED"
+                and isinstance((value := event.payload.get("escalation_reason")), str)
+                and value
+            ),
+            None,
+        )
 
     @classmethod
     def from_domain(
@@ -625,11 +641,24 @@ class DashboardCaseSummarySchema(ApiModel):
             event_count=len(case.event_history),
             latest_event_type=str(latest.event_type) if latest else None,
             category=category,
+            escalation_reason=cls.escalation_reason_from_domain(case),
         )
 
 
 class DashboardCaseListResponse(ApiModel):
     cases: tuple[DashboardCaseSummarySchema, ...]
+
+
+class DashboardAnalyticsSchema(ApiModel):
+    total_cases: int
+    booked_cases: int
+    escalated_cases: int
+    lost_cases: int
+    booking_conversion_rate: float
+    escalation_rate: float
+    lost_rate: float
+    median_first_response_seconds: float | None
+    response_samples: int
 
 
 def _jsonable(value: Any) -> Any:
@@ -674,6 +703,7 @@ class DashboardCaseDetailResponse(ApiModel):
     created_at: datetime
     updated_at: datetime
     events: tuple[DashboardEventSchema, ...]
+    escalation_reason: str | None = None
 
     @classmethod
     def from_domain(cls, case: ProcessCase) -> "DashboardCaseDetailResponse":
@@ -684,6 +714,7 @@ class DashboardCaseDetailResponse(ApiModel):
             created_at=case.created_at,
             updated_at=case.updated_at,
             events=tuple(DashboardEventSchema.from_domain(event) for event in case.event_history),
+            escalation_reason=DashboardCaseSummarySchema.escalation_reason_from_domain(case),
         )
 
 
@@ -699,6 +730,7 @@ class DashboardConversationSchema(ApiModel):
     status: ConversationStatus
     created_at: datetime
     last_activity_at: datetime
+    escalation_reason: str | None = None
 
     @classmethod
     def from_domain(
@@ -709,6 +741,7 @@ class DashboardConversationSchema(ApiModel):
         lead_phone: str | None = None,
         lead_email: str | None = None,
         case_state: ProcessState | None = None,
+        escalation_reason: str | None = None,
     ) -> "DashboardConversationSchema":
         return cls(
             conversation_id=conversation.conversation_id,
@@ -722,6 +755,7 @@ class DashboardConversationSchema(ApiModel):
             status=conversation.status,
             created_at=conversation.created_at,
             last_activity_at=conversation.last_activity_at,
+            escalation_reason=escalation_reason,
         )
 
 
@@ -744,6 +778,10 @@ class DashboardConversationDetailResponse(ApiModel):
 
 class StaffReplyRequest(ApiModel):
     message: Annotated[str, Field(min_length=1, max_length=10_000)]
+
+
+class EscalationFeedbackRequest(ApiModel):
+    outcome: Literal["unnecessary", "missed", "wrong_service"]
 
 
 class StaffActionResponse(ApiModel):

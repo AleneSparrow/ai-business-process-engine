@@ -10,6 +10,7 @@ from uuid import uuid4
 
 from src.ai.errors import AIInvalidOutputError
 from src.domain.events import EventType
+from src.domain.escalations import escalation_reason
 from src.domain.models import DecisionType, Lead, ProcessCase, ProcessEvent
 from src.domain.qualification import (
     CustomerResponse,
@@ -213,6 +214,7 @@ class LeadIntakeService:
                 "requires_human": qualification.requires_human,
                 "booking_allowed": qualification.booking_allowed,
                 "service_id": qualification.service_id,
+                "escalation_reason": escalation_reason(intent, qualification, self.business_dna),
             },
         ))
 

@@ -120,6 +120,25 @@ def test_low_confidence_intent_requires_human() -> None:
     assert intake.get_case(result.case_id).pending_transition is ProcessState.QUALIFIED
 
 
+def test_emergency_intent_records_safe_escalation_reason_code() -> None:
+    intake = service_with({
+        "msg-emergency": valid_intent(
+            urgency=Urgency.EMERGENCY,
+            requires_human=True,
+        )
+    })
+
+    result = intake.receive(message("msg-emergency"))
+
+    assert result.current_state is ProcessState.NEEDS_HUMAN
+    qualification_event = next(
+        event
+        for event in intake.get_case(result.case_id).event_history
+        if event.event_type is EventType.QUALIFICATION_EVALUATED
+    )
+    assert qualification_event.payload["escalation_reason"] == "safety_emergency"
+
+
 def test_duplicate_external_message_is_idempotent_without_new_case_or_events() -> None:
     intake = service_with({"msg-f": valid_intent()})
     first = intake.receive(message("msg-f"))
