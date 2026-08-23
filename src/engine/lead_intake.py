@@ -68,6 +68,18 @@ class LeadIntakeService:
     # continues either way; this only bounds the extra reassurance layer.
     MAX_REASSURANCE_ATTEMPTS = 3
 
+    # Live defect (2026-08-23): a message the AI could not interpret used to
+    # be re-asked with the EXACT SAME wording as the previous turn (or, before
+    # that, a hardcoded generic question) -- either way reading as if the
+    # assistant forgot what was already established, violating
+    # universal-sales-cycle-model.md section 7.3 ("не роботизированно"). The
+    # underlying question is still computed normally from missing_fields /
+    # unanswered_questions (see QualificationService.evaluate's bounded
+    # unintelligible retry) -- only the wording gets this acknowledgment
+    # prefixed, so the customer knows their last message wasn't understood
+    # rather than just seeing the same question repeat verbatim.
+    _UNINTELLIGIBLE_ACKNOWLEDGMENT = "Sorry, I didn't quite catch that"
+
     def __init__(
         self,
         business_dna: Mapping[str, Any],
@@ -328,7 +340,10 @@ class LeadIntakeService:
                 question_response = self._fallback_question_generator.generate(
                     missing, self.business_dna, message.channel, case.case_id,
                 )
-            return self._with_reassurance(case, message, qualification, intent, question_response)
+            question_response = self._with_reassurance(case, message, qualification, intent, question_response)
+            if intent.unintelligible:
+                question_response = self._acknowledge_unintelligible(question_response)
+            return question_response
         if state is ProcessState.NEEDS_HUMAN:
             text = self.business_dna["human_escalation"]["customer_message"]
             return self.customer_response_generator.generate(
@@ -448,6 +463,20 @@ class LeadIntakeService:
                 "reassurance": dict(reassurance_response.ai_metadata),
                 "question": dict(question_response.ai_metadata),
             },
+        )
+
+    @staticmethod
+    def _acknowledge_unintelligible(question_response: CustomerResponse) -> CustomerResponse:
+        """Prefix the already-correct missing-field question with an
+        acknowledgment that the previous message wasn't understood -- the
+        question itself is untouched (still exactly what
+        QualificationService computed), only the wording changes."""
+        return replace(
+            question_response,
+            message_text=(
+                f"{LeadIntakeService._UNINTELLIGIBLE_ACKNOWLEDGMENT} — {question_response.message_text.strip()}"
+            ),
+            reason="unintelligible_clarification",
         )
 
     def _find_case(self, message: IncomingMessage) -> ProcessCase | None:

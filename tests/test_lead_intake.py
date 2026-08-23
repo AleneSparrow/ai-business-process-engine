@@ -125,7 +125,9 @@ def test_unintelligible_input_requests_clarification_without_escalation() -> Non
     interpret at all (e.g. "ропапа" in answer to a name/phone question) used
     to escalate straight to NEEDS_HUMAN. It must instead be treated like "no
     new information this turn" -- missing fields computed exactly as they
-    would be for any other turn, not a hardcoded stand-in."""
+    would be for any other turn, not a hardcoded stand-in. Here the service
+    was never established, so re-asking about it (among other missing
+    fields) is correct."""
     intake = service_with({
         "msg-gibberish": IntentResult(
             confidence=0.95,
@@ -140,7 +142,37 @@ def test_unintelligible_input_requests_clarification_without_escalation() -> Non
     assert not result.qualification.requires_human
     assert result.qualification.missing_fields == ("service_address", "service_id")
     assert result.response is not None
-    assert result.response.message_text == "What is the service ZIP code? Which service do you need?"
+    assert result.response.message_text == (
+        "Sorry, I didn't quite catch that — What is the service ZIP code? Which service do you need?"
+    )
+
+
+def test_unintelligible_input_after_service_established_repeats_specific_missing_fields() -> None:
+    """Live defect (2026-08-23): once the service is already established
+    (from an earlier, understood message) an unintelligible follow-up must
+    re-ask exactly what's still missing -- name and phone here -- not revert
+    to the generic opening question about which service is needed. The
+    wording must also acknowledge the message wasn't understood rather than
+    silently repeating the exact same question, as if the assistant forgot
+    the conversation (universal-sales-cycle-model.md section 7.3)."""
+    intake = service_with({
+        "msg-established": valid_intent(),
+        "msg-gibberish": IntentResult(confidence=0.95, unintelligible=True),
+    })
+
+    first = intake.receive(message("msg-established", name=None, phone=None))
+    second = intake.receive(message("msg-gibberish", case_id=first.case_id, name=None, phone=None))
+
+    assert first.qualification.missing_fields == ("name", "phone")
+    assert second.current_state is ProcessState.QUALIFYING
+    assert not second.qualification.requires_human
+    assert second.qualification.missing_fields == ("name", "phone")
+    assert second.response is not None
+    assert "service" not in second.response.message_text.casefold()
+    assert second.response.message_text == (
+        "Sorry, I didn't quite catch that — "
+        "What name should we use for the request? What is the best phone number to reach you?"
+    )
 
 
 def test_unintelligible_input_escalates_after_clarification_attempts_exhausted() -> None:
