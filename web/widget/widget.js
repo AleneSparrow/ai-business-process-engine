@@ -26,12 +26,50 @@
 
   const root = document.createElement("section");
   root.className = "aibp-chat";
+  if (script.dataset.theme === "dark") root.classList.add("aibp-chat--dark");
   root.setAttribute("aria-label", "Business chat");
+
+  function wheelMark(className) {
+    const namespace = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(namespace, "svg");
+    svg.setAttribute("class", className);
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    const ring = document.createElementNS(namespace, "circle");
+    ring.setAttribute("cx", "12");
+    ring.setAttribute("cy", "12");
+    ring.setAttribute("r", "8");
+    ring.setAttribute("fill", "none");
+    ring.setAttribute("stroke", "currentColor");
+    ring.setAttribute("stroke-width", "2");
+    svg.append(ring);
+    [[12, 4, 12, 20], [5, 8, 19, 16], [19, 8, 5, 16]].forEach(function (coordinates) {
+      const spoke = document.createElementNS(namespace, "line");
+      spoke.setAttribute("x1", String(coordinates[0]));
+      spoke.setAttribute("y1", String(coordinates[1]));
+      spoke.setAttribute("x2", String(coordinates[2]));
+      spoke.setAttribute("y2", String(coordinates[3]));
+      spoke.setAttribute("stroke", "currentColor");
+      spoke.setAttribute("stroke-width", "1.5");
+      spoke.setAttribute("stroke-linecap", "round");
+      svg.append(spoke);
+    });
+    return svg;
+  }
+
+  const peek = document.createElement("p");
+  peek.className = "aibp-chat__peek";
+  peek.hidden = true;
 
   const launcher = document.createElement("button");
   launcher.type = "button";
   launcher.className = "aibp-chat__launcher";
-  launcher.textContent = "Chat";
+  launcher.setAttribute("aria-label", "Open chat");
+  launcher.append(wheelMark("aibp-chat__launcher-icon"));
+  const launcherDot = document.createElement("span");
+  launcherDot.className = "aibp-chat__launcher-dot";
+  launcherDot.setAttribute("aria-hidden", "true");
+  launcher.append(launcherDot);
   launcher.setAttribute("aria-expanded", "false");
   launcher.setAttribute("aria-controls", "aibp-chat-panel");
 
@@ -46,14 +84,25 @@
   header.className = "aibp-chat__header";
   const titleRow = document.createElement("div");
   titleRow.className = "aibp-chat__title-row";
+  const identity = document.createElement("div");
+  identity.className = "aibp-chat__identity";
+  const brandMark = document.createElement("span");
+  brandMark.className = "aibp-chat__brand-mark";
+  brandMark.append(wheelMark("aibp-chat__brand-mark-icon"));
+  const titleCopy = document.createElement("div");
   const title = document.createElement("h2");
   title.textContent = "Chat";
+  const subtitle = document.createElement("p");
+  subtitle.className = "aibp-chat__header-subtitle";
+  subtitle.textContent = "AI assistant";
+  titleCopy.append(title, subtitle);
+  identity.append(brandMark, titleCopy);
   const close = document.createElement("button");
   close.type = "button";
   close.className = "aibp-chat__close";
-  close.textContent = "Close";
+  close.textContent = "×";
   close.setAttribute("aria-label", "Close chat");
-  titleRow.append(title, close);
+  titleRow.append(identity, close);
   // Persistent AI-disclosure badge -- stays visible in the header for the
   // entire session, not just a one-time greeting line that scrolls away.
   // Populated from Business DNA (chat_widget.ai_disclosure_text); hidden
@@ -126,7 +175,7 @@
   send.textContent = "Send";
   form.append(label, input, send);
   panel.append(header, history, slotOptions, status, consentRow, form);
-  root.append(launcher, panel);
+  root.append(peek, launcher, panel);
   document.body.append(root);
 
   function setBusy(value) {
@@ -167,13 +216,35 @@
     status.classList.add("aibp-chat__status--error");
   }
 
-  function appendMessage(role, text) {
+  function appendMessage(role, text, createdAt) {
+    const normalizedRole = ["assistant", "customer", "human", "system"].includes(role) ? role : "assistant";
+    const row = document.createElement("div");
+    row.className = `aibp-chat__row aibp-chat__row--${normalizedRole}`;
+    const wrap = document.createElement("div");
+    wrap.className = "aibp-chat__bubble-wrap";
+    if (normalizedRole === "assistant" || normalizedRole === "human") {
+      const avatar = document.createElement("span");
+      avatar.className = `aibp-chat__avatar aibp-chat__avatar--${normalizedRole}`;
+      avatar.textContent = normalizedRole === "human" ? "TEAM" : "AI";
+      wrap.append(avatar);
+    }
     const message = document.createElement("p");
-    message.className = `aibp-chat__message aibp-chat__message--${role}`;
+    message.className = `aibp-chat__message aibp-chat__message--${normalizedRole}`;
     message.textContent = text;
-    history.append(message);
+    wrap.append(message);
+    row.append(wrap);
+    if (createdAt && normalizedRole !== "system") {
+      const meta = document.createElement("span");
+      meta.className = "aibp-chat__message-meta";
+      const timestamp = new Date(createdAt);
+      meta.textContent = Number.isNaN(timestamp.valueOf())
+        ? ""
+        : timestamp.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      row.append(meta);
+    }
+    history.append(row);
     history.scrollTop = history.scrollHeight;
-    return message;
+    return row;
   }
 
   // Quick-reply service chips: shown once, right under the opening welcome
@@ -211,7 +282,7 @@
       appendMessage("assistant", config.welcome_message);
       appendServiceOptions(config.services);
     }
-    data.messages.forEach((message) => appendMessage(message.role, message.text));
+    data.messages.forEach((message) => appendMessage(message.role, message.text, message.created_at));
     if (data.requires_human) status.textContent = "A team member will review this conversation.";
   }
 
@@ -296,6 +367,18 @@
     const response = await window.fetch(`${endpoint}${path}`, options);
     const data = await response.json().catch(() => null);
     if (!response.ok) {
+      // A 5xx is our problem, not the customer's, and its text describes our
+      // infrastructure. Showing it verbatim is what put "The configured AI
+      // provider is unavailable" in front of a real visitor on 2026-08-23,
+      // on a law firm's own website. Server-side failures always get a plain
+      // human sentence; only 4xx (message too long, rate limited, session
+      // expired) still shows the server's wording, because those tell the
+      // customer something they can actually act on.
+      if (response.status >= 500) {
+        throw new Error(
+          "We're having trouble sending that right now. Please try again in a moment, or contact us directly."
+        );
+      }
       const message = data && data.error && data.error.message;
       throw new Error(message || "Chat request failed. Please try again.");
     }
@@ -387,6 +470,7 @@
     panel.hidden = !panel.hidden;
     launcher.setAttribute("aria-expanded", String(!panel.hidden));
     if (!panel.hidden) {
+      peek.hidden = true;
       await restore();
       input.focus();
     }
@@ -394,6 +478,7 @@
   close.addEventListener("click", function () {
     panel.hidden = true;
     launcher.setAttribute("aria-expanded", "false");
+    peek.hidden = !config;
     launcher.focus();
   });
   input.addEventListener("keydown", function (event) {
@@ -412,7 +497,7 @@
     // reconciling on the success path. On failure the echo is retracted
     // (it may not have actually reached the business) while the typed text
     // stays in the input for a retry.
-    const optimistic = appendMessage("customer", text);
+    const optimistic = appendMessage("customer", text, new Date().toISOString());
     showTyping();
     try {
       await sendMessage(text);
@@ -437,6 +522,8 @@
     .then(function (value) {
       config = value;
       title.textContent = value.chat_title;
+      peek.textContent = `Ask ${value.chat_title}`;
+      peek.hidden = false;
       launcher.hidden = !value.enabled;
       if (value.ai_disclosure_text) {
         disclosureBadge.textContent = value.ai_disclosure_text;

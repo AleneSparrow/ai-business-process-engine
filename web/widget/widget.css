@@ -1,111 +1,132 @@
+/* Flywheel widget: businesses may override --aibp-color without losing the
+   component's contrast, spacing, or interaction states. */
 .aibp-chat {
-  --aibp-color: #1f5eff;
+  --aibp-color: #b87333;
+  --aibp-header-bg: #151515;
+  --aibp-panel-bg: #fff;
+  --aibp-history-bg: #eee8dc;
+  --aibp-accent: #d97b29;
+  --aibp-human: #d97b29;
+  --aibp-ink: #151515;
+  --aibp-muted: #6b6558;
+  --aibp-line: #e2dbcb;
+  --aibp-paper: #f5f1ea;
   position: fixed;
   right: 1rem;
   bottom: 1rem;
   z-index: 2147483000;
-  color: #152033;
-  font: 15px/1.4 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: var(--aibp-ink);
+  font: 14px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
 }
 
-.aibp-chat button,
-.aibp-chat textarea { font: inherit; }
+.aibp-chat *, .aibp-chat *::before, .aibp-chat *::after { box-sizing: border-box; }
+.aibp-chat button, .aibp-chat textarea { font: inherit; }
+
+.aibp-chat__peek {
+  position: absolute;
+  right: .25rem;
+  bottom: 4.25rem;
+  margin: 0;
+  padding: .5rem .7rem;
+  border-radius: .5rem;
+  color: var(--aibp-paper);
+  background: var(--aibp-header-bg);
+  box-shadow: 0 10px 24px rgb(21 21 21 / 22%);
+  font-size: .75rem;
+  white-space: nowrap;
+}
+.aibp-chat__peek::after { position: absolute; right: 1rem; bottom: -.22rem; width: .5rem; height: .5rem; background: inherit; content: ""; transform: rotate(45deg); }
 
 .aibp-chat__launcher {
+  position: relative;
+  display: grid;
   float: right;
-  min-width: 4.5rem;
-  min-height: 3rem;
+  width: 3.5rem;
+  height: 3.5rem;
+  place-items: center;
   border: 0;
-  border-radius: 999px;
-  color: #fff;
-  background: var(--aibp-color);
-  box-shadow: 0 8px 24px rgb(0 0 0 / 20%);
+  border-radius: 50%;
+  color: var(--aibp-paper);
+  background: var(--aibp-header-bg);
+  box-shadow: 0 10px 26px rgb(21 21 21 / 26%);
   cursor: pointer;
+  transition: transform .18s ease, box-shadow .18s ease;
 }
+.aibp-chat__launcher:hover { box-shadow: 0 13px 30px rgb(21 21 21 / 32%); transform: translateY(-2px); }
+.aibp-chat__launcher-icon { width: 1.35rem; height: 1.35rem; color: var(--aibp-color); }
+.aibp-chat__launcher-dot { position: absolute; top: .22rem; right: .22rem; width: .68rem; height: .68rem; border: 2px solid var(--aibp-paper); border-radius: 50%; background: var(--aibp-accent); }
 
 .aibp-chat__panel {
   display: flex;
   flex-direction: column;
-  width: min(24rem, calc(100vw - 2rem));
-  height: min(36rem, calc(100vh - 6rem));
+  width: min(22rem, calc(100vw - 2rem));
+  height: min(33rem, calc(100vh - 6rem));
   margin-bottom: .75rem;
   overflow: hidden;
-  border: 1px solid #d9dfeb;
-  border-radius: 1rem;
-  background: #fff;
-  box-shadow: 0 16px 48px rgb(0 0 0 / 22%);
+  border: 1px solid rgb(21 21 21 / 9%);
+  border-radius: .9rem;
+  background: var(--aibp-panel-bg);
+  box-shadow: 0 22px 60px rgb(21 21 21 / 28%);
 }
-/* display:flex above wins over the UA [hidden]{display:none} rule at equal
-   specificity (author stylesheet loads after UA styles) -- restate it so
-   panel.hidden still actually hides the panel. */
 .aibp-chat__panel[hidden] { display: none; }
 
-.aibp-chat__header {
-  display: flex;
-  flex: none;
-  flex-direction: column;
-  justify-content: center;
-  gap: .15rem;
-  min-height: 3.5rem;
-  padding: .5rem 1rem;
-  color: #fff;
-  background: var(--aibp-color);
-}
+.aibp-chat__header { flex: none; padding: .85rem 1rem .7rem; color: var(--aibp-paper); background: var(--aibp-header-bg); }
+.aibp-chat__title-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+.aibp-chat__identity { display: flex; align-items: center; gap: .55rem; min-width: 0; }
+.aibp-chat__brand-mark { display: grid; flex: none; width: 1.55rem; height: 1.55rem; place-items: center; border-radius: 50%; color: var(--aibp-color); background: rgb(255 255 255 / 8%); }
+.aibp-chat__brand-mark svg { width: 1rem; height: 1rem; }
+.aibp-chat__header h2 { margin: 0; overflow: hidden; font: 600 .9rem/1.2 "Century Gothic", Futura, "Trebuchet MS", sans-serif; letter-spacing: .01em; text-overflow: ellipsis; white-space: nowrap; }
+.aibp-chat__header-subtitle { margin: .08rem 0 0; color: #aaa294; font-size: .68rem; }
+.aibp-chat__close { border: 0; padding: .25rem; color: #aaa294; background: transparent; cursor: pointer; }
+.aibp-chat__close:hover { color: var(--aibp-paper); }
+.aibp-chat__disclosure { display: inline-flex; align-items: center; margin: .55rem 0 0; padding: .25rem .45rem; border-radius: .35rem; color: #e1a46c; background: rgb(184 115 51 / 18%); font-size: .67rem; }
 
-.aibp-chat__title-row { display: flex; align-items: center; justify-content: space-between; }
-.aibp-chat__header h2 { margin: 0; font-size: 1rem; }
-.aibp-chat__close { border: 0; color: inherit; background: transparent; cursor: pointer; }
-/* Persistent AI-disclosure badge -- stays visible for the whole session,
-   see chat_widget.ai_disclosure_text in the Business DNA schema. Hidden via
-   the [hidden] attribute when a business hasn't configured one. */
-.aibp-chat__disclosure { margin: 0; font-size: .72rem; opacity: .85; }
-.aibp-chat__history { flex: 1 1 auto; min-height: 0; padding: 1rem; overflow-y: auto; background: #f6f8fc; }
-.aibp-chat__message { width: fit-content; max-width: 85%; margin: .25rem 0 .75rem; padding: .65rem .8rem; border-radius: .8rem; white-space: pre-wrap; overflow-wrap: anywhere; }
-.aibp-chat__message--customer { margin-left: auto; color: #fff; background: var(--aibp-color); }
-.aibp-chat__message--assistant,
-.aibp-chat__message--human,
-.aibp-chat__message--system { background: #fff; border: 1px solid #d9dfeb; }
-/* Typing bubble -- see showTyping()/hideTyping() in widget.js. Reuses the
-   assistant bubble's shape/color, just swaps the content for three dots. */
-.aibp-chat__typing { display: inline-flex; align-items: center; gap: .3rem; padding: .8rem 1rem; }
-.aibp-chat__typing span { width: 6px; height: 6px; border-radius: 50%; background: #9aa5b8; animation: aibp-typing 1.2s infinite ease-in-out; }
+.aibp-chat__history { flex: 1 1 auto; min-height: 0; padding: .9rem; overflow-y: auto; background: var(--aibp-history-bg); }
+.aibp-chat__row { display: flex; flex-direction: column; margin: 0 0 .7rem; }
+.aibp-chat__row--customer { align-items: flex-end; }
+.aibp-chat__row--assistant, .aibp-chat__row--human { align-items: flex-start; }
+.aibp-chat__row--system { align-items: center; }
+.aibp-chat__bubble-wrap { display: flex; max-width: 89%; gap: .4rem; }
+.aibp-chat__row--customer .aibp-chat__bubble-wrap { flex-direction: row-reverse; }
+.aibp-chat__avatar { display: grid; flex: none; width: 1.3rem; height: 1.3rem; place-items: center; margin-top: .1rem; border-radius: 50%; color: var(--aibp-paper); background: var(--aibp-header-bg); font-size: .57rem; font-weight: 700; }
+.aibp-chat__avatar--human { color: #201307; background: var(--aibp-human); }
+.aibp-chat__message { width: fit-content; margin: 0; padding: .55rem .7rem; border-radius: .65rem; font-size: .81rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.aibp-chat__message--customer { color: #fff; background: var(--aibp-color); border-bottom-right-radius: .18rem; }
+.aibp-chat__message--assistant { border: 1px solid var(--aibp-line); border-bottom-left-radius: .18rem; background: #fff; }
+.aibp-chat__message--human { border: 1px solid var(--aibp-human); border-bottom-left-radius: .18rem; background: #fff; }
+.aibp-chat__message--system { padding: .15rem .45rem; color: var(--aibp-muted); background: transparent; font-size: .7rem; text-align: center; }
+.aibp-chat__message-meta { margin-top: .2rem; color: var(--aibp-muted); font-size: .62rem; }
+.aibp-chat__row--assistant .aibp-chat__message-meta, .aibp-chat__row--human .aibp-chat__message-meta { margin-left: 1.7rem; }
+
+.aibp-chat__typing { display: inline-flex; align-items: center; gap: .28rem; padding: .65rem .75rem; }
+.aibp-chat__typing span { width: 5px; height: 5px; border-radius: 50%; background: var(--aibp-color); animation: aibp-typing 1.2s infinite ease-in-out; }
 .aibp-chat__typing span:nth-child(2) { animation-delay: .15s; }
 .aibp-chat__typing span:nth-child(3) { animation-delay: .3s; }
-@keyframes aibp-typing {
-  0%, 60%, 100% { transform: translateY(0); opacity: .45; }
-  30% { transform: translateY(-4px); opacity: 1; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .aibp-chat__typing span { animation: none; opacity: .8; }
-}
-/* Clickable slot-picker -- see renderSlotOptions in widget.js. Sits between
-   history and status, hidden whenever there's no active slot proposal. */
-.aibp-chat__slots { display: flex; flex: none; flex-wrap: wrap; gap: .4rem; padding: .6rem 1rem 0; background: #f6f8fc; }
+@keyframes aibp-typing { 0%, 60%, 100% { transform: translateY(0); opacity: .45; } 30% { transform: translateY(-3px); opacity: 1; } }
+
+.aibp-chat__services { display: flex; flex-wrap: wrap; gap: .4rem; margin: -.1rem 0 .8rem 1.7rem; }
+.aibp-chat__slots { display: flex; flex: none; flex-wrap: wrap; gap: .4rem; padding: .55rem .9rem 0; background: var(--aibp-history-bg); }
 .aibp-chat__slots[hidden] { display: none; }
-/* Quick-reply service chips -- see appendServiceOptions in widget.js. Unlike
-   the slot picker above, these live inline in the scrollable history (right
-   under the welcome message) since they're a one-time opening move, not a
-   recurring prompt -- they scroll away with the rest of the transcript once
-   any message has been sent. Same pill look as the slot buttons, just a
-   different container since one sits inside history and the other outside it. */
-.aibp-chat__services { display: flex; flex-wrap: wrap; gap: .4rem; margin: -.25rem 0 .75rem; }
-.aibp-chat__slot-button,
-.aibp-chat__service-button { border: 1px solid var(--aibp-color); border-radius: .6rem; padding: .4rem .7rem; color: var(--aibp-color); background: #fff; cursor: pointer; font-size: .85rem; }
-.aibp-chat__slot-button:hover,
-.aibp-chat__service-button:hover { color: #fff; background: var(--aibp-color); }
-.aibp-chat__status { flex: none; min-height: 1.2rem; margin: .25rem 1rem; color: #536179; font-size: .8rem; }
-.aibp-chat__status--error { color: #a11; }
-.aibp-chat__consent { display: flex; align-items: flex-start; gap: .4rem; flex: none; margin: 0 1rem .5rem; color: #536179; font-size: .75rem; line-height: 1.3; cursor: pointer; }
-.aibp-chat__consent input { flex: none; margin-top: .15rem; }
-.aibp-chat__form { display: grid; flex: none; grid-template-columns: 1fr auto; gap: .5rem; padding: .5rem 1rem 1rem; }
+.aibp-chat__slot-button, .aibp-chat__service-button { border: 1px solid var(--aibp-color); border-radius: .45rem; padding: .35rem .55rem; color: var(--aibp-color); background: #fff; cursor: pointer; font-size: .72rem; transition: color .15s ease, background .15s ease; }
+.aibp-chat__slot-button:hover, .aibp-chat__service-button:hover { color: #fff; background: var(--aibp-color); }
+.aibp-chat__status { flex: none; min-height: 1rem; margin: .35rem .9rem; color: var(--aibp-muted); font-size: .7rem; }
+.aibp-chat__status--error { color: #9c3228; }
+.aibp-chat__consent { display: flex; align-items: flex-start; gap: .35rem; flex: none; margin: 0 .9rem .55rem; color: var(--aibp-muted); font-size: .67rem; line-height: 1.35; cursor: pointer; }
+.aibp-chat__consent input { flex: none; margin-top: .1rem; accent-color: var(--aibp-color); }
+.aibp-chat__form { display: grid; flex: none; grid-template-columns: 1fr auto; gap: .45rem; padding: .65rem .75rem .75rem; border-top: 1px solid var(--aibp-line); background: var(--aibp-panel-bg); }
 .aibp-chat__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-.aibp-chat__form textarea { resize: none; border: 1px solid #aeb8c8; border-radius: .5rem; padding: .55rem; }
-.aibp-chat__form button { border: 0; border-radius: .5rem; padding: 0 .9rem; color: #fff; background: var(--aibp-color); cursor: pointer; }
-.aibp-chat button:focus-visible,
-.aibp-chat textarea:focus-visible { outline: 3px solid #f4b400; outline-offset: 2px; }
+.aibp-chat__form textarea { height: 2.35rem; resize: none; border: 1px solid var(--aibp-line); border-radius: .5rem; padding: .48rem .55rem; color: var(--aibp-ink); background: transparent; }
+.aibp-chat__form button { border: 0; border-radius: .5rem; padding: 0 .7rem; color: #fff; background: var(--aibp-color); cursor: pointer; font-size: .75rem; font-weight: 700; }
+.aibp-chat button:focus-visible, .aibp-chat textarea:focus-visible { outline: 3px solid var(--aibp-accent); outline-offset: 2px; }
 .aibp-chat button:disabled { opacity: .55; cursor: wait; }
 
+.aibp-chat--dark { --aibp-panel-bg: #1c1c1c; --aibp-history-bg: #242321; --aibp-ink: #f5f1ea; --aibp-muted: #aaa294; --aibp-line: #3a362d; }
+.aibp-chat--dark .aibp-chat__panel { border-color: #33302b; box-shadow: 0 22px 60px rgb(0 0 0 / 52%); }
+.aibp-chat--dark .aibp-chat__message--assistant, .aibp-chat--dark .aibp-chat__message--human, .aibp-chat--dark .aibp-chat__slot-button, .aibp-chat--dark .aibp-chat__service-button { color: var(--aibp-paper); background: #2b2926; }
+
+@media (prefers-reduced-motion: reduce) { .aibp-chat *, .aibp-chat *::before, .aibp-chat *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 @media (max-width: 480px) {
   .aibp-chat { right: .5rem; bottom: .5rem; }
-  .aibp-chat__panel { width: calc(100vw - 1rem); height: calc(100vh - 5rem); }
+  .aibp-chat__panel { width: calc(100vw - 1rem); height: min(36rem, calc(100dvh - 5rem)); margin-bottom: .5rem; border-radius: .75rem; }
+  .aibp-chat__peek { display: none; }
 }

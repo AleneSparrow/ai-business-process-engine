@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flywheel — Client Widget Design</title>
+<meta name="description" content="Flywheel client chat widget — default brand theme, states, and engineering handoff notes, addressing the Aug 17 UX audit findings.">
+<style>
+  :root{
+    --graphite:#151515;
+    --graphite-2:#1c1c1c;
+    --graphite-soft:#3a362d;
+    --bronze:#B87333;
+    --bronze-light:#D89456;
+    --bronze-dark:#96591f;
+    --paper:#F5F1EA;
+    --paper-2:#EEE8DC;
+    --amber:#D97B29;
+    --line:#e2dbcb;
+    --line-dark:#33302b;
+    --muted:#6b6558;
+    --font-display: 'Century Gothic','Futura','Trebuchet MS',sans-serif;
+    --font-serif: Georgia,'Times New Roman',serif;
+    --font-body: -apple-system,'Segoe UI',Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--graphite);font-family:var(--font-body);}
+  a{color:inherit;}
+  img,svg{display:block;}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 32px;}
+
+  header{position:sticky;top:0;z-index:80;background:rgba(245,241,234,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);}
+  .nav-inner{max-width:1120px;margin:0 auto;padding:16px 32px;display:flex;align-items:center;justify-content:space-between;gap:20px;}
+  .brand-lockup{display:flex;align-items:center;gap:10px;flex-shrink:0;}
+  .brand-lockup span{font-family:var(--font-display);letter-spacing:.04em;font-size:17px;font-weight:700;}
+  header nav{display:flex;align-items:center;gap:22px;overflow-x:auto;}
+  header nav a{font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);text-decoration:none;white-space:nowrap;}
+  header nav a:hover{color:var(--bronze-dark);}
+
+  .hero{padding:76px 0 50px;text-align:center;}
+  .kicker{font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--bronze-dark);margin-bottom:20px;font-weight:700;}
+  .hero h1{font-family:var(--font-display);font-size:46px;line-height:1.1;margin:0 auto 18px;letter-spacing:-.01em;max-width:760px;}
+  .hero p{font-size:16px;line-height:1.6;color:var(--graphite-soft);max-width:620px;margin:0 auto;}
+
+  section{padding:80px 0;border-bottom:1px solid var(--line);}
+  section:last-of-type{border-bottom:none;}
+  section.tight{padding:56px 0;}
+  .section-head{max-width:700px;margin:0 auto 40px;text-align:center;}
+  .section-head .eyebrow{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--bronze-dark);font-weight:700;margin-bottom:14px;}
+  .section-head h2{font-family:var(--font-display);font-size:30px;line-height:1.25;margin:0 0 14px;}
+  .section-head p{color:var(--graphite-soft);font-size:15px;line-height:1.65;margin:0;}
+
+  /* ---------- audit map ---------- */
+  .audit-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;}
+  .audit-item{background:#fff;border:1px solid var(--line);border-radius:8px;padding:18px 20px;display:flex;gap:14px;align-items:flex-start;}
+  .audit-item .badge{flex:none;width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;margin-top:1px;}
+  .audit-item.fixed .badge{background:#e7f0e3;color:#3d6b2f;}
+  .audit-item.open .badge{background:var(--paper-2);color:var(--muted);}
+  .audit-item h4{margin:0 0 4px;font-size:14px;font-family:var(--font-display);}
+  .audit-item p{margin:0;font-size:13px;color:var(--graphite-soft);line-height:1.55;}
+
+  /* ---------- demo stage ---------- */
+  .stage{display:grid;grid-template-columns:1fr 1fr;gap:28px;}
+  .stage-col .stage-label{font-family:var(--font-display);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--bronze-dark);margin-bottom:14px;text-align:center;}
+  .browser{border-radius:12px;overflow:hidden;border:1px solid var(--line);box-shadow:0 24px 60px rgba(21,21,21,.08);position:relative;height:560px;}
+  .browser.light{background:#fff;}
+  .browser.dark{background:#0f0f0f;border-color:var(--line-dark);}
+  .browser-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--line);}
+  .browser.dark .browser-bar{border-bottom:1px solid var(--line-dark);}
+  .browser-bar .dot{width:9px;height:9px;border-radius:50%;background:#d8d0bf;}
+  .browser.dark .browser-bar .dot{background:#3a3630;}
+  .browser-url{margin-left:10px;padding:4px 12px;font-size:11px;border-radius:4px;font-family:monospace;}
+  .browser.light .browser-url{background:var(--paper-2);color:var(--muted);}
+  .browser.dark .browser-url{background:#1c1c1c;color:#9c968a;}
+  .browser-page{position:relative;height:calc(100% - 39px);overflow:hidden;}
+  .browser.light .browser-page{background:linear-gradient(180deg,#fff,#faf8f3);}
+  .browser.dark .browser-page{background:linear-gradient(180deg,#141414,#1a1a1a);}
+  .page-mock{padding:26px 24px;}
+  .page-mock .pk{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--bronze-dark);margin-bottom:8px;font-weight:700;}
+  .browser.dark .page-mock .pk{color:var(--bronze-light);}
+  .page-mock h5{font-family:var(--font-display);font-size:17px;margin:0 0 6px;}
+  .browser.dark .page-mock h5{color:var(--paper);}
+  .page-mock p{font-size:11.5px;color:var(--muted);max-width:260px;line-height:1.5;margin:0;}
+  .browser.dark .page-mock p{color:#9c968a;}
+
+  /* ================= WIDGET ================= */
+  .aibp-chat{position:absolute;right:16px;bottom:16px;z-index:10;font-family:var(--font-body);}
+  .aibp-chat button,.aibp-chat textarea{font:inherit;}
+
+  .aibp-peek{position:absolute;right:0;bottom:64px;background:var(--graphite);color:var(--paper);font-size:11.5px;padding:8px 13px;border-radius:8px;white-space:nowrap;box-shadow:0 10px 24px rgba(21,21,21,.25);opacity:0;transform:translateY(4px);transition:opacity .25s ease,transform .25s ease;pointer-events:none;}
+  .aibp-peek.show{opacity:1;transform:translateY(0);}
+  .aibp-peek b{color:var(--bronze-light);}
+  .aibp-peek::after{content:"";position:absolute;right:20px;bottom:-5px;width:10px;height:10px;background:var(--graphite);transform:rotate(45deg);}
+
+  .aibp-launcher{position:relative;float:right;width:56px;height:56px;border:0;border-radius:50%;cursor:pointer;box-shadow:0 10px 26px rgba(21,21,21,.25);display:flex;align-items:center;justify-content:center;background:var(--graphite);}
+  .aibp-launcher .ai-dot{position:absolute;top:2px;right:2px;width:12px;height:12px;border-radius:50%;background:var(--amber);border:2px solid var(--paper);}
+
+  .aibp-panel{display:flex;flex-direction:column;width:300px;height:420px;margin-bottom:12px;overflow:hidden;border-radius:14px;background:#fff;border:1px solid rgba(21,21,21,.08);box-shadow:0 22px 60px rgba(21,21,21,.28);opacity:0;transform:translateY(10px) scale(.98);pointer-events:none;transition:opacity .18s ease,transform .18s ease;}
+  .aibp-panel.open{opacity:1;transform:translateY(0) scale(1);pointer-events:auto;}
+
+  .aibp-header{flex:none;padding:14px 16px 12px;background:var(--graphite);color:var(--paper);}
+  .aibp-header .row{display:flex;align-items:center;justify-content:space-between;}
+  .aibp-header .who{display:flex;align-items:center;gap:9px;}
+  .aibp-header .who svg{flex:none;}
+  .aibp-header h2{margin:0;font-size:13.5px;font-family:var(--font-display);letter-spacing:.01em;}
+  .aibp-header .sub{font-size:10.5px;color:#a39c8c;margin-top:1px;}
+  .aibp-close{border:0;background:transparent;color:#a39c8c;cursor:pointer;font-size:16px;line-height:1;padding:2px;}
+  .aibp-disclosure{margin:10px 0 0;font-size:10.5px;padding:5px 9px;border-radius:6px;background:rgba(184,115,51,.16);color:var(--bronze-light);display:inline-flex;align-items:center;gap:5px;}
+
+  .aibp-history{flex:1 1 auto;min-height:0;padding:14px;overflow-y:auto;background:var(--paper-2);}
+  .aibp-row{margin:0 0 12px;display:flex;flex-direction:column;}
+  .aibp-row.customer{align-items:flex-end;}
+  .aibp-row.assistant,.aibp-row.human,.aibp-row.system{align-items:flex-start;}
+  .aibp-bubblewrap{display:flex;gap:7px;max-width:88%;}
+  .aibp-row.customer .aibp-bubblewrap{flex-direction:row-reverse;}
+  .aibp-avatar{flex:none;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin-top:2px;}
+  .aibp-avatar.ai{background:var(--graphite);}
+  .aibp-avatar.human{background:var(--amber);color:#1c1206;font-size:9px;font-weight:700;}
+  .aibp-bubble{padding:8px 11px;border-radius:10px;font-size:12.5px;line-height:1.45;white-space:pre-wrap;}
+  .aibp-row.customer .aibp-bubble{background:var(--bronze);color:#fff;border-bottom-right-radius:3px;}
+  .aibp-row.assistant .aibp-bubble{background:#fff;color:var(--graphite);border:1px solid var(--line);border-bottom-left-radius:3px;}
+  .aibp-row.human .aibp-bubble{background:#fff;color:var(--graphite);border:1px solid var(--amber);border-bottom-left-radius:3px;}
+  .aibp-row.system{align-items:center;}
+  .aibp-row.system .aibp-bubble{background:transparent;color:var(--muted);font-size:11px;text-align:center;border:none;padding:2px 8px;}
+  .aibp-taglabel{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 2px 27px;}
+  .aibp-row.customer .aibp-taglabel{margin:0 27px 2px 0;text-align:right;}
+  .aibp-time{font-size:9.5px;color:var(--muted);margin-top:3px;}
+  .aibp-row.assistant .aibp-time,.aibp-row.human .aibp-time{margin-left:27px;}
+  .aibp-row.customer .aibp-time{margin-right:27px;text-align:right;}
+
+  .aibp-typing{display:inline-flex;gap:4px;padding:9px 12px;background:#fff;border:1px solid var(--line);border-radius:10px;border-bottom-left-radius:3px;}
+  .aibp-typing span{width:5px;height:5px;border-radius:50%;background:var(--bronze);animation:aibp-typing 1.2s infinite ease-in-out;}
+  .aibp-typing span:nth-child(2){animation-delay:.15s;}
+  .aibp-typing span:nth-child(3){animation-delay:.3s;}
+  @keyframes aibp-typing{0%,60%,100%{transform:translateY(0);opacity:.45;}30%{transform:translateY(-3px);opacity:1;}}
+
+  .aibp-chips{display:flex;flex-wrap:wrap;gap:6px;margin:2px 0 4px 27px;}
+  .aibp-chip{border:1px solid var(--bronze);color:var(--bronze-dark);background:#fff;border-radius:7px;padding:5px 9px;font-size:11px;cursor:pointer;}
+  .aibp-chip:hover{background:var(--bronze);color:#fff;}
+
+  .aibp-slots{display:flex;flex:none;flex-wrap:wrap;gap:6px;padding:8px 14px 0;background:var(--paper-2);}
+  .aibp-slots[hidden]{display:none;}
+  .aibp-slot-btn{border:1px solid var(--bronze);border-radius:7px;padding:5px 9px;font-size:11px;color:var(--bronze-dark);background:#fff;cursor:pointer;}
+  .aibp-slot-btn:hover{background:var(--bronze);color:#fff;}
+
+  .aibp-form{display:grid;flex:none;grid-template-columns:1fr auto;gap:7px;padding:10px 12px 12px;background:#fff;border-top:1px solid var(--line);}
+  .aibp-form textarea{resize:none;border:1px solid var(--line);border-radius:8px;padding:8px 9px;font-size:12px;height:34px;}
+  .aibp-form textarea:focus{outline:2px solid var(--bronze);outline-offset:1px;}
+  .aibp-send{border:0;border-radius:8px;padding:0 13px;color:#fff;background:var(--bronze);cursor:pointer;font-size:12px;font-weight:700;}
+  .aibp-send:hover{background:var(--bronze-dark);}
+
+  /* dark theme modifier */
+  .aibp-panel.dark{background:var(--graphite-2);border-color:var(--line-dark);box-shadow:0 22px 60px rgba(0,0,0,.5);}
+  .aibp-panel.dark .aibp-header{background:#0d0d0d;}
+  .aibp-panel.dark .aibp-history{background:var(--graphite-2);}
+  .aibp-panel.dark .aibp-row.assistant .aibp-bubble,
+  .aibp-panel.dark .aibp-row.human .aibp-bubble{background:#232323;border-color:var(--line-dark);color:var(--paper);}
+  .aibp-panel.dark .aibp-typing{background:#232323;border-color:var(--line-dark);}
+  .aibp-panel.dark .aibp-chip,.aibp-panel.dark .aibp-slot-btn{background:#232323;color:var(--bronze-light);border-color:var(--bronze);}
+  .aibp-panel.dark .aibp-slots{background:var(--graphite-2);}
+  .aibp-panel.dark .aibp-form{background:#1c1c1c;border-top:1px solid var(--line-dark);}
+  .aibp-panel.dark .aibp-form textarea{background:#141414;border-color:var(--line-dark);color:var(--paper);}
+  .aibp-panel.dark .aibp-taglabel,.aibp-panel.dark .aibp-time{color:#8a8477;}
+  .aibp-panel.dark .aibp-launcher-note{color:#9c968a;}
+
+  /* ---------- token table ---------- */
+  table.tokens{width:100%;border-collapse:collapse;font-size:13px;}
+  table.tokens th{text-align:left;font-family:var(--font-display);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--bronze-dark);padding:0 0 10px;border-bottom:1px solid var(--line);}
+  table.tokens td{padding:11px 0;border-bottom:1px solid var(--line);vertical-align:top;color:var(--graphite-soft);}
+  table.tokens td:first-child{font-family:monospace;font-size:12px;color:var(--graphite);white-space:nowrap;}
+  table.tokens td:nth-child(2){white-space:nowrap;}
+  .swatch-dot{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px;border:1px solid rgba(0,0,0,.1);}
+
+  .note{background:#fff;border:1px solid var(--line);border-left:3px solid var(--bronze);border-radius:6px;padding:18px 22px;font-size:13.5px;line-height:1.6;color:var(--graphite-soft);margin-top:24px;}
+  .note b{color:var(--graphite);}
+
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:36px 0;letter-spacing:.03em;background:var(--paper-2);}
+
+  @media(max-width:900px){
+    .audit-grid,.stage{grid-template-columns:1fr;}
+    .hero h1{font-size:32px;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav-inner">
+    <div class="brand-lockup">
+      <svg width="24" height="24" viewBox="0 0 200 200">
+        <circle cx="100" cy="100" r="80" fill="none" stroke="#B87333" stroke-width="13"/>
+        <circle cx="100" cy="100" r="14" fill="#B87333"/>
+        <g stroke="#B87333" stroke-width="11" stroke-linecap="round">
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(8 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(80 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(152 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(224 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(296 100 100)"/>
+        </g>
+      </svg>
+      <span>FLYWHEEL</span>
+    </div>
+    <nav>
+      <a href="#overview">Overview</a>
+      <a href="#audit">UX Audit Map</a>
+      <a href="#demo">Live Demo</a>
+      <a href="#anatomy">Anatomy</a>
+      <a href="#tokens">Tokens</a>
+      <a href="#handoff">Engineering Handoff</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero wrap" id="overview" style="border-bottom:none;padding-bottom:20px;">
+  <div class="kicker">Widget Design</div>
+  <h1>The client chat widget, in the Flywheel default theme.</h1>
+  <p>Same visual system as the brand book — graphite, bronze, warm white — applied to <code style="background:#fff;border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:13px;">web/widget/widget.js</code>, the real embeddable widget. This is the out-of-box look before a business sets its own <code style="background:#fff;border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:13px;">--aibp-color</code> — and the direct design response to the Aug 17 UX audit.</p>
+</section>
+
+<!-- ================= AUDIT MAP ================= -->
+<section class="wrap" id="audit">
+  <div class="section-head">
+    <div class="eyebrow">UX Audit → Design Response</div>
+    <h2>What this design fixes, and what it can't.</h2>
+    <p>Mapped one-to-one against the seven live findings from the Aug 17 widget audit. A visual design can settle look, hierarchy, and interaction shape — it can't verify real-device rendering, which stays open.</p>
+  </div>
+  <div class="audit-grid">
+    <div class="audit-item fixed">
+      <div class="badge">✓</div>
+      <div><h4>No "typing" indicator</h4><p>Animated three-dot bubble, styled in bronze, replaces the plain "Sending…" text — shown inline in the thread where the reply will land.</p></div>
+    </div>
+    <div class="audit-item fixed">
+      <div class="badge">✓</div>
+      <div><h4>Launcher is a bare "Chat" button</h4><p>Launcher is now the five-spoke wheel mark on a graphite disc, with a small amber "AI" dot — legible as Flywheel at a glance, not a generic chat icon.</p></div>
+    </div>
+    <div class="audit-item fixed">
+      <div class="badge">✓</div>
+      <div><h4>Business name &amp; AI disclosure hidden until opened</h4><p>A peek label ("Ask [Firm Name]") appears beside the closed launcher after a short delay, and the disclosure pill is pinned in the header, visible for the whole session — not just a scrollaway greeting line.</p></div>
+    </div>
+    <div class="audit-item fixed">
+      <div class="badge">✓</div>
+      <div><h4>Messages not distinguished by type</h4><p>Assistant replies carry a small wheel avatar; human-staff replies carry an amber "team member" avatar and border; customer messages are solid bronze, right-aligned. Each row gets a timestamp.</p></div>
+    </div>
+    <div class="audit-item fixed">
+      <div class="badge">✓</div>
+      <div><h4>No dark theme</h4><p>A full dark variant (<code>.aibp-panel.dark</code>) ships alongside light — same tokens as the brand book's product/dark-mode guidance, for businesses on dark-themed sites.</p></div>
+    </div>
+    <div class="audit-item fixed">
+      <div class="badge">✓</div>
+      <div><h4>Rest of dialogue is bare text</h4><p>Service quick-replies and slot-picker buttons now share one pill style with the rest of the system — bronze outline, filled on hover — instead of looking like an unstyled afterthought.</p></div>
+    </div>
+    <div class="audit-item open">
+      <div class="badge">–</div>
+      <div><h4>Mobile CSS unverified on a real phone</h4><p>This design carries mobile breakpoints forward (see Engineering Handoff), but confirming real-device rendering is a QA step, not something a visual design can settle on its own.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= LIVE DEMO ================= -->
+<section class="wrap" id="demo">
+  <div class="section-head">
+    <div class="eyebrow">Live Demo</div>
+    <h2>Click the launcher — it's real.</h2>
+    <p>Same markup shape as <code style="background:#fff;border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:13px;">widget.js</code> (launcher → panel → header → history → slots → form), styled two ways. Try a service chip or a time slot on either side.</p>
+  </div>
+
+  <div class="stage">
+    <div class="stage-col">
+      <div class="stage-label">Light — default, law-firm site</div>
+      <div class="browser light">
+        <div class="browser-bar"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="browser-url">sterling-family-law.com</div></div>
+        <div class="browser-page">
+          <div class="page-mock">
+            <div class="pk">Sterling Family Law</div>
+            <h5>Compassionate counsel for California families.</h5>
+            <p>Family law, mediation, and custody planning — serving the Bay Area since 2014.</p>
+          </div>
+
+          <div class="aibp-chat" id="widgetLight">
+            <div class="aibp-peek" id="peekLight"><b>Sterling Family Law</b><br>Chat with our AI assistant</div>
+            <button class="aibp-launcher" id="launcherLight" aria-label="Open chat" aria-expanded="false">
+              <svg width="26" height="26" viewBox="0 0 200 200">
+                <circle cx="100" cy="100" r="70" fill="none" stroke="#F5F1EA" stroke-width="14"/>
+                <circle cx="100" cy="100" r="11" fill="#F5F1EA"/>
+                <g stroke="#F5F1EA" stroke-width="12" stroke-linecap="round">
+                  <line x1="100" y1="100" x2="100" y2="36" transform="rotate(10 100 100)"/>
+                  <line x1="100" y1="100" x2="100" y2="36" transform="rotate(82 100 100)"/>
+                  <line x1="100" y1="100" x2="100" y2="36" transform="rotate(154 100 100)"/>
+                  <line x1="100" y1="100" x2="100" y2="36" transform="rotate(226 100 100)"/>
+                  <line x1="100" y1="100" x2="100" y2="36" transform="rotate(298 100 100)"/>
+                </g>
+              </svg>
+              <span class="ai-dot"></span>
+            </button>
+
+            <div class="aibp-panel" id="panelLight">
+              <div class="aibp-header">
+                <div class="row">
+                  <div class="who">
+                    <svg width="18" height="18" viewBox="0 0 200 200">
+                      <circle cx="100" cy="100" r="70" fill="none" stroke="#D89456" stroke-width="16"/>
+                      <circle cx="100" cy="100" r="13" fill="#D89456"/>
+                      <g stroke="#D89456" stroke-width="14" stroke-linecap="round">
+                        <line x1="100" y1="100" x2="100" y2="34" transform="rotate(10 100 100)"/>
+                        <line x1="100" y1="100" x2="100" y2="34" transform="rotate(82 100 100)"/>
+                        <line x1="100" y1="100" x2="100" y2="34" transform="rotate(154 100 100)"/>
+                        <line x1="100" y1="100" x2="100" y2="34" transform="rotate(226 100 100)"/>
+                        <line x1="100" y1="100" x2="100" y2="34" transform="rotate(298 100 100)"/>
+                      </g>
+                    </svg>
+                    <h2>Sterling Family Law</h2>
+                  </div>
+                  <button class="aibp-close" id="closeLight" aria-label="Close chat">✕</button>
+                </div>
+                <div class="aibp-disclosure">🤖 AI assistant — not a lawyer</div>
+              </div>
+              <div class="aibp-history" id="historyLight"></div>
+              <div class="aibp-slots" id="slotsLight" hidden></div>
+              <form class="aibp-form" id="formLight">
+                <textarea placeholder="Type your message" rows="1"></textarea>
+                <button type="submit" class="aibp-send">Send</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stage-col">
+      <div class="stage-label">Dark — product context / dark-themed sites</div>
+      <div class="browser dark">
+        <div class="browser-bar"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="browser-url">app.flywheel.ai/preview</div></div>
+        <div class="browser-page">
+          <div class="page-mock">
+            <div class="pk">Widget Preview</div>
+            <h5>How visitors see your assistant</h5>
+            <p>This is exactly what's embedded on your site right now.</p>
+          </div>
+
+          <div class="aibp-chat" id="widgetDark">
+            <div class="aibp-peek" id="peekDark"><b>Sterling Family Law</b><br>Chat with our AI assistant</div>
+            <button class="aibp-launcher" id="launcherDark" aria-label="Open chat" aria-expanded="false" style="background:#0d0d0d;">
+              <svg width="26" height="26" viewBox="0 0 200 200">
+                <circle cx="100" cy="100" r="70" fill="none" stroke="#B87333" stroke-width="14"/>
+                <circle cx="100" cy="100" r="11" fill="#B87333"/>
+                <g stroke="#B87333" stroke-width="12" stroke-linecap="round">
+                  <line x1="100" y1="100" x2="100" y2="36" transform="rotate(10 100 100)"/>
+                  <line x1="100" y1="100" x2="100" y2="36" transform="rotate(82 100 100)"/>
+                  <line x1="100" y1="100" x2="100" y2="36" transform="rotate(154 100 100)"/>
+                  <line x1="100" y1="100" x2="100" y2="36" transform="rotate(226 100 100)"/>
+                  <line x1="100" y1="100" x2="100" y2="36" transform="rotate(298 100 100)"/>
+                </g>
+              </svg>
+              <span class="ai-dot"></span>
+            </button>
+
+            <div class="aibp-panel dark" id="panelDark">
+              <div class="aibp-header">
+                <div class="row">
+                  <div class="who">
+                    <svg width="18" height="18" viewBox="0 0 200 200">
+                      <circle cx="100" cy="100" r="70" fill="none" stroke="#D89456" stroke-width="16"/>
+                      <circle cx="100" cy="100" r="13" fill="#D89456"/>
+                      <g stroke="#D89456" stroke-width="14" stroke-linecap="round">
+                        <line x1="100" y1="100" x2="100" y2="34" transform="rotate(10 100 100)"/>
+                        <line x1="100" y1="100" x2="100" y2="34" transform="rotate(82 100 100)"/>
+                        <line x1="100" y1="100" x2="100" y2="34" transform="rotate(154 100 100)"/>
+                        <line x1="100" y1="100" x2="100" y2="34" transform="rotate(226 100 100)"/>
+                        <line x1="100" y1="100" x2="100" y2="34" transform="rotate(298 100 100)"/>
+                      </g>
+                    </svg>
+                    <h2>Sterling Family Law</h2>
+                  </div>
+                  <button class="aibp-close" id="closeDark" aria-label="Close chat">✕</button>
+                </div>
+                <div class="aibp-disclosure">🤖 AI assistant — not a lawyer</div>
+              </div>
+              <div class="aibp-history" id="historyDark"></div>
+              <div class="aibp-slots" id="slotsDark" hidden></div>
+              <form class="aibp-form" id="formDark">
+                <textarea placeholder="Type your message" rows="1"></textarea>
+                <button type="submit" class="aibp-send">Send</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= ANATOMY ================= -->
+<section class="wrap tight" id="anatomy">
+  <div class="section-head">
+    <div class="eyebrow">Anatomy</div>
+    <h2>Every message type, side by side.</h2>
+    <p>What distinguishes each role at a glance — the direct fix for "messages not distinguished by type."</p>
+  </div>
+  <div class="audit-grid">
+    <div class="audit-item fixed" style="align-items:center;">
+      <div class="aibp-avatar ai" style="background:var(--graphite);"><svg width="12" height="12" viewBox="0 0 200 200"><circle cx="100" cy="100" r="70" fill="none" stroke="#F5F1EA" stroke-width="20"/><circle cx="100" cy="100" r="16" fill="#F5F1EA"/></svg></div>
+      <div><h4>Assistant (AI)</h4><p>White bubble, thin border, small wheel avatar. Default reply type.</p></div>
+    </div>
+    <div class="audit-item fixed" style="align-items:center;">
+      <div style="width:20px;height:20px;border-radius:50%;background:var(--bronze);flex:none;"></div>
+      <div><h4>Customer</h4><p>Solid bronze bubble, right-aligned, no avatar — it's the visitor's own words.</p></div>
+    </div>
+    <div class="audit-item fixed" style="align-items:center;">
+      <div class="aibp-avatar human" style="position:static;">TM</div>
+      <div><h4>Human (staff handoff)</h4><p>Amber-bordered bubble with a "TM" avatar — visibly different the moment a person takes over.</p></div>
+    </div>
+    <div class="audit-item fixed" style="align-items:center;">
+      <div style="width:20px;height:20px;border-radius:50%;background:var(--paper-2);border:1px dashed var(--muted);flex:none;"></div>
+      <div><h4>System</h4><p>Centered, muted, no bubble outline — "A team member will review this conversation."</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TOKENS ================= -->
+<section class="wrap" id="tokens">
+  <div class="section-head">
+    <div class="eyebrow">Design Tokens</div>
+    <h2>Default values for widget.css.</h2>
+    <p>The existing <code style="background:#fff;border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:13px;">--aibp-color</code> customization point stays exactly as-is — a business can still override it to match their own site. These are the recommended <b>out-of-box</b> values, before any business touches the setting.</p>
+  </div>
+  <table class="tokens">
+    <tr><th>Token</th><th>Value</th><th>Used for</th></tr>
+    <tr><td>--aibp-color</td><td><span class="swatch-dot" style="background:#B87333;"></span>#B87333</td><td>Customer bubble, buttons, launcher accent — same as brand Bronze, business-overridable</td></tr>
+    <tr><td>--aibp-header-bg</td><td><span class="swatch-dot" style="background:#151515;"></span>#151515</td><td>Header and launcher background — brand Graphite</td></tr>
+    <tr><td>--aibp-panel-bg</td><td><span class="swatch-dot" style="background:#ffffff;border-color:#ccc;"></span>#FFFFFF</td><td>Panel background, light theme</td></tr>
+    <tr><td>--aibp-history-bg</td><td><span class="swatch-dot" style="background:#EEE8DC;"></span>#EEE8DC</td><td>Message thread background — brand Paper-2</td></tr>
+    <tr><td>--aibp-accent</td><td><span class="swatch-dot" style="background:#D97B29;"></span>#D97B29</td><td>AI-indicator dot on launcher, active states — brand Amber</td></tr>
+    <tr><td>--aibp-human</td><td><span class="swatch-dot" style="background:#D97B29;"></span>#D97B29</td><td>Human-handoff border/avatar — same Amber, reused to signal "a person is here now"</td></tr>
+    <tr><td>font-family (display)</td><td>Century Gothic, Futura</td><td>Header title only</td></tr>
+    <tr><td>font-family (body)</td><td>system-ui stack</td><td>Everything else — legibility over branding inside the thread</td></tr>
+  </table>
+  <div class="note"><b>Dark theme</b> is a single modifier class (<code>.aibp-panel.dark</code>) that swaps panel/history backgrounds to Graphite tones and lightens bubble borders — no separate component, no duplicated markup. Toggle it from the business's site-theme detection, or default to it when a business's own <code>--aibp-color</code> reads as a dark palette.</div>
+</section>
+
+<!-- ================= HANDOFF ================= -->
+<section class="wrap tight" id="handoff" style="border-bottom:none;">
+  <div class="section-head">
+    <div class="eyebrow">Engineering Handoff</div>
+    <h2>What changes in the real widget.</h2>
+  </div>
+  <div class="audit-grid">
+    <div class="audit-item fixed">
+      <div class="badge">1</div>
+      <div><h4>widget.css</h4><p>Replace the color/shape rules with the tokens above. Class names (<code>.aibp-chat__*</code>) stay identical — this is a re-skin, not a markup change, so <code>widget.js</code> needs no edits for styling alone.</p></div>
+    </div>
+    <div class="audit-item fixed">
+      <div class="badge">2</div>
+      <div><h4>Launcher markup</h4><p>Swap the text-only launcher for the inline wheel SVG + <code>.ai-dot</code> span, and add the peek label element (shown once per session after ~2s, dismissable on first open) — small addition to <code>widget.js</code>.</p></div>
+    </div>
+    <div class="audit-item fixed">
+      <div class="badge">3</div>
+      <div><h4>Message rows</h4><p><code>appendMessage(role, text)</code> needs a role→avatar map and a timestamp element per row — role and timestamp are already available on each message object from the API.</p></div>
+    </div>
+    <div class="audit-item open">
+      <div class="badge">4</div>
+      <div><h4>Dark-mode trigger</h4><p>Needs a decision: business-set flag in Business DNA, or <code>prefers-color-scheme</code> detection. Not resolved by this design — flagging for the technical workspace.</p></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  © 2026 Flywheel · Widget Design · Companion: Brand Book · UX Audit — Client Widget + Business Dashboard (Aug 17)
+</footer>
+
+<script>
+(function(){
+  function wire(prefix, dark){
+    var launcher = document.getElementById('launcher'+prefix);
+    var panel = document.getElementById('panel'+prefix);
+    var close = document.getElementById('close'+prefix);
+    var history = document.getElementById('history'+prefix);
+    var slots = document.getElementById('slots'+prefix);
+    var form = document.getElementById('form'+prefix);
+    var peek = document.getElementById('peek'+prefix);
+    var opened = false;
+
+    setTimeout(function(){ if(!opened) peek.classList.add('show'); }, 1400);
+
+    function timeNow(){
+      var d = new Date(2026, 7, 23, 14, 41);
+      return d.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
+    }
+
+    function row(role, text, opts){
+      opts = opts || {};
+      var r = document.createElement('div');
+      r.className = 'aibp-row ' + role;
+      if (role === 'system'){
+        var b = document.createElement('div');
+        b.className = 'aibp-bubble';
+        b.textContent = text;
+        r.appendChild(b);
+        history.appendChild(r);
+        history.scrollTop = history.scrollHeight;
+        return r;
+      }
+      if (opts.tag){
+        var tag = document.createElement('div');
+        tag.className = 'aibp-taglabel';
+        tag.textContent = opts.tag;
+        r.appendChild(tag);
+      }
+      var wrap = document.createElement('div');
+      wrap.className = 'aibp-bubblewrap';
+      if (role === 'assistant' || role === 'human'){
+        var av = document.createElement('div');
+        av.className = 'aibp-avatar ' + (role === 'human' ? 'human' : 'ai');
+        if (role === 'human'){ av.textContent = 'TM'; }
+        else { av.innerHTML = '<svg width="12" height="12" viewBox="0 0 200 200"><circle cx="100" cy="100" r="70" fill="none" stroke="#F5F1EA" stroke-width="20"/><circle cx="100" cy="100" r="16" fill="#F5F1EA"/></svg>'; }
+        wrap.appendChild(av);
+      }
+      var bubble = document.createElement('div');
+      bubble.className = 'aibp-bubble';
+      bubble.textContent = text;
+      wrap.appendChild(bubble);
+      r.appendChild(wrap);
+      var time = document.createElement('div');
+      time.className = 'aibp-time';
+      time.textContent = timeNow();
+      r.appendChild(time);
+      history.appendChild(r);
+      history.scrollTop = history.scrollHeight;
+      return r;
+    }
+
+    function chips(options, onPick){
+      var wrap = document.createElement('div');
+      wrap.className = 'aibp-chips';
+      options.forEach(function(label){
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'aibp-chip';
+        b.textContent = label;
+        b.addEventListener('click', function(){ wrap.remove(); onPick(label); });
+        wrap.appendChild(b);
+      });
+      history.appendChild(wrap);
+      history.scrollTop = history.scrollHeight;
+    }
+
+    function typing(cb){
+      var t = document.createElement('div');
+      t.className = 'aibp-row assistant';
+      var wrap = document.createElement('div');
+      wrap.className = 'aibp-bubblewrap';
+      var av = document.createElement('div');
+      av.className = 'aibp-avatar ai';
+      av.innerHTML = '<svg width="12" height="12" viewBox="0 0 200 200"><circle cx="100" cy="100" r="70" fill="none" stroke="#F5F1EA" stroke-width="20"/><circle cx="100" cy="100" r="16" fill="#F5F1EA"/></svg>';
+      var b = document.createElement('div');
+      b.className = 'aibp-typing';
+      b.innerHTML = '<span></span><span></span><span></span>';
+      wrap.appendChild(av); wrap.appendChild(b);
+      t.appendChild(wrap);
+      history.appendChild(t);
+      history.scrollTop = history.scrollHeight;
+      setTimeout(function(){ t.remove(); cb(); }, 900);
+    }
+
+    function showSlots(){
+      slots.hidden = false;
+      slots.innerHTML = '';
+      ['Mon, Aug 24 · 10:00 AM','Mon, Aug 24 · 2:30 PM','Tue, Aug 25 · 11:15 AM'].forEach(function(label){
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'aibp-slot-btn';
+        b.textContent = label;
+        b.addEventListener('click', function(){
+          slots.hidden = true;
+          row('customer', label);
+          typing(function(){
+            row('assistant', "You're booked for " + label.split(' · ')[1] + " on " + label.split(' · ')[0] + ". A confirmation text is on its way.", {tag:'Flywheel AI'});
+          });
+        });
+        slots.appendChild(b);
+      });
+    }
+
+    function start(){
+      history.innerHTML = '';
+      row('assistant', "Hi, I'm the AI assistant for Sterling Family Law. What brings you in today?", {tag:'Flywheel AI'});
+      chips(['Custody consultation','Divorce filing','Mediation'], function(pick){
+        row('customer', pick);
+        typing(function(){
+          row('assistant', "Got it — " + pick.toLowerCase() + ". I can find you a time with an attorney this week. Want to see openings?", {tag:'Flywheel AI'});
+          chips(['See openings','Just have a question'], function(pick2){
+            row('customer', pick2);
+            if (pick2 === 'See openings'){
+              typing(function(){ showSlots(); });
+            } else {
+              typing(function(){
+                row('human', "Hi, this is Dana from the front desk — happy to answer directly. What's your question?", {tag:'Dana · Team member'});
+              });
+            }
+          });
+        });
+      });
+    }
+
+    launcher.addEventListener('click', function(){
+      opened = !opened;
+      panel.classList.toggle('open', opened);
+      launcher.setAttribute('aria-expanded', String(opened));
+      peek.classList.remove('show');
+      if (opened && !history.children.length) start();
+    });
+    close.addEventListener('click', function(){
+      opened = false;
+      panel.classList.remove('open');
+      launcher.setAttribute('aria-expanded', 'false');
+    });
+    form.addEventListener('submit', function(e){
+      e.preventDefault();
+      var ta = form.querySelector('textarea');
+      var val = ta.value.trim();
+      if (!val) return;
+      row('customer', val);
+      ta.value = '';
+      typing(function(){
+        row('assistant', "Thanks — I've noted that. Someone from our team will follow up shortly if I can't fully answer it myself.", {tag:'Flywheel AI'});
+      });
+    });
+  }
+  wire('Light', false);
+  wire('Dark', true);
+})();
+</script>
+
+</body>
+</html>
