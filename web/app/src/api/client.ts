@@ -188,6 +188,8 @@ export interface DashboardAnalytics {
   lost_rate: number;
   median_first_response_seconds: number | null;
   response_samples: number;
+  escalation_reasons: Record<string, number>;
+  escalation_feedback: Record<"unnecessary" | "missed" | "wrong_service", number>;
 }
 
 export interface DashboardEvent {

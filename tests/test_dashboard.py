@@ -166,6 +166,31 @@ def test_case_summary_exposes_latest_non_sensitive_escalation_reason() -> None:
     assert summary.escalation_reason == "low_confidence"
 
 
+def test_case_summary_reconstructs_safe_reason_for_legacy_escalation() -> None:
+    case = ProcessCase(
+        "case-legacy-escalation",
+        "biz-1",
+        Lead("lead-legacy-escalation", name="Ada"),
+        ProcessState.NEEDS_HUMAN,
+        NOW,
+        NOW,
+    )
+    case.record(ProcessEvent(
+        "INTENT_EXTRACTED",
+        occurred_at=NOW,
+        payload={"urgency": "normal", "confidence": 0.42, "service_requested": "consultation"},
+    ))
+    case.record(ProcessEvent(
+        "QUALIFICATION_EVALUATED",
+        occurred_at=NOW,
+        payload={"requires_human": True, "reasons": ["Human review required"]},
+    ))
+
+    summary = DashboardCaseSummarySchema.from_domain(case)
+
+    assert summary.escalation_reason == "low_confidence"
+
+
 def test_staff_can_record_escalation_feedback_in_audit_trail(dashboard_environment) -> None:
     client, factory = dashboard_environment
     token = signup_and_login(client, "feedback-owner@example.com")
@@ -217,6 +242,15 @@ def test_dashboard_analytics_uses_audit_events_and_median_first_response(dashboa
             "case-analytics",
             ProcessEvent("BOOKING_CREATED", occurred_at=NOW),
         )
+        unit_of_work.events.add(
+            "biz-analytics",
+            "case-analytics",
+            ProcessEvent(
+                "ESCALATION_FEEDBACK_RECORDED",
+                occurred_at=NOW,
+                payload={"outcome": "unnecessary"},
+            ),
+        )
         unit_of_work.conversation_messages.add(ConversationMessage(
             message_id="msg-analytics-outbound",
             business_id="biz-analytics",
@@ -245,6 +279,8 @@ def test_dashboard_analytics_uses_audit_events_and_median_first_response(dashboa
         "lost_rate": 0.0,
         "median_first_response_seconds": 5.0,
         "response_samples": 1,
+        "escalation_reasons": {"ai_review": 1},
+        "escalation_feedback": {"unnecessary": 1, "missed": 0, "wrong_service": 0},
     }
 
 

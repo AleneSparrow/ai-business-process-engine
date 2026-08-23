@@ -116,6 +116,18 @@ def get_dashboard_analytics(
             for case in cases
         )
         lost = sum(case.current_state is ProcessState.LOST for case in cases)
+        escalation_reasons: dict[str, int] = {}
+        escalation_feedback = {"unnecessary": 0, "missed": 0, "wrong_service": 0}
+        for case in cases:
+            reason = DashboardCaseSummarySchema.escalation_reason_from_domain(case)
+            if reason is not None:
+                escalation_reasons[reason] = escalation_reasons.get(reason, 0) + 1
+            for event in case.event_history:
+                if event.event_type != "ESCALATION_FEEDBACK_RECORDED":
+                    continue
+                outcome = event.payload.get("outcome")
+                if isinstance(outcome, str) and outcome in escalation_feedback:
+                    escalation_feedback[outcome] += 1
         first_response_seconds: list[float] = []
         for conversation in unit_of_work.conversations.list_for_business(business_id):
             messages = unit_of_work.conversation_messages.list_for_conversation(
@@ -148,6 +160,8 @@ def get_dashboard_analytics(
         lost_rate=lost / denominator if total else 0.0,
         median_first_response_seconds=(median(first_response_seconds) if first_response_seconds else None),
         response_samples=len(first_response_seconds),
+        escalation_reasons=escalation_reasons,
+        escalation_feedback=escalation_feedback,
     )
 
 

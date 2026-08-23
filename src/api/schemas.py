@@ -602,7 +602,7 @@ class DashboardCaseSummarySchema(ApiModel):
     def escalation_reason_from_domain(case: ProcessCase) -> str | None:
         if case.current_state is not ProcessState.NEEDS_HUMAN:
             return None
-        return next(
+        explicit = next(
             (
                 value
                 for event in reversed(case.event_history)
@@ -612,6 +612,52 @@ class DashboardCaseSummarySchema(ApiModel):
             ),
             None,
         )
+        if explicit is not None:
+            return explicit
+
+        # Older cases predate the explicit reason field. Reconstruct a safe
+        # staff-facing category from validated audit fields, never raw text.
+        qualification = next(
+            (
+                event for event in reversed(case.event_history)
+                if event.event_type == "QUALIFICATION_EVALUATED"
+                and event.payload.get("requires_human") is True
+            ),
+            None,
+        )
+        if qualification is None:
+            return "already_pending"
+        reasons = " ".join(
+            str(value) for value in qualification.payload.get("reasons", ())
+        ).casefold()
+        if "contact identity" in reasons:
+            return "identity_conflict"
+        if "service area" in reasons:
+            return "service_area_uncertain"
+        if "configured qualification policy" in reasons:
+            return "policy_review"
+        if "already awaiting" in reasons:
+            return "already_pending"
+        intent = next(
+            (
+                event for event in reversed(case.event_history)
+                if event.event_type == "INTENT_EXTRACTED"
+            ),
+            None,
+        )
+        if intent is None:
+            return "ai_review"
+        urgency = intent.payload.get("urgency")
+        if urgency == "emergency":
+            return "safety_emergency"
+        if urgency == "high":
+            return "urgent_request"
+        confidence = intent.payload.get("confidence")
+        if isinstance(confidence, int | float) and confidence < 0.8:
+            return "low_confidence"
+        if intent.payload.get("service_requested") is None:
+            return "service_unclear"
+        return "ai_review"
 
     @classmethod
     def from_domain(
@@ -659,6 +705,8 @@ class DashboardAnalyticsSchema(ApiModel):
     lost_rate: float
     median_first_response_seconds: float | None
     response_samples: int
+    escalation_reasons: dict[str, int]
+    escalation_feedback: dict[str, int]
 
 
 def _jsonable(value: Any) -> Any:

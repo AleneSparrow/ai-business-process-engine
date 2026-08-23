@@ -251,6 +251,30 @@ export default function Dashboard() {
             />
           </div>
 
+          {analytics && Object.keys(analytics.escalation_reasons).length > 0 && (
+            <div className="bg-white rounded-2xl border border-[#E7E5DE] px-5 py-4">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-sm font-semibold text-[#151515]">Why leads need attention</h2>
+                  <p className="text-xs text-[#6B6459] mt-1">Based on current cases waiting for a human review.</p>
+                </div>
+                <div className="text-xs text-[#6B6459]">
+                  Feedback: {Object.values(analytics.escalation_feedback).reduce((sum, value) => sum + value, 0)} reviewed
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 mt-4">
+                {Object.entries(analytics.escalation_reasons)
+                  .sort(([, left], [, right]) => right - left)
+                  .map(([reason, count]) => (
+                    <div key={reason} className="rounded-lg bg-[#F7F5F0] px-3 py-2 text-xs text-[#47423A]">
+                      <span>{ESCALATION_LABELS[reason] ?? "Human review requested"}</span>
+                      <span className="ml-2 font-semibold text-[#151515]">{count}</span>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
+
           {cases === null && !error ? (
             <div className="flex items-center gap-2 text-sm text-[#6B6459] py-12 justify-center">
               <Loader2 size={16} className="animate-spin" /> Loading your leads…
