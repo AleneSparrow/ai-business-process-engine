@@ -197,6 +197,7 @@ class AIIntentExtractor:
             prompt.system,
             prompt.user,
             IntentOutput,
+            user_prompt_cache_prefix=prompt.user_cache_prefix,
         )
         try:
             result = self.provider.generate(request)
@@ -735,6 +736,7 @@ class AIQuestionGenerator:
             prompt.system,
             prompt.user,
             ClarificationOutput,
+            user_prompt_cache_prefix=prompt.user_cache_prefix,
         )
         result = self.provider.generate(request)
         expected_ids = [item["id"] for item in allowed_items]
@@ -792,6 +794,7 @@ class AICustomerResponseGenerator:
             prompt.system,
             prompt.user,
             CustomerMessageOutput,
+            user_prompt_cache_prefix=prompt.user_cache_prefix,
         )
         result = self.provider.generate(request)
         if result.output.response_type != response_type or not _safe_message(
@@ -859,6 +862,7 @@ class AIReassuranceResponseGenerator:
             prompt.system,
             prompt.user,
             ReassuranceOutput,
+            user_prompt_cache_prefix=prompt.user_cache_prefix,
         )
         result = self.provider.generate(request)
         selected = result.output.selected_trigger_description
@@ -929,6 +933,7 @@ class AIUniversalReassuranceResponseGenerator:
             prompt.system,
             prompt.user,
             UniversalReassuranceOutput,
+            user_prompt_cache_prefix=prompt.user_cache_prefix,
         )
         result = self.provider.generate(request)
         if not _safe_message(result.output.message_text, business_dna):

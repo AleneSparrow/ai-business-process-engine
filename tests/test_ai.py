@@ -18,6 +18,7 @@ from src.ai.fake_provider import FakeAIProvider
 from src.ai.models import AIRequest, IntentOutput
 from src.ai.anthropic_provider import AnthropicProvider
 from src.ai.openai_provider import OpenAIProvider
+from src.ai.prompts import intent_prompt
 from src.ai.provider import RetryingAIProvider
 from src.api.app import create_app
 from src.config import Settings
@@ -716,6 +717,140 @@ def test_anthropic_adapter_raises_invalid_output_after_exhausting_resamples() ->
     with pytest.raises(AIInvalidOutputError):
         provider.generate(request)
     assert messages.call_count == 3
+
+
+class _RecordingMessagesStub:
+    """Captures the exact kwargs sent to messages.create -- used to verify
+    the request SHAPE (system/message content blocks) rather than the
+    output, for the prompt-caching tests below (task-cost-reduction.md)."""
+
+    def __init__(self) -> None:
+        self.arguments: dict[str, object] = {}
+
+    def create(self, **arguments: object):
+        self.arguments = arguments
+
+        class ToolUseBlock:
+            type = "tool_use"
+            input = intent_output()
+
+        return type("Response", (), {
+            "content": [ToolUseBlock()],
+            "usage": type("Usage", (), {
+                "input_tokens": 12,
+                "output_tokens": 6,
+                "cache_read_input_tokens": 40,
+                "cache_creation_input_tokens": 0,
+            })(),
+        })()
+
+
+def _anthropic_provider_with_stub() -> tuple[AnthropicProvider, _RecordingMessagesStub]:
+    messages = _RecordingMessagesStub()
+    provider = object.__new__(AnthropicProvider)
+    provider.model = "test-anthropic-model"
+    provider._client = type("Client", (), {"messages": messages})()
+    return provider, messages
+
+
+def test_anthropic_provider_caches_system_prompt_unconditionally() -> None:
+    """The system prompt is always fully static per prompt_id (see
+    prompts.py -- it never includes Business DNA or conversation content),
+    so every request gets a cache_control breakpoint on it, with no opt-in
+    needed. See task-cost-reduction.md lever 1."""
+    provider, messages = _anthropic_provider_with_stub()
+    request = AIRequest("intent", "v1", "intent_extraction", "SYSTEM TEXT", "user", IntentOutput)
+
+    provider.generate(request)
+
+    assert messages.arguments["system"] == [
+        {"type": "text", "text": "SYSTEM TEXT", "cache_control": {"type": "ephemeral"}}
+    ]
+
+
+def test_anthropic_provider_adds_second_breakpoint_for_business_context_prefix() -> None:
+    """When the caller supplies a genuine cache prefix (Prompt.user_cache_prefix
+    -- Business DNA, stable across many messages for the same business), the
+    user message splits into two blocks: the cached prefix and the
+    uncached, per-message remainder."""
+    provider, messages = _anthropic_provider_with_stub()
+    request = AIRequest(
+        "intent", "v1", "intent_extraction", "system",
+        "BUSINESS_CONTEXT{...}VARIABLE PART", IntentOutput,
+        user_prompt_cache_prefix="BUSINESS_CONTEXT{...}",
+    )
+
+    provider.generate(request)
+
+    content = messages.arguments["messages"][0]["content"]
+    assert content == [
+        {"type": "text", "text": "BUSINESS_CONTEXT{...}", "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": "VARIABLE PART"},
+    ]
+
+
+def test_anthropic_provider_uses_one_block_without_a_cache_prefix() -> None:
+    """No cache prefix supplied (the default for every prompt type except
+    intent_prompt) -- the user message stays a single, uncached block,
+    exactly the request shape before caching was added."""
+    provider, messages = _anthropic_provider_with_stub()
+    request = AIRequest("intent", "v1", "intent_extraction", "system", "plain user text", IntentOutput)
+
+    provider.generate(request)
+
+    assert messages.arguments["messages"][0]["content"] == [
+        {"type": "text", "text": "plain user text"}
+    ]
+
+
+def test_anthropic_provider_ignores_a_cache_prefix_that_is_not_a_real_prefix() -> None:
+    """Defensive: a cache prefix that doesn't actually match the start of
+    user_prompt (a caller bug) must never duplicate or drop text -- fall
+    back to one uncached block instead of mis-slicing."""
+    provider, messages = _anthropic_provider_with_stub()
+    request = AIRequest(
+        "intent", "v1", "intent_extraction", "system", "actual user text", IntentOutput,
+        user_prompt_cache_prefix="something else entirely",
+    )
+
+    provider.generate(request)
+
+    assert messages.arguments["messages"][0]["content"] == [
+        {"type": "text", "text": "actual user text"}
+    ]
+
+
+def test_anthropic_provider_reports_cache_read_and_write_tokens() -> None:
+    provider, _ = _anthropic_provider_with_stub()
+    request = AIRequest("intent", "v1", "intent_extraction", "system", "user", IntentOutput)
+
+    result = provider.generate(request)
+
+    assert result.metadata.cache_read_tokens == 40
+    assert result.metadata.cache_write_tokens == 0
+
+
+def test_intent_prompt_splits_business_context_from_conversation_for_caching() -> None:
+    """Business DNA (business/services/human_escalation_triggers) is stable
+    across many messages for the same business and must be the cache
+    prefix; conversation state changes every turn and must NOT be inside
+    it, or the cache would miss almost every call. Also: nothing is lost or
+    duplicated by the split."""
+    context = {
+        "business": {"industry": "Roofing"},
+        "services": [{"id": "roof-repair"}],
+        "human_escalation_triggers": ["emergency"],
+        "conversation": {"recent_messages": [{"role": "customer", "text": "hi"}]},
+    }
+
+    prompt = intent_prompt(context=context, customer_message="my roof is leaking")
+
+    assert prompt.user_cache_prefix
+    assert prompt.user.startswith(prompt.user_cache_prefix)
+    assert '"conversation"' not in prompt.user_cache_prefix
+    assert "Roofing" in prompt.user_cache_prefix
+    assert "recent_messages" in prompt.user[len(prompt.user_cache_prefix):]
+    assert "my roof is leaking" in prompt.user[len(prompt.user_cache_prefix):]
 
 
 def test_missing_information_uses_ai_clarification_constrained_to_configured_item() -> None:

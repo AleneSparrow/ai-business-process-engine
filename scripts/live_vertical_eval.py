@@ -38,7 +38,13 @@ def _plain(value: Any) -> Any:
 
 
 def _metadata(value: Mapping[str, Any]) -> dict[str, Any]:
-    allowed = {"provider", "model", "prompt_id", "prompt_version", "latency_ms", "success", "category", "input_tokens", "output_tokens", "total_tokens", "attempts", "confidence"}
+    allowed = {
+        "provider", "model", "prompt_id", "prompt_version", "latency_ms", "success", "category",
+        "input_tokens", "output_tokens", "total_tokens", "attempts", "confidence",
+        # Prompt-caching usage (task-cost-reduction.md) -- present only for
+        # Anthropic requests where caching was attempted.
+        "cache_read_tokens", "cache_write_tokens",
+    }
     return {key: _plain(item) for key, item in value.items() if key in allowed}
 
 

@@ -176,13 +176,29 @@ class AIInvocationMetadata:
     input_tokens: int | None = None
     output_tokens: int | None = None
     total_tokens: int | None = None
+    # Anthropic prompt-caching usage (task-cost-reduction.md) -- None for any
+    # provider/request that doesn't report it (OpenAI, deterministic, or an
+    # Anthropic call before caching was wired in), never 0-as-a-stand-in-for-
+    # unknown. cache_write_tokens billed at a premium over a normal input
+    # token; cache_read_tokens at a steep discount -- keeping them separate
+    # from input_tokens is what makes real cost/hit-rate measurement possible
+    # instead of guessing from total input alone.
+    cache_read_tokens: int | None = None
+    cache_write_tokens: int | None = None
 
     def __post_init__(self) -> None:
         if not self.provider.strip() or not self.model.strip():
             raise ValueError("AI provider and model must not be empty")
         if self.attempts < 1:
             raise ValueError("AI attempts must be positive")
-        for value in (self.latency_ms, self.input_tokens, self.output_tokens, self.total_tokens):
+        for value in (
+            self.latency_ms,
+            self.input_tokens,
+            self.output_tokens,
+            self.total_tokens,
+            self.cache_read_tokens,
+            self.cache_write_tokens,
+        ):
             if value is not None and value < 0:
                 raise ValueError("AI latency and token counts cannot be negative")
 
@@ -209,6 +225,10 @@ class AIInvocationMetadata:
             value["output_tokens"] = self.output_tokens
         if self.total_tokens is not None:
             value["total_tokens"] = self.total_tokens
+        if self.cache_read_tokens is not None:
+            value["cache_read_tokens"] = self.cache_read_tokens
+        if self.cache_write_tokens is not None:
+            value["cache_write_tokens"] = self.cache_write_tokens
         return value
 
 
@@ -220,6 +240,10 @@ class AIRequest(Generic[StructuredOutput]):
     system_prompt: str
     user_prompt: str
     output_model: type[StructuredOutput]
+    # See Prompt.user_cache_prefix -- threaded through unchanged. Providers
+    # without manual cache control (OpenAI, deterministic/fake) ignore this
+    # and just use user_prompt as-is; AnthropicProvider slices on it.
+    user_prompt_cache_prefix: str = ""
 
 
 @dataclass(frozen=True, slots=True)

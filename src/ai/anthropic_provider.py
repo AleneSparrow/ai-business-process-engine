@@ -78,6 +78,8 @@ class AnthropicProvider:
     def generate(self, request: AIRequest[OutputT]) -> AIResult[OutputT]:
         started = perf_counter()
         schema = request.output_model.model_json_schema()
+        system_blocks = self._system_blocks(request.system_prompt)
+        user_content = self._user_content(request.user_prompt, request.user_prompt_cache_prefix)
         try:
             output = None
             usage = None
@@ -98,8 +100,8 @@ class AnthropicProvider:
                     # If reducing sampling variance is worth revisiting,
                     # check the current model's docs for its replacement
                     # (if any) before reintroducing a sampling parameter.
-                    system=request.system_prompt,
-                    messages=[{"role": "user", "content": request.user_prompt}],
+                    system=system_blocks,
+                    messages=[{"role": "user", "content": user_content}],
                     tools=[
                         {
                             "name": _TOOL_NAME,
@@ -146,6 +148,14 @@ class AnthropicProvider:
                 )
             input_tokens = getattr(usage, "input_tokens", None)
             output_tokens = getattr(usage, "output_tokens", None)
+            # Anthropic reports these as two separate counters alongside
+            # input_tokens (which itself excludes both) -- present only when
+            # caching was actually attempted for this request, never 0 as a
+            # stand-in for "cache not used". See task-cost-reduction.md: this
+            # is what makes measuring the real hit rate possible instead of
+            # assuming it.
+            cache_read_tokens = getattr(usage, "cache_read_input_tokens", None)
+            cache_write_tokens = getattr(usage, "cache_creation_input_tokens", None)
             metadata = self._metadata(
                 request,
                 started,
@@ -158,6 +168,8 @@ class AnthropicProvider:
                     if input_tokens is not None and output_tokens is not None
                     else None
                 ),
+                cache_read_tokens=cache_read_tokens,
+                cache_write_tokens=cache_write_tokens,
             )
             return AIResult(output, metadata)
         except AIInvalidOutputError:
@@ -208,6 +220,8 @@ class AnthropicProvider:
         input_tokens: int | None = None,
         output_tokens: int | None = None,
         total_tokens: int | None = None,
+        cache_read_tokens: int | None = None,
+        cache_write_tokens: int | None = None,
     ) -> AIInvocationMetadata:
         return AIInvocationMetadata(
             provider="anthropic",
@@ -221,4 +235,38 @@ class AnthropicProvider:
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             total_tokens=total_tokens,
+            cache_read_tokens=cache_read_tokens,
+            cache_write_tokens=cache_write_tokens,
         )
+
+    @staticmethod
+    def _system_blocks(system_prompt: str) -> list[dict[str, Any]]:
+        """The system prompt is fully static per prompt_id (see prompts.py --
+        it never includes Business DNA or conversation content), so it is
+        always cache-eligible, unconditionally, for every request. See
+        task-cost-reduction.md lever 1."""
+        return [{
+            "type": "text",
+            "text": system_prompt,
+            "cache_control": {"type": "ephemeral"},
+        }]
+
+    @staticmethod
+    def _user_content(user_prompt: str, cache_prefix: str) -> list[dict[str, Any]]:
+        """Second, optional cache_control breakpoint after the Business-DNA
+        prefix of the user message (see Prompt.user_cache_prefix) -- stable
+        across many messages for the same business, unlike the conversation/
+        customer-message tail that follows it. Falls back to a single
+        uncached block whenever the caller didn't supply a genuine prefix
+        (empty, or -- defensively -- not actually a prefix of user_prompt),
+        which is always correct, just not cached."""
+        if cache_prefix and user_prompt.startswith(cache_prefix):
+            return [
+                {
+                    "type": "text",
+                    "text": cache_prefix,
+                    "cache_control": {"type": "ephemeral"},
+                },
+                {"type": "text", "text": user_prompt[len(cache_prefix):]},
+            ]
+        return [{"type": "text", "text": user_prompt}]
