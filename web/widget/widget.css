@@ -1,7 +1,12 @@
 /* Flywheel widget: businesses may override --aibp-color without losing the
    component's contrast, spacing, or interaction states. */
 .aibp-chat {
-  --aibp-color: #b87333;
+  /* Darkened from #b87333 (2026-08-23): the original gave 3.79:1 against
+     white, failing WCAG AA (4.5:1) BOTH ways -- copper service/slot button
+     labels on white, and white "Send" / customer-bubble text on copper.
+     #a5652d keeps the copper hue and reaches 4.67:1 in both directions.
+     A business overriding this variable takes on that check itself. */
+  --aibp-color: #a5652d;
   --aibp-header-bg: #151515;
   --aibp-panel-bg: #fff;
   --aibp-history-bg: #eee8dc;
@@ -68,6 +73,14 @@
   background: var(--aibp-panel-bg);
   box-shadow: 0 22px 60px rgb(21 21 21 / 28%);
 }
+/* Author `display` beats the HTML `hidden` attribute, so every element the
+   script hides needs this or it renders anyway. The AI-disclosure badge
+   shipped as a visible empty pill on production for exactly this reason
+   (display: inline-flex below, no matching [hidden] rule) -- an empty box
+   where the legally required "you are talking to an AI" text belongs. One
+   blanket rule instead of per-element ones so the next hidden element
+   cannot repeat it. */
+.aibp-chat [hidden] { display: none !important; }
 .aibp-chat__panel[hidden] { display: none; }
 
 .aibp-chat__header { flex: none; padding: .85rem 1rem .7rem; color: var(--aibp-paper); background: var(--aibp-header-bg); }

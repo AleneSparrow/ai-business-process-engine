@@ -43,7 +43,21 @@
     ring.setAttribute("stroke", "currentColor");
     ring.setAttribute("stroke-width", "2");
     svg.append(ring);
-    [[12, 4, 12, 20], [5, 8, 19, 16], [19, 8, 5, 16]].forEach(function (coordinates) {
+    // Five spokes at 72 degrees, drawn as radii from the hub -- the brand
+    // mark from docs/brand (rebrand-flywheel-summary.md). The widget shipped
+    // three FULL DIAMETERS instead, which cross at the centre and render as
+    // six spokes at 60 degrees: it reads as an asterisk, not a wheel, at
+    // launcher size. Five spokes cannot be built from diameters at all, which
+    // is how the mismatch happened. The 5-spoke form was chosen deliberately
+    // on 2026-08-14 -- the original 3-spoke wheel was changed because it
+    // matched the Mercedes-Benz composition.
+    [
+      [12, 12, 12, 4],
+      [12, 12, 19.61, 9.53],
+      [12, 12, 16.7, 18.47],
+      [12, 12, 7.3, 18.47],
+      [12, 12, 4.39, 9.53],
+    ].forEach(function (coordinates) {
       const spoke = document.createElementNS(namespace, "line");
       spoke.setAttribute("x1", String(coordinates[0]));
       spoke.setAttribute("y1", String(coordinates[1]));
@@ -79,6 +93,9 @@
   panel.hidden = true;
   panel.setAttribute("role", "dialog");
   panel.setAttribute("aria-modal", "false");
+  // A role="dialog" with no accessible name is announced as just "dialog".
+  // Replaced with the business name once /chat-config resolves.
+  panel.setAttribute("aria-label", "Chat");
 
   const header = document.createElement("header");
   header.className = "aibp-chat__header";
@@ -467,19 +484,35 @@
   }
 
   launcher.addEventListener("click", async function () {
-    panel.hidden = !panel.hidden;
-    launcher.setAttribute("aria-expanded", String(!panel.hidden));
+    // Closing from the launcher used to skip the close handler, so the peek
+    // bubble never came back and the label stayed "Open chat" -- the two ways
+    // out of the panel behaved differently. Both go through closePanel now.
     if (!panel.hidden) {
-      peek.hidden = true;
-      await restore();
-      input.focus();
+      closePanel();
+      return;
     }
+    panel.hidden = false;
+    launcher.setAttribute("aria-expanded", "true");
+    launcher.setAttribute("aria-label", "Close chat");
+    peek.hidden = true;
+    await restore();
+    input.focus();
   });
-  close.addEventListener("click", function () {
+  function closePanel() {
     panel.hidden = true;
     launcher.setAttribute("aria-expanded", "false");
+    launcher.setAttribute("aria-label", "Open chat");
     peek.hidden = !config;
     launcher.focus();
+  }
+  close.addEventListener("click", closePanel);
+  // Escape must dismiss a role="dialog" -- without it a keyboard user has to
+  // tab to the close button to get out of the chat.
+  panel.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      closePanel();
+    }
   });
   input.addEventListener("keydown", function (event) {
     if (event.key === "Enter" && !event.shiftKey) {
@@ -522,6 +555,7 @@
     .then(function (value) {
       config = value;
       title.textContent = value.chat_title;
+      panel.setAttribute("aria-label", value.chat_title);
       // chat_title is already a full phrase ("Chat with Acme Law"), so
       // prefixing it produced "Ask Chat with Acme Law" on production.
       // Use it verbatim -- it reads correctly whether the owner configured
