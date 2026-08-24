@@ -166,7 +166,15 @@ class LeadIntakeService:
 
         self._assert_identity_consistency(case, message)
         extracted = self.intent_extractor.extract(message, self.business_dna)
-        intent = self._merge_intent(case.lead, extracted)
+        intent = self._merge_intent(case.lead, extracted, case.metadata)
+        for key, value in (
+            ("service_requested", intent.service_requested),
+            ("customer_location", intent.customer_location),
+            ("preferred_time", intent.preferred_time),
+            ("urgency", intent.urgency.value),
+        ):
+            if value is not None:
+                case.metadata[key] = value
         updated_lead = self._updated_lead(case.lead, message, intent)
         self._validate_identity_available(case, updated_lead)
         qualification = self.qualification_service.evaluate(
@@ -549,8 +557,20 @@ class LeadIntakeService:
         )
 
     @staticmethod
-    def _merge_intent(lead: Lead, current: IntentResult) -> IntentResult:
-        previous = lead.attributes
+    def _merge_intent(
+        lead: Lead,
+        current: IntentResult,
+        case_metadata: Mapping[str, Any] | None = None,
+    ) -> IntentResult:
+        # Service facts belong to a case, not globally to a person: a
+        # returning customer may have an unrelated second request while the
+        # first is still active. Older cases fall back to lead.attributes.
+        previous = dict(lead.attributes)
+        if case_metadata is not None:
+            for key in ("service_requested", "customer_location", "preferred_time", "urgency"):
+                value = case_metadata.get(key)
+                if value is not None:
+                    previous[key] = value
         answers = dict(previous.get("qualification_answers", {}))
         conflict = False
         for question_id, answer in current.qualification_answers.items():

@@ -210,6 +210,14 @@ class ProcessCase:
             raise ValueError("updated lead must preserve lead_id")
         self.lead = lead
 
+    def associate_verified_lead(self, lead: Lead) -> None:
+        """Associate an active case with a lead whose identity was verified externally.
+
+        This is deliberately separate from ``update_lead``: callers must have
+        already established that the contact and name belong to the same person.
+        """
+        self.lead = lead
+
     def mark_persisted(self, version: int) -> None:
         if version <= self.version:
             raise ValueError("persisted version must advance")

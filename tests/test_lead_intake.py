@@ -89,6 +89,30 @@ def test_missing_phone_remains_qualifying_and_generates_configured_question() ->
     assert result.response.reason == "missing_information"
 
 
+def test_service_then_name_and_phone_completes_qualification() -> None:
+    """A normal follow-up must retain the service and area established on
+    the first turn. This guards the live law-firm-shaped flow: service
+    request, then a concise name-and-phone answer."""
+    intake = service_with({
+        "service-request": valid_intent(),
+        "contact-details": IntentResult(confidence=0.95),
+    })
+
+    first = intake.receive(message("service-request", name=None, phone=None))
+    second = intake.receive(message(
+        "contact-details",
+        name="Sarah Chen",
+        phone="+1 312 555 0199",
+        case_id=first.case_id,
+    ))
+
+    assert first.current_state is ProcessState.QUALIFYING
+    assert first.qualification.missing_fields == ("name", "phone")
+    assert second.current_state is ProcessState.QUALIFIED
+    assert second.qualification.qualified
+    assert not second.qualification.requires_human
+
+
 def test_unsupported_service_is_lost() -> None:
     intake = service_with({"msg-c": valid_intent(service_requested="roof_replacement")})
 

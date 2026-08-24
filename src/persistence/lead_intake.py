@@ -115,20 +115,47 @@ class PersistentLeadIntakeService:
         workflow._assert_identity_consistency(case, message)
 
         extracted = self.intent_extractor.extract(message, workflow.business_dna)
-        intent = workflow._merge_intent(case.lead, extracted)
+        intent = workflow._merge_intent(case.lead, extracted, case.metadata)
         updated_lead = workflow._updated_lead(case.lead, message, intent)
+        self._record_case_facts(case, intent)
         self._lock_identities(
             uow,
             message.business_id,
             updated_lead.phone,
             updated_lead.email,
         )
-        identity_conflicts = self._identity_conflicts(
+        identity_owner = self._identity_owner(
             uow,
             message.business_id,
-            case.lead.lead_id,
             updated_lead,
         )
+        if identity_owner is not None and identity_owner.lead_id != case.lead.lead_id:
+            if self._same_person(identity_owner, updated_lead):
+                # Contact + name prove this is the same person. Reuse a case
+                # only when its task matches; otherwise create a second case
+                # for that same lead, without ever copying conversation data.
+                if case_created:
+                    matching_case = self._active_case_for_task(
+                        uow, message.business_id, identity_owner.lead_id, intent.service_requested
+                    )
+                    case = matching_case or ProcessCase(str(uuid4()), message.business_id, identity_owner)
+                    case_created = matching_case is None
+                else:
+                    # This case is already linked to a conversation. Keep its
+                    # case ID and its task history, and reconcile only the
+                    # verified lead identity. A different task therefore gets
+                    # its own case without breaking the original dialogue.
+                    case.associate_verified_lead(identity_owner)
+                lead_created = False
+                self._record_case_facts(case, intent)
+                updated_lead = identity_owner
+                identity_conflicts = frozenset()
+            else:
+                identity_conflicts = self._identity_conflicts(
+                    uow, message.business_id, case.lead.lead_id, updated_lead
+                )
+        else:
+            identity_conflicts = frozenset()
         if identity_conflicts:
             updated_lead = Lead(
                 lead_id=updated_lead.lead_id,
@@ -278,6 +305,50 @@ class PersistentLeadIntakeService:
         )
         for identity_type, value in identities:
             uow.leads.lock_identity(business_id, identity_type, value)
+
+    @staticmethod
+    def _identity_owner(
+        uow: UnitOfWork,
+        business_id: str,
+        proposed_lead: Lead,
+    ) -> Lead | None:
+        return uow.leads.find_by_identity(business_id, proposed_lead.phone, proposed_lead.email)
+
+    @staticmethod
+    def _same_person(existing: Lead, proposed: Lead) -> bool:
+        return bool(
+            existing.name
+            and proposed.name
+            and existing.name.strip().casefold() == proposed.name.strip().casefold()
+        )
+
+    @staticmethod
+    def _active_case_for_task(
+        uow: UnitOfWork,
+        business_id: str,
+        lead_id: str,
+        service_requested: str | None,
+    ) -> ProcessCase | None:
+        if service_requested is None:
+            return None
+        for candidate in uow.cases.list_for_business(business_id):
+            if candidate.lead.lead_id != lead_id or candidate.current_state not in LeadIntakeService.ACTIVE_STATES:
+                continue
+            task = candidate.metadata.get("service_requested", candidate.lead.attributes.get("service_requested"))
+            if isinstance(task, str) and task.casefold() == service_requested.casefold():
+                return candidate
+        return None
+
+    @staticmethod
+    def _record_case_facts(case: ProcessCase, intent: IntentResult) -> None:
+        for key, value in (
+            ("service_requested", intent.service_requested),
+            ("customer_location", intent.customer_location),
+            ("preferred_time", intent.preferred_time),
+            ("urgency", intent.urgency.value),
+        ):
+            if value is not None:
+                case.metadata[key] = value
 
     @staticmethod
     def _identity_conflicts(

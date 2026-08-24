@@ -130,7 +130,10 @@ class Conversation:
     def link_case(self, lead_id: str, case_id: str) -> None:
         _require_text(lead_id, "lead_id")
         _require_text(case_id, "case_id")
-        if self.lead_id not in (None, lead_id) or self.case_id not in (None, case_id):
+        # A verified identity reconciliation may replace the temporary lead
+        # created at the start of this *same* case.  Moving a conversation to
+        # another case is never permitted: that could join two conversations.
+        if self.case_id not in (None, case_id):
             raise ValueError("conversation cannot be relinked to another lead or case")
         self.lead_id = lead_id
         self.case_id = case_id

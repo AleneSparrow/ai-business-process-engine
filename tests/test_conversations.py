@@ -295,6 +295,86 @@ def test_late_contact_owned_by_another_lead_escalates_without_overwrite(
         assert next(lead for lead in leads if lead.name == "Grace").normalized_phone is None
 
 
+def test_same_named_contact_can_open_a_second_task_without_identity_escalation(
+    conversation_environment,
+) -> None:
+    client, factory, _ = conversation_environment
+    # A realistic returning customer can have two active jobs. Add a second
+    # unambiguous service to the tenant's versioned catalog before either
+    # conversation starts.
+    configuration = load_dna("tenant-a")
+    consultation = dict(configuration["services"][0])
+    consultation.update({
+        "id": "consultation",
+        "name": "Consultation",
+        "intake_keywords": ["consultation"],
+    })
+    configuration["services"].append(consultation)
+    with factory() as uow:
+        uow.business_dna.add_version("tenant-a", configuration)
+        uow.commit()
+
+    phone = "+1 312 555 0199"
+    first = create_conversation(
+        client,
+        f"AC diagnostic in 60601. My phone is {phone}. My name is Ada",
+        "same-contact-first-task",
+    )
+    second = create_conversation(
+        client,
+        f"I need a consultation in 60601. My phone is {phone}. My name is Ada",
+        "same-contact-second-task",
+    )
+
+    assert first.status_code == second.status_code == 200
+    assert first.json()["current_state"] == second.json()["current_state"] == "QUALIFIED"
+    assert not first.json()["requires_human"]
+    assert not second.json()["requires_human"]
+    with factory() as uow:
+        leads = tuple(uow.session.scalars(
+            select(LeadRow).where(LeadRow.business_id == "tenant-a")
+        ))
+        cases = tuple(uow.session.scalars(
+            select(ProcessCaseRow).where(ProcessCaseRow.business_id == "tenant-a")
+        ))
+        assert len(leads) == 1
+        assert len(cases) == 2
+        assert {case.lead_id for case in cases} == {leads[0].id}
+
+
+def test_late_contact_on_first_of_two_tasks_keeps_its_conversation_link(
+    conversation_environment,
+) -> None:
+    client, factory, _ = conversation_environment
+    configuration = load_dna("tenant-a")
+    consultation = dict(configuration["services"][0])
+    consultation.update({
+        "id": "consultation",
+        "name": "Consultation",
+        "intake_keywords": ["consultation"],
+    })
+    configuration["services"].append(consultation)
+    with factory() as uow:
+        uow.business_dna.add_version("tenant-a", configuration)
+        uow.commit()
+
+    first = create_conversation(client, "AC diagnostic in 60601", "late-contact-first-task")
+    second = create_conversation(
+        client,
+        "I need a consultation in 60601. My phone is +1 312 555 0188. My name is Ada",
+        "late-contact-second-task",
+    )
+    completed_first = send(
+        client,
+        first.json()["conversation_token"],
+        "My name is Ada and my phone is +1 312 555 0188",
+        "late-contact-first-details",
+    )
+
+    assert first.status_code == second.status_code == completed_first.status_code == 200
+    assert completed_first.json()["current_state"] == "QUALIFIED"
+
+
 def test_refresh_restores_ordered_safe_history(conversation_environment) -> None:
     client, _, _ = conversation_environment
     created = create_conversation(client, "I need AC help", "refresh-1")
