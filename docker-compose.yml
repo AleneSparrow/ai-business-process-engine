@@ -46,6 +46,22 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # The image bakes the source in (Dockerfile: COPY . .), so without these
+    # mounts `docker compose run app pytest` silently runs whatever code was
+    # present at the last `docker compose build` -- an edited test file simply
+    # does not exist inside the container. That cost a confusing round on
+    # 2026-08-24: a rewritten test kept failing under its OLD name because the
+    # container still had the old file. Mounting the source directories (not
+    # the whole repo -- that would drag the host .venv and .git in) makes a
+    # local edit visible immediately, with no rebuild.
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./migrations:/app/migrations
+      - ./config:/app/config
+      - ./scripts:/app/scripts
+      - ./pytest.ini:/app/pytest.ini
+      - ./alembic.ini:/app/alembic.ini
 
 volumes:
   postgres_data:

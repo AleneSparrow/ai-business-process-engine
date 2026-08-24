@@ -407,13 +407,8 @@ def test_explicit_request_for_person_still_escalates() -> None:
     assert result.requires_human
 
 
-def test_explicit_time_pressure_preserves_high_urgency_handoff() -> None:
-    configuration = _single_service_configuration(
-        service_id="repair-estimate",
-        service_name="Repair estimate",
-        description="Diagnosis and estimates for residential repairs",
-    )
-    provider = FakeAIProvider([
+def _time_pressure_provider() -> FakeAIProvider:
+    return FakeAIProvider([
         intent_output(
             service_id="repair-estimate",
             service_evidence="ceiling is leaking",
@@ -425,7 +420,58 @@ def test_explicit_time_pressure_preserves_high_urgency_handoff() -> None:
         )
     ])
 
-    result = AIIntentExtractor(provider).extract(
+
+def test_explicit_time_pressure_no_longer_stops_the_cycle_on_arrival() -> None:
+    """Variant C: HIGH urgency must not end the conversation on message one.
+
+    This test previously asserted the opposite -- that time pressure PRESERVES
+    the provider's handoff flag -- because that was the behaviour until
+    2026-08-24. It was deliberately reversed by commit 2209ca11 and by
+    migration 0012, which together decided that `emergency` escalates
+    immediately while `high` completes qualification first and reaches a person
+    afterwards with a full card. See
+    claude/unit-economics-and-urgency-default.md, variant C and section 3.
+
+    Rationale in one line: for roofers, plumbers, HVAC and PI firms urgency is
+    the normal case, not the exception, so escalating on it switched the
+    automation off exactly where speed matters most. Confirmed live on
+    production after the migration: this same wording now runs
+    QUALIFYING -> QUALIFIED -> BOOKED.
+
+    The urgency itself is not lost -- it stays on the result, and the
+    business-configured trigger still works (see the next test).
+    """
+    configuration = _single_service_configuration(
+        service_id="repair-estimate",
+        service_name="Repair estimate",
+        description="Diagnosis and estimates for residential repairs",
+    )
+
+    result = AIIntentExtractor(_time_pressure_provider()).extract(
+        incoming(raw_text="Our ceiling is leaking and we need help immediately"),
+        configuration,
+    )
+
+    assert result.urgency.value == "high"
+    assert not result.requires_human
+
+
+def test_high_urgency_still_escalates_when_the_business_configured_it() -> None:
+    """The opt-in half of variant C -- D in the same document.
+
+    Turning the default off must not remove the switch. A business that puts
+    "high" in human_escalation.triggers gets the old immediate-stop behaviour
+    back, and that path runs through _configured_trigger_matches rather than
+    through the provider's own flag.
+    """
+    configuration = _single_service_configuration(
+        service_id="repair-estimate",
+        service_name="Repair estimate",
+        description="Diagnosis and estimates for residential repairs",
+    )
+    configuration["human_escalation"]["triggers"].append("high")
+
+    result = AIIntentExtractor(_time_pressure_provider()).extract(
         incoming(raw_text="Our ceiling is leaking and we need help immediately"),
         configuration,
     )
