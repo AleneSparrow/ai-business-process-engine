@@ -71,7 +71,17 @@ class OnboardingInput:
     enforce_service_area: bool = True
     # Real Urgency-based escalation triggers (see Urgency in
     # src/domain/qualification.py, consumed by QualificationService.evaluate).
-    escalate_on_high_urgency: bool = True
+    # Decision 2026-08-24 (claude/unit-economics-and-urgency-default.md,
+    # variant C): defaults to False now -- a merely "high" urgency lead (a
+    # leaking ceiling, "need it today") is normal, not exceptional, for most
+    # verticals (roofing, plumbing, HVAC, PI law) and used to stop automation
+    # exactly where speed matters most. QualificationService.evaluate still
+    # always routes a HIGH-urgency lead to a human, just AFTER qualification
+    # completes rather than before -- see that module for the actual
+    # behavior. Setting this True opts a business back into the old
+    # immediate-stop-the-cycle behavior. escalate_on_emergency is unrelated
+    # and unchanged: a true emergency still escalates immediately either way.
+    escalate_on_high_urgency: bool = False
     escalate_on_emergency: bool = True
     # Optional free text describing what the business does. Together with
     # `industry` this is the only per-business adaptation the intent prompt

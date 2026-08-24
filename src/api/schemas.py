@@ -511,7 +511,10 @@ class OnboardingRequest(ApiModel):
     # Real Urgency-based triggers (see QualificationService.evaluate) -- replaces
     # the old onboarding wizard's three checkboxes, which were never actually
     # sent to the backend at all and had no effect on the created business.
-    escalate_on_high_urgency: bool = True
+    # Decision 2026-08-24 (claude/unit-economics-and-urgency-default.md,
+    # variant C): escalate_on_high_urgency defaults False -- see
+    # business_dna_builder.OnboardingInput for why.
+    escalate_on_high_urgency: bool = False
     escalate_on_emergency: bool = True
 
     @field_validator("service_zip_codes")

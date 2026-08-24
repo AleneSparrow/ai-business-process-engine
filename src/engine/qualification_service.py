@@ -10,6 +10,7 @@ from src.domain.qualification import (
     IntentResult,
     MissingInformationResult,
     QualificationResult,
+    Urgency,
 )
 from src.domain.states import ProcessState
 
@@ -172,6 +173,29 @@ class QualificationService:
             return self._result(
                 ProcessState.NEEDS_HUMAN,
                 ("Configured qualification policy requires human review",),
+                intent,
+                service,
+            )
+
+        if intent.urgency is Urgency.HIGH:
+            # Decision 2026-08-24 (claude/unit-economics-and-urgency-default.md,
+            # variant C): reaching here means "high" was NOT a configured
+            # immediate trigger (the check above already handles the case
+            # where it is, e.g. a business with escalate_on_high_urgency=True)
+            # -- so a high-urgency lead was allowed to complete the ordinary
+            # qualification cycle above instead of blocking it. Now that
+            # everything required is collected, hand off to a person WITH
+            # that full context rather than silently auto-qualifying: speed
+            # still matters for a leaking ceiling, it just doesn't require
+            # stopping automation to get it. Emergency is unaffected -- it
+            # is caught by the trigger check above, unconditionally, before
+            # any of this.
+            return self._result(
+                ProcessState.NEEDS_HUMAN,
+                (
+                    "Qualification is complete; customer indicated high urgency, "
+                    "handing off to a team member with full context for fast follow-up",
+                ),
                 intent,
                 service,
             )
