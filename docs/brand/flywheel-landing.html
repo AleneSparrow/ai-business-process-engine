@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flywheel — From First Inquiry to a Booked Job</title>
+<meta name="description" content="Flywheel is the AI engine that carries an inquiry all the way to a booked job — for any business, with no per-company setup. It never improvises: every message is a rewording of content you already approved.">
+<style>
+  :root{
+    --graphite:#151515;
+    --graphite-soft:#3a362d;
+    --bronze:#B87333;
+    --bronze-dark:#96591f;
+    --paper:#F5F1EA;
+    --paper-2:#EEE8DC;
+    --amber:#D97B29;
+    --line:#e2dbcb;
+    --muted:#6b6558;
+    --font-display: 'Century Gothic','Futura','Trebuchet MS',sans-serif;
+    --font-serif: Georgia,'Times New Roman',serif;
+    --font-body: -apple-system,'Segoe UI',Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--graphite);font-family:var(--font-body);}
+  a{color:inherit;}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 32px;}
+  img,svg{display:block;}
+
+  /* ---------- nav ---------- */
+  header{position:sticky;top:0;z-index:50;background:rgba(245,241,234,.92);backdrop-filter:blur(6px);border-bottom:1px solid var(--line);}
+  .nav-inner{max-width:1100px;margin:0 auto;padding:18px 32px;display:flex;align-items:center;justify-content:space-between;gap:20px;}
+  .brand-lockup{display:flex;align-items:center;gap:10px;}
+  .brand-lockup span{font-family:var(--font-display);letter-spacing:.04em;font-size:18px;font-weight:700;}
+  header nav{display:flex;align-items:center;gap:30px;}
+  header nav a.link{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-decoration:none;}
+  .btn{display:inline-block;font-family:var(--font-body);font-weight:700;font-size:13px;letter-spacing:.03em;padding:12px 22px;border-radius:4px;text-decoration:none;text-transform:uppercase;}
+  .btn-primary{background:var(--amber);color:#1c1206;}
+  .btn-ghost{border:1px solid var(--graphite);color:var(--graphite);}
+
+  /* ---------- hero ---------- */
+  .hero{padding:88px 0 64px;text-align:center;}
+  .kicker{font-size:12px;letter-spacing:.26em;text-transform:uppercase;color:var(--bronze-dark);margin-bottom:22px;font-weight:700;}
+  .hero h1{font-family:var(--font-display);font-size:52px;line-height:1.08;margin:0 auto 22px;letter-spacing:-.01em;max-width:820px;}
+  .hero .sub{font-size:17px;line-height:1.6;color:var(--graphite-soft);max-width:600px;margin:0 auto 34px;}
+  .hero .sub b{color:var(--graphite);}
+  .hero-cta{display:flex;gap:14px;justify-content:center;align-items:center;flex-wrap:wrap;}
+  .hero-note{font-size:12px;color:var(--muted);margin-top:14px;}
+  .hero-wheel{margin:56px auto 0;}
+  .hero-wheel svg{margin:0 auto;}
+
+  /* ---------- disclosure ribbon ---------- */
+  .ribbon{background:var(--graphite);color:var(--paper);padding:11px 0;text-align:center;font-size:12.5px;letter-spacing:.02em;}
+  .ribbon b{color:var(--paper);}
+  .ribbon span{color:#b9b2a2;}
+
+  section{padding:88px 0;}
+  section.tight{padding:64px 0;}
+  .section-head{max-width:680px;margin:0 auto 44px;text-align:center;}
+  .section-head .eyebrow{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--bronze-dark);font-weight:700;margin-bottom:14px;}
+  .section-head h2{font-family:var(--font-display);font-size:32px;line-height:1.2;margin:0 0 14px;}
+  .section-head p{color:var(--graphite-soft);font-size:15.5px;line-height:1.6;margin:0;}
+
+  /* ---------- stat row ---------- */
+  .stat-row{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;}
+  .stat-card{background:#fff;border:1px solid var(--line);border-radius:8px;padding:26px 22px;}
+  .stat-card .num{font-family:var(--font-display);font-size:30px;color:var(--bronze-dark);margin-bottom:6px;}
+  .stat-card .lbl{font-size:13px;color:var(--muted);line-height:1.5;}
+
+  /* ---------- cycle ---------- */
+  .cycle{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+  .stage{background:var(--paper);padding:28px 26px;}
+  .stage .step{font-family:var(--font-display);font-size:12px;letter-spacing:.14em;color:var(--bronze-dark);margin-bottom:10px;}
+  .stage h4{font-family:var(--font-display);font-size:16px;margin:0 0 8px;}
+  .stage p{font-size:14px;color:var(--graphite-soft);line-height:1.55;margin:0;}
+  .stage.handoff{background:var(--graphite);}
+  .stage.handoff .step{color:var(--bronze);}
+  .stage.handoff h4{color:var(--paper);}
+  .stage.handoff p{color:#b9b2a2;}
+
+  /* ---------- compare ---------- */
+  .compare{display:grid;grid-template-columns:1fr 1fr;gap:24px;}
+  .compare .col{border-radius:8px;padding:30px 28px;}
+  .compare .col.bad{background:#EEE8DC;border:1px solid var(--line);}
+  .compare .col.good{background:var(--graphite);color:var(--paper);}
+  .compare h3{font-family:var(--font-display);font-size:15px;letter-spacing:.04em;text-transform:uppercase;margin:0 0 18px;}
+  .compare .col.bad h3{color:var(--graphite-soft);}
+  .compare .col.good h3{color:var(--bronze);}
+  .compare ul{margin:0;padding:0;list-style:none;}
+  .compare li{font-size:14.5px;line-height:1.6;padding:10px 0;border-top:1px solid rgba(0,0,0,.06);}
+  .compare .col.good li{border-top:1px solid rgba(245,241,234,.12);color:#e7e2d5;}
+  .compare li:first-child{border-top:none;}
+
+  /* ---------- safety ---------- */
+  .features{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:8px;overflow:hidden;}
+  .feature{background:var(--paper);padding:28px 26px;}
+  .feature .mark{color:var(--bronze-dark);font-family:var(--font-display);font-size:13px;margin-bottom:10px;}
+  .feature h4{font-family:var(--font-display);font-size:16px;margin:0 0 8px;}
+  .feature p{font-size:14px;color:var(--graphite-soft);line-height:1.55;margin:0;}
+
+  /* ---------- vertical doors ---------- */
+  .doors{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+  .door{background:#fff;border:1px solid var(--line);border-radius:8px;padding:28px 26px;text-decoration:none;color:inherit;display:block;transition:box-shadow .18s ease,transform .18s ease;}
+  .door.live:hover{box-shadow:0 18px 40px rgba(21,21,21,.08);transform:translateY(-2px);}
+  .door .tag{font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;margin-bottom:12px;}
+  .door.live .tag{color:var(--bronze-dark);}
+  .door.soon{opacity:.62;}
+  .door.soon .tag{color:var(--muted);}
+  .door h4{font-family:var(--font-display);font-size:17px;margin:0 0 8px;}
+  .door p{font-size:14px;color:var(--graphite-soft);line-height:1.55;margin:0 0 14px;}
+  .door .go{font-size:13px;font-weight:700;color:var(--bronze-dark);letter-spacing:.03em;}
+
+  /* ---------- pricing ---------- */
+  .price-card{max-width:440px;margin:0 auto;background:#fff;border:1px solid var(--line);border-radius:10px;padding:44px 40px;text-align:center;box-shadow:0 30px 60px rgba(21,21,21,.06);}
+  .price-card .tier{font-family:var(--font-display);font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--bronze-dark);margin-bottom:14px;}
+  .price-card .amount{font-family:var(--font-display);font-size:52px;color:var(--graphite);}
+  .price-card .amount span{font-size:16px;color:var(--muted);font-family:var(--font-body);}
+  .price-card .desc{font-size:14px;color:var(--graphite-soft);margin:14px 0 28px;}
+  .price-card ul{text-align:left;list-style:none;padding:0;margin:0 0 30px;}
+  .price-card li{font-size:14px;padding:9px 0;border-top:1px solid var(--line);color:var(--graphite-soft);}
+  .price-card li:first-child{border-top:none;}
+  .price-card li b{color:var(--graphite);}
+
+  /* ---------- faq ---------- */
+  .faq{max-width:760px;margin:0 auto;}
+  .faq-item{border-top:1px solid var(--line);padding:26px 0;}
+  .faq-item:last-child{border-bottom:1px solid var(--line);}
+  .faq-item h4{font-family:var(--font-display);font-size:16px;margin:0 0 10px;}
+  .faq-item p{font-size:14.5px;color:var(--graphite-soft);line-height:1.6;margin:0;}
+
+  /* ---------- footer cta ---------- */
+  .final-cta{background:var(--graphite);color:var(--paper);text-align:center;padding:90px 0;}
+  .final-cta h2{font-family:var(--font-display);font-size:34px;margin:0 0 16px;}
+  .final-cta p{color:#b9b2a2;font-size:15px;margin:0 0 30px;}
+
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:36px 0;letter-spacing:.03em;background:var(--paper-2);}
+  footer a{color:var(--muted);}
+
+  @keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
+  .spin-med{animation:spin 7s linear infinite;transform-origin:100px 100px;}
+  @media(prefers-reduced-motion:reduce){.spin-med{animation:none;}}
+
+  @media(max-width:860px){
+    .stat-row{grid-template-columns:repeat(2,1fr);}
+    .compare{grid-template-columns:1fr;}
+    .features{grid-template-columns:1fr;}
+    .cycle{grid-template-columns:1fr;}
+    .doors{grid-template-columns:1fr;}
+    .hero h1{font-size:36px;}
+    .section-head h2{font-size:26px;}
+    header nav{gap:16px;}
+    header nav a.link{display:none;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="nav-inner">
+    <div class="brand-lockup">
+      <svg width="26" height="26" viewBox="0 0 200 200" aria-hidden="true">
+        <circle cx="100" cy="100" r="80" fill="none" stroke="#B87333" stroke-width="13"/>
+        <circle cx="100" cy="100" r="14" fill="#B87333"/>
+        <g stroke="#B87333" stroke-width="11" stroke-linecap="round">
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(8 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(80 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(152 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(224 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(296 100 100)"/>
+        </g>
+      </svg>
+      <span>FLYWHEEL</span>
+    </div>
+    <nav>
+      <a class="link" href="#how">How it works</a>
+      <a class="link" href="#industries">Industries</a>
+      <a class="link" href="#pricing">Pricing</a>
+      <a class="btn btn-primary" href="#pricing">Start free trial</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero wrap">
+  <div class="kicker">Lead to booked job — automatically</div>
+  <h1>Capture is the easy half.</h1>
+  <p class="sub">Most tools take a name and a number and hand you a message to return. <b>Flywheel carries the inquiry the rest of the way</b> — qualifying, answering the price question, following up with people who go quiet, and booking the job on your calendar. Works on any business, with no setup built for your company specifically.</p>
+  <div class="hero-cta">
+    <a class="btn btn-primary" href="#pricing">Start 7-day free trial</a>
+    <a class="btn btn-ghost" href="#how">See how it works</a>
+  </div>
+  <div class="hero-note">Live in about 20 minutes · No setup call · No configuration consultant</div>
+  <div class="hero-wheel">
+    <svg width="170" height="170" viewBox="0 0 200 200" aria-hidden="true">
+      <g class="spin-med">
+        <circle cx="100" cy="100" r="80" fill="none" stroke="#B87333" stroke-width="9" opacity=".85"/>
+        <circle cx="100" cy="100" r="12" fill="#B87333"/>
+        <g stroke="#B87333" stroke-width="8" stroke-linecap="round" opacity=".9">
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(8 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(80 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(152 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(224 100 100)"/>
+          <line x1="100" y1="100" x2="100" y2="30" transform="rotate(296 100 100)"/>
+        </g>
+      </g>
+    </svg>
+  </div>
+</section>
+
+<div class="ribbon">
+  <div class="wrap"><b>Every conversation says it is an AI.</b> <span>Disclosure is on by default, not an option you have to find.</span></div>
+</div>
+
+<section class="wrap" id="problem">
+  <div class="section-head">
+    <div class="eyebrow">The problem</div>
+    <h2>The lead already cost you money. Then it waited.</h2>
+    <p>You paid to make the phone ring. What happens in the next five minutes decides whether that spend turns into work — and for most businesses, nothing happens for two days.</p>
+  </div>
+  <div class="stat-row">
+    <div class="stat-card">
+      <div class="num">47 hrs</div>
+      <div class="lbl">Average time businesses take to respond to an inbound lead</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">100×</div>
+      <div class="lbl">Higher odds of reaching a lead answering in 5 minutes instead of 30</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">78%</div>
+      <div class="lbl">Of customers buy from whoever responds to them first</div>
+    </div>
+    <div class="stat-card">
+      <div class="num">85%</div>
+      <div class="lbl">Of people who reach voicemail never call back</div>
+    </div>
+  </div>
+</section>
+
+<section class="wrap tight" id="how">
+  <div class="section-head">
+    <div class="eyebrow">How it works</div>
+    <h2>It runs the whole conversation, not the first message.</h2>
+    <p>The same engine handles every stage. Nothing here is written for one industry — it adapts from what you tell it about your business.</p>
+  </div>
+  <div class="cycle">
+    <div class="stage">
+      <div class="step">01</div>
+      <h4>Answers immediately</h4>
+      <p>Every inquiry gets a reply in seconds, at 2am and on Sunday, on your website or by text.</p>
+    </div>
+    <div class="stage">
+      <div class="step">02</div>
+      <h4>Qualifies</h4>
+      <p>Asks the questions you defined, in plain conversation. Understands what people actually write, not just the words you configured.</p>
+    </div>
+    <div class="stage">
+      <div class="step">03</div>
+      <h4>Handles the hesitation</h4>
+      <p>"How much is this?" and "I'm not sure I need this" get answered with facts from your own configuration — never an invented discount or promise.</p>
+    </div>
+    <div class="stage">
+      <div class="step">04</div>
+      <h4>Follows up</h4>
+      <p>People go quiet. It comes back on your schedule, up to a set number of times, only where the customer agreed to be texted.</p>
+    </div>
+    <div class="stage">
+      <div class="step">05</div>
+      <h4>Books it</h4>
+      <p>Offers real times from your calendar and confirms the appointment, or puts your quote in front of the customer for approval.</p>
+    </div>
+    <div class="stage handoff">
+      <div class="step">HAND-OFF</div>
+      <h4>You get a prepared job</h4>
+      <p>Not a voicemail to return. Emergencies, hostility, and anything asking for advice or a decision go straight to a person instead.</p>
+    </div>
+  </div>
+</section>
+
+<section class="wrap" id="different">
+  <div class="section-head">
+    <div class="eyebrow">Why it's different</div>
+    <h2>Most tools stop where the work starts.</h2>
+  </div>
+  <div class="compare">
+    <div class="col bad">
+      <h3>An intake tool or chatbot</h3>
+      <ul>
+        <li>Collects a name and a number</li>
+        <li>Drops it in your inbox</li>
+        <li>Qualifying is still your job</li>
+        <li>Nobody chases the ones who go quiet</li>
+        <li>Scheduling happens the next business day</li>
+        <li>Someone configures it for your company, per company</li>
+      </ul>
+    </div>
+    <div class="col good">
+      <h3>Flywheel</h3>
+      <ul>
+        <li>Answers in seconds, around the clock</li>
+        <li>Asks your qualifying questions in conversation</li>
+        <li>Answers price and fit objections from your own facts</li>
+        <li>Follows up with people who stopped replying</li>
+        <li>Books the appointment or gets the quote approved</li>
+        <li>Adapts from your industry and description — no per-company build</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="wrap tight" id="safe">
+  <div class="section-head">
+    <div class="eyebrow">Why it's safe to put in front of customers</div>
+    <h2>The AI never decides what to say.</h2>
+    <p>This is the part that lets a regulated business use it at all — and the reason an AI talking to your customers is not a risk you are quietly carrying.</p>
+  </div>
+  <div class="features">
+    <div class="feature">
+      <div class="mark">01</div>
+      <h4>It rewords, it doesn't invent</h4>
+      <p>Every outgoing message is a rewrite of content already in your configuration. There is no path for the AI to produce a price, a promise, or an opinion you did not put there.</p>
+    </div>
+    <div class="feature">
+      <div class="mark">02</div>
+      <h4>It cannot offer what you didn't authorize</h4>
+      <p>No invented discounts, no guaranteed outcomes, no commitments on your behalf. This is enforced where messages are assembled, not asked for in a prompt.</p>
+    </div>
+    <div class="feature">
+      <div class="mark">03</div>
+      <h4>It says it's an AI, every time</h4>
+      <p>Persistent disclosure in every conversation — the kind California SB 243 and New York Article 47 already require, and the EU AI Act asks for under Article 50.</p>
+    </div>
+    <div class="feature">
+      <div class="mark">04</div>
+      <h4>It hands over instead of guessing</h4>
+      <p>Emergencies, hostile messages, and any request for advice or a judgement call go to a person. Being unsure is a reason to escalate, not to improvise.</p>
+    </div>
+  </div>
+</section>
+
+<section class="wrap" id="industries">
+  <div class="section-head">
+    <div class="eyebrow">Built for any business with a sales cycle</div>
+    <h2>Same engine. Your industry's words.</h2>
+    <p>There is no industry-specific version — the engine has no branching by trade anywhere in it. What changes is what you tell it about your business, and it takes that from a sentence you write at signup.</p>
+  </div>
+  <div class="doors">
+    <a class="door live" href="/legal">
+      <div class="tag">Available now</div>
+      <h4>Law practices</h4>
+      <p>Solo and small firms in California and New York — family law, general practice, personal injury. Built with disclosure and scope limits the bar rules expect.</p>
+      <div class="go">See the legal version →</div>
+    </a>
+    <div class="door soon">
+      <div class="tag">Next</div>
+      <h4>Financial &amp; insurance advisors</h4>
+      <p>Long consideration cycles, high replacement cost, heavy compliance. The same qualifying and follow-up, tuned to a longer conversation.</p>
+      <div class="go">Coming soon</div>
+    </div>
+    <div class="door soon">
+      <div class="tag">On the roadmap</div>
+      <h4>Home &amp; field services</h4>
+      <p>Roofing, plumbing, HVAC, cleaning. High inbound volume, urgent jobs, service-area screening already built in.</p>
+      <div class="go">Coming soon</div>
+    </div>
+  </div>
+</section>
+
+<section class="wrap tight" id="pricing">
+  <div class="section-head">
+    <div class="eyebrow">Pricing</div>
+    <h2>One plan. Nothing to negotiate.</h2>
+    <p>Card at signup, seven days free, cancel from your dashboard.</p>
+  </div>
+  <div class="price-card">
+    <div class="tier">Starter</div>
+    <div class="amount">$199<span> /month</span></div>
+    <div class="desc">For a single-operator business — one person answering, one service area.</div>
+    <ul>
+      <li><b>Unlimited conversations</b> on your website and by text</li>
+      <li><b>The full cycle</b> — qualifying, objections, follow-up, booking</li>
+      <li><b>Zero setup</b> — no configuration call, no consultant</li>
+      <li><b>AI disclosure</b> on by default in every conversation</li>
+      <li><b>Human hand-off</b> with the details already collected</li>
+      <li><b>7-day free trial</b>, no charge until it ends</li>
+    </ul>
+    <a class="btn btn-primary" href="#" style="display:block;">Start free trial</a>
+  </div>
+</section>
+
+<section class="wrap tight" id="faq">
+  <div class="section-head">
+    <div class="eyebrow">Straight answers</div>
+    <h2>What people ask before they start</h2>
+  </div>
+  <div class="faq">
+    <div class="faq-item">
+      <h4>Does this bring me new customers?</h4>
+      <p>No. Flywheel works the inquiries you already get — from your website, your ads, your referrals. Finding new leads is a different problem and we don't claim to solve it.</p>
+    </div>
+    <div class="faq-item">
+      <h4>Does it take payment from my customer?</h4>
+      <p>No. It gets to a confirmed booking or an approved quote and hands you a prepared job. Collecting the money stays with you, through whatever you already use.</p>
+    </div>
+    <div class="faq-item">
+      <h4>What does "no setup" actually mean?</h4>
+      <p>At signup you name your industry, describe what you do in a sentence, and list your services. That is the configuration. Nobody builds a version for your company, and there are no keyword lists to maintain — it understands what customers write in their own words.</p>
+    </div>
+    <div class="faq-item">
+      <h4>What if it doesn't understand someone?</h4>
+      <p>It asks again, in plain language, rather than guessing or dumping the person on you. After a few attempts it hands the conversation to a person.</p>
+    </div>
+    <div class="faq-item">
+      <h4>Can it say something that gets me in trouble?</h4>
+      <p>It can only reword content that already exists in your configuration. It has no mechanism to generate a price, a promise, or an opinion you did not write. Requests for advice or a judgement call are escalated to you, not answered.</p>
+    </div>
+    <div class="faq-item">
+      <h4>My business is nothing like a law firm. Will it work?</h4>
+      <p>The engine contains no industry-specific logic — not one branch, anywhere. It reads your own description of what you do. Law practices are simply the first industry we opened to customers, not what the product is built around.</p>
+    </div>
+    <div class="faq-item">
+      <h4>Where does it work?</h4>
+      <p>The United States today. Other English-speaking markets follow once address handling is ready for them — we would rather say that plainly than sell you something that mishandles your postcodes.</p>
+    </div>
+  </div>
+</section>
+
+<div class="final-cta">
+  <div class="wrap">
+    <h2>Stop returning voicemails.</h2>
+    <p>Seven days free. About twenty minutes to go live. No call with anyone required.</p>
+    <a class="btn btn-primary" href="#pricing">Start your free trial</a>
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    FLYWHEEL · The first wheel started motion. This one starts an era. · <a href="/legal">For law practices</a>
+  </div>
+</footer>
+
+</body>
+</html>
