@@ -79,7 +79,7 @@ const INDUSTRY_SUGGESTIONS = [
  * directly, so these are the actual, live escalation switches. The previous
  * three-checkbox version of this step was never sent to the backend at all. */
 const ESCALATION_OPTIONS: [keyof EscalationState, string, string][] = [
-  ["highUrgency", "Customer describes it as high urgency", "Hands off to you instead of letting the engine keep qualifying on its own."],
+  ["highUrgency", "Stop and hand off the moment high urgency is detected", "Off by default: the engine finishes qualifying, then hands you the lead with the urgency flagged. Turn on only if you want the cycle stopped immediately."],
   ["emergency", "Customer describes it as an emergency", "Always hands off immediately — no automated next step at all."],
 ];
 
@@ -101,7 +101,14 @@ export default function Onboarding() {
   const [areaMode, setAreaMode] = useState<"remote" | "local" | null>(null);
   const [zips, setZips] = useState("");
   const [questions, setQuestions] = useState<Record<string, string[]>>({});
-  const [escalation, setEscalation] = useState<EscalationState>({ highUrgency: true, emergency: true });
+  // highUrgency defaults OFF to match the backend (2026-08-24, variant C in
+  // claude/unit-economics-and-urgency-default.md). The backend defaults were
+  // changed to false, but this wizard still sent true, so every real signup
+  // kept the old immediate-stop behaviour and the default change never
+  // reached a single business. High urgency now completes qualification and
+  // then hands off with full context; checking this box opts back into
+  // stopping the cycle the moment urgency is detected.
+  const [escalation, setEscalation] = useState<EscalationState>({ highUrgency: false, emergency: true });
   const [launched, setLaunched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -406,7 +413,7 @@ export default function Onboarding() {
                       <div className="flex justify-between">
                         <span className="text-[#6B6459]">Escalates to you on</span>
                         <span className="font-medium text-right">
-                          {[escalation.highUrgency && "High urgency", escalation.emergency && "Emergency"].filter(Boolean).join(", ") || "Nothing — never escalates automatically"}
+                          {[escalation.highUrgency && "High urgency (immediately)", escalation.emergency && "Emergency"].filter(Boolean).join(", ") || "Emergencies only"}
                         </span>
                       </div>
                     </div>

@@ -10,6 +10,13 @@ class IntentExtractor(Protocol):
     def extract(self, message: IncomingMessage, business_dna: Mapping[str, object]) -> IntentResult: ...
 
 
+# One word of a person's name: letters, apostrophes and hyphens, but never a
+# word that plainly begins the next clause. Without this guard "My name is Ada
+# and my phone is ..." captures "Ada and my phone is".
+_NAME_STOP = r"(?!(?:and|my|phone|number|email|call|text|but|so|please)\b)"
+_NAME_TOKEN = _NAME_STOP + r"[A-Za-z][A-Za-z'-]*"
+
+
 class DeterministicIntentExtractor:
     """Scriptable extractor for tests and local demos; never calls an external model."""
 
@@ -71,12 +78,25 @@ class DeterministicIntentExtractor:
             raw_text,
             re.IGNORECASE,
         ))
+        # The old pattern anchored on $, so the name had to be the last thing
+        # in the message: "My name is Ada" worked, "My name is Ada and my
+        # phone is 555-0188" returned nothing at all. That is a normal way to
+        # write a reply, and dropping the name there is not harmless -- the
+        # identity check in PersistentLeadIntakeService needs a name to
+        # recognise a returning customer, so a nameless lead whose phone
+        # already belongs to someone gets escalated as a contact conflict.
+        # Now the name is read as up to four words and stops at a separator
+        # or at a word that starts the next clause.
         explicit_name = re.search(
-            r"\bmy\s+name\s+is\s+([A-Za-z][A-Za-z .'-]{0,80})$",
+            r"\bmy\s+name\s+is\s+("
+            + _NAME_TOKEN + r"(?:\s+" + _NAME_TOKEN + r"){0,3}"
+            + r")",
             raw_text,
             re.IGNORECASE,
         )
-        customer_name: str | None = explicit_name.group(1).strip() if explicit_name else None
+        customer_name: str | None = (
+            explicit_name.group(1).strip(" .,;:!?") if explicit_name else None
+        )
         if (
             customer_name is None
             and not suspicious_instruction
