@@ -316,11 +316,25 @@ class PersistentLeadIntakeService:
 
     @staticmethod
     def _same_person(existing: Lead, proposed: Lead) -> bool:
-        return bool(
-            existing.name
-            and proposed.name
-            and existing.name.strip().casefold() == proposed.name.strip().casefold()
-        )
+        """Phone/email already matched by the time this is called -- see
+        _identity_owner, which only looks this up by phone/email in the
+        first place. The only remaining question is whether a supplied name
+        actively contradicts that match.
+
+        Live defect (2026-08-24): requiring BOTH names to be present made
+        this fragile in exactly the case it exists to handle -- a returning
+        customer's phone matching an already-known lead, but THIS turn (or
+        this case, ever) not restating a name. A missing name on either
+        side is "nothing to conflict with", not evidence of a different
+        person: a task's case that has never had a name of its own yet, or
+        a turn that answers with only a phone number, must not be pushed
+        into the identity-conflict/human-review path just because it didn't
+        happen to repeat a name that was never in question. Only an actual
+        name MISMATCH is a real conflict.
+        """
+        if not existing.name or not proposed.name:
+            return True
+        return existing.name.strip().casefold() == proposed.name.strip().casefold()
 
     @staticmethod
     def _active_case_for_task(
