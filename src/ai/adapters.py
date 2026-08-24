@@ -279,17 +279,32 @@ class AIIntentExtractor:
                 )
             )
             unintelligible = output.unintelligible and not evidenced_handoff
+            # Evaluate the configured-trigger check once and log THAT value.
+            # It used to be logged as `final_requires_human and not
+            # output.requires_human`, which is structurally unable to be true
+            # whenever the model also raised its own flag -- so the field read
+            # "false" in exactly the case where the business's stored trigger
+            # was the sole cause of the escalation. That misreading cost a
+            # wrong diagnosis on 2026-08-24; see
+            # claude/unit-economics-and-urgency-default.md section 3.
+            trigger_matched = self._configured_trigger_matches(
+                calibrated_urgency, business_dna
+            )
             final_requires_human = (
                 calibrated_requires_human and evidenced_handoff
-            ) or self._configured_trigger_matches(calibrated_urgency, business_dna)
+            ) or trigger_matched
             _log_event(
                 logging.INFO,
                 "intent_extracted_diagnostic",
                 service_requested=service_requested,
                 confidence=output.confidence,
                 ai_requires_human=output.requires_human,
-                requires_human_calibrated=output.requires_human and not calibrated_requires_human,
-                trigger_matched=final_requires_human and not output.requires_human,
+                # True means the provider's flag WAS suppressed. Renamed from
+                # `requires_human_calibrated`, which reads like "the calibrated
+                # verdict" and was taken for one.
+                requires_human_suppressed=output.requires_human and not calibrated_requires_human,
+                trigger_matched=trigger_matched,
+                requires_human_final=final_requires_human,
                 urgency=calibrated_urgency.value,
                 urgency_calibrated=calibrated_urgency is not output.urgency,
                 prompt_version=prompt.version,

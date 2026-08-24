@@ -15,6 +15,18 @@ class Settings:
     openai_model: str | None = None
     anthropic_api_key: str | None = field(default=None, repr=False)
     anthropic_model: str | None = None
+    # Optional per-role model override, for intent extraction only. Intent
+    # extraction is classification into an already-constrained schema that the
+    # code then verifies deterministically: the service must exist in the
+    # catalog, the evidence quote must appear verbatim in the customer's
+    # message, and a quote naming a different service is rejected. So a
+    # cheaper model here is checked by the guardrails rather than trusted.
+    # Response generation stays on the main model -- that text is what the
+    # customer reads. Unset means "use the same model for both", which makes
+    # this inert until deliberately configured. See
+    # claude/unit-economics-and-urgency-default.md.
+    openai_intent_model: str | None = None
+    anthropic_intent_model: str | None = None
     ai_timeout_seconds: float = 20.0
     ai_max_retries: int = 2
     cors_allowed_origins: tuple[str, ...] = ()
@@ -178,6 +190,8 @@ class Settings:
                 openai_model=os.getenv("OPENAI_MODEL"),
                 anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
                 anthropic_model=os.getenv("ANTHROPIC_MODEL"),
+                openai_intent_model=os.getenv("OPENAI_INTENT_MODEL"),
+                anthropic_intent_model=os.getenv("ANTHROPIC_INTENT_MODEL"),
                 ai_timeout_seconds=ai_timeout_seconds,
                 ai_max_retries=ai_max_retries,
                 max_request_body_bytes=max_request_body_bytes,

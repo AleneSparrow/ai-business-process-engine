@@ -44,12 +44,18 @@ class AIRuntimeComponents:
     universal_reassurance_response_generator: UniversalReassuranceResponseGenerator
     provider_name: str
     model_name: str
+    # The model actually used for intent extraction. Equal to `model_name`
+    # unless a per-role override is configured -- see Settings.
+    # {openai,anthropic}_intent_model and
+    # claude/unit-economics-and-urgency-default.md.
+    intent_model_name: str
 
 
 
 def _with_deterministic_fallback(
     provider_name: str,
     model_name: str,
+    intent_model_name: str,
     intent_extractor: IntentExtractor,
     question_generator: QuestionGenerator,
     customer_response_generator: CustomerResponseGenerator,
@@ -80,6 +86,7 @@ def _with_deterministic_fallback(
         ),
         provider_name,
         model_name,
+        intent_model_name,
     )
 
 
@@ -93,6 +100,7 @@ def build_ai_runtime(settings: Settings) -> AIRuntimeComponents:
             DeterministicUniversalReassuranceResponseGenerator(),
             "deterministic",
             "deterministic-v1",
+            "deterministic-v1",
         )
     if settings.ai_provider == "anthropic":
         if settings.anthropic_api_key is None or settings.anthropic_model is None:
@@ -105,10 +113,28 @@ def build_ai_runtime(settings: Settings) -> AIRuntimeComponents:
             ),
             max_retries=settings.ai_max_retries,
         )
+        # Intent extraction may run on a cheaper model than response
+        # generation. Unset means "the same model", and then the SAME provider
+        # instance is reused -- so with no override configured this branch is
+        # byte-for-byte the behaviour it had before the override existed.
+        intent_model = settings.anthropic_intent_model or settings.anthropic_model
+        intent_provider = (
+            provider
+            if intent_model == settings.anthropic_model
+            else RetryingAIProvider(
+                AnthropicProvider(
+                    api_key=settings.anthropic_api_key,
+                    model=intent_model,
+                    timeout_seconds=settings.ai_timeout_seconds,
+                ),
+                max_retries=settings.ai_max_retries,
+            )
+        )
         return _with_deterministic_fallback(
             "anthropic",
             settings.anthropic_model,
-            AIIntentExtractor(provider),
+            intent_model,
+            AIIntentExtractor(intent_provider),
             AIQuestionGenerator(provider),
             AICustomerResponseGenerator(provider),
             AIReassuranceResponseGenerator(provider),
@@ -126,10 +152,24 @@ def build_ai_runtime(settings: Settings) -> AIRuntimeComponents:
         ),
         max_retries=settings.ai_max_retries,
     )
+    intent_model = settings.openai_intent_model or settings.openai_model
+    intent_provider = (
+        provider
+        if intent_model == settings.openai_model
+        else RetryingAIProvider(
+            OpenAIProvider(
+                api_key=settings.openai_api_key,
+                model=intent_model,
+                timeout_seconds=settings.ai_timeout_seconds,
+            ),
+            max_retries=settings.ai_max_retries,
+        )
+    )
     return _with_deterministic_fallback(
         "openai",
         settings.openai_model,
-        AIIntentExtractor(provider),
+        intent_model,
+        AIIntentExtractor(intent_provider),
         AIQuestionGenerator(provider),
         AICustomerResponseGenerator(provider),
         AIReassuranceResponseGenerator(provider),
