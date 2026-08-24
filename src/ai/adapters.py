@@ -638,7 +638,23 @@ class AIIntentExtractor:
         )
         if confidence < max(0.9, configured_threshold) or service_requested is None:
             return True
-        if urgency in {Urgency.HIGH, Urgency.EMERGENCY}:
+        # EMERGENCY only. HIGH used to preserve the flag here too, which
+        # quietly defeated the 2026-08-24 urgency split (variant C in
+        # claude/unit-economics-and-urgency-default.md): the default trigger
+        # was turned off and QualificationService gained a post-qualification
+        # hand-off for HIGH, but production still escalated on message one,
+        # because the model's requires_human reaches the qualification check
+        # before that branch is ever considered. Live proof on
+        # riverside-home-repairs: urgency=high, trigger_matched=false,
+        # reason=requires_human.
+        #
+        # Suppressing it here does not lose the urgency -- the deterministic
+        # branch still hands a HIGH lead to a person, just once the contact
+        # details are collected. Safety, hostility and advice cues return True
+        # at the top of this method and are untouched, and a business that
+        # opts back in via escalate_on_high_urgency still stops immediately
+        # through the trigger check.
+        if urgency is Urgency.EMERGENCY:
             return True
         return False
 
