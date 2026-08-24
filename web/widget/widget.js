@@ -522,7 +522,11 @@
     .then(function (value) {
       config = value;
       title.textContent = value.chat_title;
-      peek.textContent = `Ask ${value.chat_title}`;
+      // chat_title is already a full phrase ("Chat with Acme Law"), so
+      // prefixing it produced "Ask Chat with Acme Law" on production.
+      // Use it verbatim -- it reads correctly whether the owner configured
+      // a phrase or a bare business name.
+      peek.textContent = value.chat_title;
       peek.hidden = false;
       launcher.hidden = !value.enabled;
       if (value.ai_disclosure_text) {
