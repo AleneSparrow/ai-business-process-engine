@@ -961,6 +961,13 @@ def test_unsupported_service_and_prompt_injection_remain_deterministic_lost() ->
     assert result.current_state is ProcessState.LOST
     assert not result.qualification.booking_allowed
     assert result.response is not None and "discount" not in result.response.message_text.casefold()
+    # The customer's own phrase must not ride along inside service_requested,
+    # and must not appear in the reason -- the reason is logged (see
+    # QualificationService._result), the phrase is customer-written text.
+    assert result.qualification.service_id is None
+    assert result.qualification.reasons == ("Requested service is not offered",)
+    for reason in result.qualification.reasons:
+        assert "roof replacement" not in reason.casefold()
 
 
 def test_outside_service_area_remains_deterministic_lost() -> None:

@@ -12,6 +12,10 @@ inactive defaults until an owner deliberately turns them on later.
 
 import re
 from dataclasses import dataclass
+from src.domain.us_postal_timezones import (
+    DEFAULT_TIMEZONE,
+    timezone_for_service_area,
+)
 
 _SLUG_PATTERN = re.compile(r"[^a-z0-9]+")
 
@@ -21,17 +25,22 @@ _TONE_COPY = {
     "Casual & brief": "casual, brief, and plainspoken",
 }
 _DEFAULT_TONE_COPY = "friendly, concise, and professional"
-# The onboarding wizard has no timezone question, so every business used to
-# get "UTC" here regardless of where they actually are -- for a 100%
-# US-market product that meant every fresh business quoted appointment times
-# in UTC to its customers until the owner separately visited Settings and
-# explicitly re-picked their zone (Settings' timezone <select> only offers
-# real US zones, so an unmodified "UTC" value also didn't match any option
-# there and silently rendered as whichever zone happened to be first in the
-# list -- see Settings.tsx). Eastern is not correct for every business, but
-# it is a real, DST-aware US zone and a safer single default than UTC; the
-# owner can still change it any time in Settings.
-_DEFAULT_TIMEZONE = "America/New_York"
+# Time zone history, in two steps.
+#
+# Step one (2026-08-19): the wizard has no timezone question, so every business
+# got "UTC" -- which for a US product meant every fresh business quoted
+# appointment times in UTC until its owner found Settings. Worse, "UTC" matched
+# no <option> there and silently rendered as whichever zone was first in the
+# list. Eastern replaced it: a real, DST-aware zone and a safer single default.
+#
+# Step two (2026-08-25): Eastern is still wrong for most of the country, and
+# the zone is printed to the customer in every slot offer and booking
+# confirmation. But the wizard already asks which ZIP codes the business
+# serves, so the zone can be derived from an answer the owner has already
+# given -- no new question, no per-business setup. See
+# src/domain/us_postal_timezones.py; Eastern remains the fallback for a remote
+# business or a ZIP that cannot be placed.
+_DEFAULT_TIMEZONE = DEFAULT_TIMEZONE
 
 _SERVICE_AREA_ID = "primary"
 _WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday")
@@ -142,6 +151,10 @@ def _build_services(services: tuple[OnboardingService, ...]) -> list[dict]:
 
 def build_business_dna(onboarding: OnboardingInput) -> dict:
     tone_copy = _TONE_COPY.get(onboarding.tone, _DEFAULT_TONE_COPY)
+    # Derived from the ZIP codes the owner already typed, not asked for
+    # separately -- see _DEFAULT_TIMEZONE above for why this is not left at a
+    # single national constant.
+    timezone = timezone_for_service_area(onboarding.service_zip_codes)
     qualification_rules = (
         [{"field": "service_area_id", "operator": "in", "value": [_SERVICE_AREA_ID], "outcome": "qualified"}]
         if onboarding.enforce_service_area
@@ -179,7 +192,7 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
             "name": onboarding.business_name,
             "industry": onboarding.industry,
             "description": onboarding.description.strip(),
-            "timezone": _DEFAULT_TIMEZONE,
+            "timezone": timezone,
             "currency": "USD",
         },
         "services": _build_services(onboarding.services),
@@ -246,7 +259,7 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
         },
         "booking": {
             "enabled": False,
-            "timezone": _DEFAULT_TIMEZONE,
+            "timezone": timezone,
             "minimum_notice_minutes": 120,
             "maximum_advance_days": 60,
             "slot_interval_minutes": 30,

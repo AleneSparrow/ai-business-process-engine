@@ -35,13 +35,20 @@ from .prompts import (
 )
 from .provider import StructuredAIProvider
 
-# TEMPORARY diagnostic logging (2026-08-17): the qualification threshold
+# Kept deliberately, not temporary (relabelled 2026-08-25 -- see the note at
+# the end of this comment). The qualification threshold
 # check (`intent.requires_human or intent.confidence < threshold`) has no
 # visibility today when it fires on the AI's own judgment rather than on a
 # caught AIInvalidOutputError -- both look identical from the outside
 # (resulting_state=NEEDS_HUMAN with no error). All fields below are safe to
 # log: confidence/requires_human/urgency are model-internal signals, and
 # service_requested is a catalog ID, never customer-submitted free text.
+#
+# That last sentence was FALSE from 2026-08-17 until 2026-08-25: when the
+# model marked a service unsupported, service_requested carried the
+# customer's verbatim phrase. It is true now -- IntentResult splits the two
+# (see unsupported_service_name) -- but it is worth remembering that this
+# comment asserted it confidently for eight days while it was wrong.
 #
 # NOTE: deliberately not importing `src.api.observability.log_event` here --
 # src/api/app.py imports src.ai.runtime, which imports this module, so
@@ -207,7 +214,7 @@ class AIIntentExtractor:
                 if message.conversation_context is not None
                 else {}
             )
-            service_requested = self._resolve_service(
+            service_requested, unsupported_service_name = self._resolve_service(
                 output,
                 services_context,
                 message.raw_text,
@@ -239,7 +246,9 @@ class AIIntentExtractor:
                     raise AIInvalidOutputError("AI returned an unauthorized qualification answer")
                 answer_value = answer.answer.strip()
                 if not _contains_term(message.raw_text, answer_value):
-                    # TEMPORARY diagnostic (2026-08-17): question_id is a
+                    # Permanent failure diagnostic, not telemetry: this
+                    # text goes into an exception, raised only when the AI
+                    # returns an answer the customer never gave. question_id is a
                     # catalog ID (safe); loosely_matches is a boolean
                     # computed from a punctuation/casing-normalized
                     # comparison -- neither ever logs the actual customer-
@@ -312,6 +321,7 @@ class AIIntentExtractor:
             )
             return IntentResult(
                 service_requested=service_requested,
+                unsupported_service_name=unsupported_service_name,
                 urgency=calibrated_urgency,
                 customer_location=customer_location,
                 preferred_time=preferred_time,
@@ -363,14 +373,22 @@ class AIIntentExtractor:
         services: list[dict[str, object]],
         customer_message: str,
         known_service: object = None,
-    ) -> str | None:
+    ) -> tuple[str | None, str | None]:
+        """Return (catalog service id, verbatim unsupported service name).
+
+        Exactly one of the two is ever non-None. They used to share a single
+        return value, which made `service_requested` a catalog id sometimes and
+        raw customer prose other times -- see IntentResult.unsupported_service_name
+        for what that overload leaked into the production logs.
+        """
         if output.unsupported_service:
             name = AIIntentExtractor._clean(output.unsupported_service_name)
             service_id_also_set = output.service_id is not None
             name_is_none = name is None
             evidenced = name is not None and _contains_term(customer_message, name)
             if service_id_also_set or name_is_none or not evidenced:
-                # TEMPORARY diagnostic (2026-08-17): three independent
+                # Permanent failure diagnostic, not telemetry -- it goes
+                # into an exception, not a log line. Three independent
                 # failure modes collapsed into one message before -- these
                 # booleans (plus a punctuation/casing-normalized loose-match
                 # check, same technique as the qualification-answer
@@ -389,12 +407,12 @@ class AIIntentExtractor:
                     f"(service_id_also_set={service_id_also_set}, name_is_none={name_is_none}, "
                     f"evidenced={evidenced}, loosely_matches_normalized={loosely_matches})"
                 )
-            return name
+            return None, name
         if output.unsupported_service_name is not None:
             raise AIInvalidOutputError("AI returned contradictory service fields")
         requested = AIIntentExtractor._clean(output.service_id)
         if requested is None:
-            return None
+            return None, None
         normalized = requested.casefold()
         matches: list[tuple[str, tuple[str, ...]]] = []
         for service in services:
@@ -439,7 +457,7 @@ class AIIntentExtractor:
             AIIntentExtractor._reject_cross_service_evidence(
                 evidence, matches[0][0], matches[0][1], services
             )
-        return matches[0][0]
+        return matches[0][0], None
 
     @staticmethod
     def _reject_cross_service_evidence(

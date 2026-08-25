@@ -62,7 +62,7 @@ def _call(runtime, dna: dict, business_id: str, external_id: str, raw_text: str)
 
 def main() -> None:
     runtime = build_ai_runtime(Settings.from_environment())
-    results: dict[str, object] = {"model_name": runtime.model_name, "intent_model_name": runtime.intent_model_name}
+    results: dict[str, object] = {"model_name": runtime.model_name}
 
     # Scenario A: one session, three messages from the same lead to the same
     # business -- turn 1 cache-misses the Business-DNA block (first time this

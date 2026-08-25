@@ -39,7 +39,7 @@ from src.engine.process_engine import ProcessEngine
 from .repositories import UnitOfWork
 
 
-# TEMPORARY diagnostic logging (2026-08-17): tracing the very first live use
+# Permanent, though written during the first live use: tracing
 # of the booking commercial path (CommercialPathSelector/_propose_slots) now
 # that Settings can turn it on. Local helper for the same reason as
 # src/ai/adapters.py and src/engine/qualification_service.py: avoids a
@@ -108,7 +108,8 @@ class CommercialWorkflowService:
         try:
             path = self.path_selector.select(business_dna, service_id)
         except ValueError as exc:
-            # TEMPORARY diagnostic logging (2026-08-17): str(exc) here is
+            # Keep: booking is live, and this is the only visibility into
+            # a commercial path that failed to select. str(exc) here is
             # always one of this codebase's own fixed messages (see
             # CommercialPathSelector.select / find_service), never customer
             # content -- safe to log verbatim.
@@ -408,9 +409,11 @@ class CommercialWorkflowService:
         slots = self.availability.available_slots(
             request, dna, existing, now=occurred_at
         )
-        # TEMPORARY diagnostic logging (2026-08-17): config shape only
-        # (no customer content) -- for tracing the very first live use of
-        # the booking commercial path now that Settings can turn it on.
+        # Keep: config shape only, no customer content. Written for the
+        # first live use of the booking path, still the only place that shows
+        # which booking config actually produced a given set of slots --
+        # including booking_timezone, which is what an open question about
+        # slots being offered in the wrong timezone will be answered from.
         booking_cfg = dna.get("booking")
         _log_event(
             logging.INFO,

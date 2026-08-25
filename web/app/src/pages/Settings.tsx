@@ -27,8 +27,14 @@ const WEEKDAY_LABELS: Record<Weekday, string> = {
   monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu", friday: "Fri", saturday: "Sat", sunday: "Sun",
 };
 // Every value here is a real IANA zone the deterministic availability engine
-// (src/engine/commercial.py) resolves via zoneinfo — this list is deliberately
-// US-only since the product's market is US-only today.
+// (src/engine/commercial.py) resolves via zoneinfo.
+//
+// The US zones stay pinned at the top because they are what almost every
+// business picks today, but the list is NO LONGER US-only (2026-08-25): a
+// US-registered business can operate from anywhere, and the roadmap opens
+// other markets one at a time. Restricting the <select> to seven US zones
+// meant anyone outside them simply could not state their real zone, and
+// every appointment time they quoted was wrong.
 const US_TIMEZONES: { value: string; label: string }[] = [
   { value: "America/New_York", label: "Eastern (New York)" },
   { value: "America/Chicago", label: "Central (Chicago)" },
@@ -38,6 +44,26 @@ const US_TIMEZONES: { value: string; label: string }[] = [
   { value: "America/Anchorage", label: "Alaska (Anchorage)" },
   { value: "Pacific/Honolulu", label: "Hawaii (Honolulu)" },
 ];
+
+/** Every IANA zone the browser knows, minus the pinned US ones.
+ *
+ * Intl.supportedValuesOf is available in every browser this app targets; the
+ * empty fallback keeps the pinned list working rather than throwing if it is
+ * ever missing, which is the same failure mode as before this change.
+ */
+const WORLD_TIMEZONES: { value: string; label: string }[] = (() => {
+  const pinned = new Set(US_TIMEZONES.map((tz) => tz.value));
+  let all: string[] = [];
+  try {
+    all = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] })
+      .supportedValuesOf?.("timeZone") ?? [];
+  } catch {
+    all = [];
+  }
+  return all
+    .filter((zone) => !pinned.has(zone))
+    .map((zone) => ({ value: zone, label: zone.replace(/_/g, " ") }));
+})();
 
 interface DayHoursState {
   open: boolean;
@@ -169,9 +195,13 @@ function fromServer(dna: BusinessDNASettings): SettingsState {
     // Settings page appeared to already say Eastern. Falling back to a real
     // zone here means the dropdown never again lies about what it's about
     // to save.
-    bookingTimezone: US_TIMEZONES.some((tz) => tz.value === dna.booking_timezone)
-      ? dna.booking_timezone
-      : US_TIMEZONES[0].value,
+    // Checked against BOTH lists now -- a stored non-US zone used to fail this
+    // test and get silently rewritten to Eastern on the next Settings save.
+    bookingTimezone:
+      US_TIMEZONES.some((tz) => tz.value === dna.booking_timezone) ||
+      WORLD_TIMEZONES.some((tz) => tz.value === dna.booking_timezone)
+        ? dna.booking_timezone
+        : US_TIMEZONES[0].value,
     hours,
     objectionResponses: dna.objection_responses.map((o) => ({
       key: nextClientKey(),
@@ -710,9 +740,18 @@ export default function Settings() {
                       value={state.bookingTimezone}
                       onChange={(e) => setState({ ...state, bookingTimezone: e.target.value })}
                     >
-                      {US_TIMEZONES.map((tz) => (
-                        <option key={tz.value} value={tz.value}>{tz.label}</option>
-                      ))}
+                      <optgroup label="United States">
+                        {US_TIMEZONES.map((tz) => (
+                          <option key={tz.value} value={tz.value}>{tz.label}</option>
+                        ))}
+                      </optgroup>
+                      {WORLD_TIMEZONES.length > 0 && (
+                        <optgroup label="All time zones">
+                          {WORLD_TIMEZONES.map((tz) => (
+                            <option key={tz.value} value={tz.value}>{tz.label}</option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
                   </Field>
 
