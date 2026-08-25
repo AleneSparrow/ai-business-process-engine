@@ -125,7 +125,7 @@ def test_vertical_onboarding_and_complete_lead_cycle(vertical: Vertical) -> None
     Draft202012Validator(SCHEMA).validate(dna)
 
     service = dna["services"][0]
-    resolved = AIIntentExtractor._resolve_service(
+    resolved, unsupported_name = AIIntentExtractor._resolve_service(
         _intent_output(service["id"], vertical.evidence),
         [{
             "id": service["id"],
@@ -137,6 +137,7 @@ def test_vertical_onboarding_and_complete_lead_cycle(vertical: Vertical) -> None
         vertical.customer_message,
     )
     assert resolved == service["id"]
+    assert unsupported_name is None
 
     question_id = service["qualification_questions"][0]["id"]
     result = QualificationService().evaluate(

@@ -18,6 +18,7 @@ from src.domain.qualification import (
     IntentResult,
     LeadIntakeResult,
     MissingInformationResult,
+    QualificationReasonCode,
     QualificationResult,
     Urgency,
 )
@@ -169,6 +170,11 @@ class LeadIntakeService:
         intent = self._merge_intent(case.lead, extracted, case.metadata)
         for key, value in (
             ("service_requested", intent.service_requested),
+            # Stored, never logged: the customer's own words for a service the
+            # catalog does not have. Staff need it to decide whether to add the
+            # service or refer the lead on; keeping it out of service_requested
+            # is what stopped it reaching the logs.
+            ("unsupported_service_name", intent.unsupported_service_name),
             ("customer_location", intent.customer_location),
             ("preferred_time", intent.preferred_time),
             ("urgency", intent.urgency.value),
@@ -628,6 +634,15 @@ class LeadIntakeService:
             conflict = True
         return IntentResult(
             service_requested=preserve_strong_fact(current.service_requested, "service_requested"),
+            # One-turn-only, like objection_phrase/customer_tone below -- the
+            # customer's own words for THIS turn's unsupported request, not a
+            # fact to preserve silently across turns. Missing from this
+            # constructor call used to mean it was always dropped here: a
+            # correctly-extracted unsupported_service_name from the AI never
+            # reached QualificationService.evaluate at all, so the LOST-by-
+            # unsupported-service branch there could never fire on a merged
+            # intent (only on a first-turn intent that bypassed merging).
+            unsupported_service_name=current.unsupported_service_name,
             urgency=urgency,
             customer_location=preserve_strong_fact(current.customer_location, "customer_location"),
             preferred_time=preserve_strong_fact(current.preferred_time, "preferred_time"),
@@ -720,6 +735,7 @@ class LeadIntakeService:
         return QualificationResult(
             qualified=False,
             reasons=("Case is already awaiting human review",),
+            reason_codes=(QualificationReasonCode.ALREADY_PENDING,),
             missing_fields=(),
             unanswered_questions=(),
             confidence=intent.confidence,

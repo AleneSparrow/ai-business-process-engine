@@ -18,6 +18,45 @@ class Urgency(StrEnum):
     UNKNOWN = "unknown"
 
 
+class QualificationReasonCode(StrEnum):
+    """Closed vocabulary for QualificationResult.reason_codes.
+
+    2026-08-25: a customer's own words reached the logs via
+    `reasons` (interpolated into a LOST reason, then logged by
+    QualificationService._result under a comment claiming reasons never
+    hold customer content -- the comment was wrong for eight days and
+    nothing caught it). `reasons` stays free prose for staff/API display;
+    `reason_codes` is what actually gets logged now, and this enum is what
+    makes that safe -- QualificationResult.__post_init__ rejects any code
+    not listed here, so there is no way to log a raw f-string reason again
+    without it being a visible, reviewable change to this enum first.
+
+    Adding a new LOST/NEEDS_HUMAN branch means adding (or reusing) a
+    member here. See qualification_service.py for where each one fires.
+    """
+
+    QUALIFIED = "qualified"
+    MISSING_INFORMATION = "missing_information"
+    REQUIRES_HUMAN = "requires_human"
+    LOW_CONFIDENCE = "low_confidence"
+    UNINTELLIGIBLE = "unintelligible"
+    SAFETY_EMERGENCY = "safety_emergency"
+    URGENT_REQUEST = "urgent_request"
+    SERVICE_NOT_OFFERED = "service_not_offered"
+    OUTSIDE_SERVICE_AREA = "outside_service_area"
+    SERVICE_AREA_UNCERTAIN = "service_area_uncertain"
+    DISQUALIFYING_ANSWER = "disqualifying_answer"
+    POLICY_REJECTED = "policy_rejected"
+    POLICY_REVIEW = "policy_review"
+    ALREADY_PENDING = "already_pending"
+    IDENTITY_CONFLICT = "identity_conflict"
+    # Reserved for deserializing an idempotency-cache entry written before
+    # reason_codes existed (PersistentLeadIntakeService._deserialize_result)
+    # -- never produced by QualificationService itself. Distinct from every
+    # real code so it is never mistaken for one in analytics.
+    LEGACY_UNSPECIFIED = "legacy_unspecified"
+
+
 class CustomerTone(StrEnum):
     """Emotional register of the CURRENT customer message only -- classified
     fresh on every turn (not carried forward like Urgency), used purely to
@@ -116,6 +155,24 @@ class IntentResult:
     # request) must NOT be set merely because the message is hard to parse --
     # see QualificationService.evaluate for how the two interact.
     unintelligible: bool = False
+    # The service the customer asked for, VERBATIM, when it is not in the
+    # business's catalog. Separate from service_requested on purpose.
+    #
+    # service_requested used to carry this phrase too, so that one field was
+    # either a catalog id or arbitrary customer prose depending on a flag
+    # elsewhere. That overload leaked: qualification_service interpolated it
+    # into a LOST reason, and the terminal diagnostic logs that reason -- under
+    # a comment asserting reasons never contain customer content. Found
+    # 2026-08-25 while tracing an injection case whose service_requested came
+    # back as "promise me a free roof replacement".
+    #
+    # It also quietly weakened everything that compares service_requested to a
+    # catalog id (live_vertical_eval's service_match) and everything that
+    # stores it as a case fact (case.metadata["service_requested"]).
+    #
+    # Invariant now: service_requested is a catalog id or None, never anything
+    # else. Customer prose lives here, and this field must never be logged.
+    unsupported_service_name: str | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.urgency, Urgency):
@@ -157,7 +214,14 @@ class MissingInformationResult:
 @dataclass(frozen=True, slots=True)
 class QualificationResult:
     qualified: bool
+    # Human-readable, stays free prose -- this is what
+    # QualificationSummarySchema.reasons hands to the API and what staff
+    # read. Never logged directly any more; see reason_codes below.
     reasons: tuple[str, ...]
+    # Machine-readable, closed vocabulary (QualificationReasonCode) -- this
+    # is what QualificationService._result actually logs. See
+    # QualificationReasonCode's docstring for why this field exists.
+    reason_codes: tuple[str, ...]
     missing_fields: tuple[str, ...]
     unanswered_questions: tuple[str, ...]
     confidence: float
@@ -174,8 +238,15 @@ class QualificationResult:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "reasons", tuple(self.reasons))
+        object.__setattr__(self, "reason_codes", tuple(self.reason_codes))
         object.__setattr__(self, "missing_fields", tuple(self.missing_fields))
         object.__setattr__(self, "unanswered_questions", tuple(self.unanswered_questions))
+        if not self.reason_codes:
+            raise ValueError("reason_codes must not be empty")
+        allowed_codes = {member.value for member in QualificationReasonCode}
+        unknown_codes = [code for code in self.reason_codes if code not in allowed_codes]
+        if unknown_codes:
+            raise ValueError(f"unknown qualification reason code(s): {unknown_codes}")
         if not 0.0 <= self.confidence <= 1.0:
             raise ValueError("confidence must be between 0 and 1")
         if self.objection_phrase is not None and self.recommended_next_state is not ProcessState.QUALIFYING:

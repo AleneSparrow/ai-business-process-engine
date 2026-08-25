@@ -9,12 +9,13 @@ from src.domain.models import Lead
 from src.domain.qualification import (
     IntentResult,
     MissingInformationResult,
+    QualificationReasonCode,
     QualificationResult,
     Urgency,
 )
 from src.domain.states import ProcessState
 
-# TEMPORARY diagnostic logging (2026-08-17): not importing
+# Permanent architectural note, not a temporary measure: not importing
 # `src.api.observability.log_event` here -- src/api/app.py imports engine
 # modules, so a dependency from src.engine back onto src.api risks a
 # circular import if this module is ever the first one touched (e.g. a
@@ -41,6 +42,7 @@ def _log_event(level: int, event: str, **fields: Any) -> None:
 # matching on prose. Reasons are this module's own fixed strings and never
 # contain customer content, so comparing against them is safe -- but they are
 # still prose, so there is exactly one place that spells this one out.
+SERVICE_NOT_OFFERED_REASON = "Requested service is not offered"
 OUT_OF_SERVICE_AREA_REASON = "Customer is outside the configured service area"
 
 
@@ -70,10 +72,15 @@ class QualificationService:
         threshold = float(business_dna["ai_permissions"]["minimum_confidence"])
         triggers = set(business_dna["human_escalation"]["triggers"])
         if intent.requires_human:
-            # TEMPORARY diagnostic logging (2026-08-17): distinguishes the
-            # two ways this branch can fire -- confidence/threshold are
-            # non-sensitive numeric config+model signals, never customer
-            # content.
+            # Load-bearing, keep. Distinguishes the two ways this branch
+            # can fire -- confidence/threshold are numeric config+model
+            # signals, never customer content.
+            #
+            # Concretely earned its keep on 2026-08-24: this exact line
+            # (reason="requires_human", confidence 0.93, threshold 0.8) is
+            # what identified why a routine high-urgency request was still
+            # escalating on message one after the variant C change.
+            # Removing it as "expired" would have cost that diagnosis.
             _log_event(
                 logging.INFO,
                 "qualification_needs_human_diagnostic",
@@ -84,6 +91,7 @@ class QualificationService:
             return self._result(
                 ProcessState.NEEDS_HUMAN,
                 ("Intent confidence is below policy or extraction requested review",),
+                QualificationReasonCode.REQUIRES_HUMAN,
                 intent,
             )
         if intent.unintelligible:
@@ -100,6 +108,7 @@ class QualificationService:
                 return self._result(
                     ProcessState.NEEDS_HUMAN,
                     ("Customer message could not be interpreted after repeated clarification attempts",),
+                    QualificationReasonCode.UNINTELLIGIBLE,
                     intent,
                 )
             self._record_clarification_attempt(case_metadata, attempts)
@@ -120,20 +129,35 @@ class QualificationService:
             return self._result(
                 ProcessState.NEEDS_HUMAN,
                 ("Intent confidence is below policy or extraction requested review",),
+                QualificationReasonCode.LOW_CONFIDENCE,
                 intent,
             )
         if intent.urgency.value in triggers:
             return self._result(
                 ProcessState.NEEDS_HUMAN,
                 (f"Configured escalation trigger matched urgency: {intent.urgency.value}",),
+                (
+                    QualificationReasonCode.SAFETY_EMERGENCY
+                    if intent.urgency is Urgency.EMERGENCY
+                    else QualificationReasonCode.URGENT_REQUEST
+                ),
                 intent,
             )
 
         service = self._find_service(intent.service_requested, business_dna["services"])
-        if intent.service_requested and service is None:
+        # The customer's own wording for the thing we don't offer is NOT
+        # interpolated here any more. This reason string reaches the terminal
+        # diagnostic log below, and service_requested used to be able to hold
+        # arbitrary customer prose (see IntentResult.unsupported_service_name).
+        # The phrase is preserved for staff on the case metadata instead, which
+        # is stored rather than logged.
+        if intent.unsupported_service_name is not None or (
+            intent.service_requested and service is None
+        ):
             return self._result(
                 ProcessState.LOST,
-                (f"Requested service is not offered: {intent.service_requested}",),
+                (SERVICE_NOT_OFFERED_REASON,),
+                QualificationReasonCode.SERVICE_NOT_OFFERED,
                 intent,
             )
 
@@ -149,11 +173,18 @@ class QualificationService:
         if area_status == "missing" and not location_fields.intersection(missing_fields):
             missing_fields = (*missing_fields, "customer_location")
         elif area_status == "outside":
-            return self._result(ProcessState.LOST, (OUT_OF_SERVICE_AREA_REASON,), intent, service)
+            return self._result(
+                ProcessState.LOST,
+                (OUT_OF_SERVICE_AREA_REASON,),
+                QualificationReasonCode.OUTSIDE_SERVICE_AREA,
+                intent,
+                service,
+            )
         elif area_status == "unknown":
             return self._result(
                 ProcessState.NEEDS_HUMAN,
                 ("Service area cannot be evaluated deterministically",),
+                QualificationReasonCode.SERVICE_AREA_UNCERTAIN,
                 intent,
                 service,
             )
@@ -161,13 +192,20 @@ class QualificationService:
         context["service_area_id"] = area_id
         unanswered, disqualified = self._qualification_questions(service, context)
         if disqualified:
-            return self._result(ProcessState.LOST, tuple(disqualified), intent, service)
+            return self._result(
+                ProcessState.LOST,
+                tuple(disqualified),
+                QualificationReasonCode.DISQUALIFYING_ANSWER,
+                intent,
+                service,
+            )
 
         missing = MissingInformationResult(tuple(dict.fromkeys(missing_fields)), tuple(unanswered))
         if not missing.complete:
             return QualificationResult(
                 qualified=False,
                 reasons=("Additional customer information is required",),
+                reason_codes=(QualificationReasonCode.MISSING_INFORMATION,),
                 missing_fields=missing.missing_fields,
                 unanswered_questions=missing.unanswered_questions,
                 confidence=intent.confidence,
@@ -183,11 +221,18 @@ class QualificationService:
 
         rule_outcome = self._qualification_rule_outcome(context, business_dna["qualification"])
         if rule_outcome in {"lost", "disqualified"}:
-            return self._result(ProcessState.LOST, ("A configured qualification rule rejected the lead",), intent, service)
+            return self._result(
+                ProcessState.LOST,
+                ("A configured qualification rule rejected the lead",),
+                QualificationReasonCode.POLICY_REJECTED,
+                intent,
+                service,
+            )
         if rule_outcome in {"needs_human", "human"}:
             return self._result(
                 ProcessState.NEEDS_HUMAN,
                 ("Configured qualification policy requires human review",),
+                QualificationReasonCode.POLICY_REVIEW,
                 intent,
                 service,
             )
@@ -211,6 +256,7 @@ class QualificationService:
                     "Qualification is complete; customer indicated high urgency, "
                     "handing off to a team member with full context for fast follow-up",
                 ),
+                QualificationReasonCode.URGENT_REQUEST,
                 intent,
                 service,
             )
@@ -223,6 +269,7 @@ class QualificationService:
         return QualificationResult(
             qualified=True,
             reasons=("All mandatory qualification requirements are satisfied",),
+            reason_codes=(QualificationReasonCode.QUALIFIED,),
             missing_fields=(),
             unanswered_questions=(),
             confidence=intent.confidence,
@@ -380,22 +427,33 @@ class QualificationService:
     def _result(
         state: ProcessState,
         reasons: tuple[str, ...],
+        reason_code: QualificationReasonCode,
         intent: IntentResult,
         service: Mapping[str, Any] | None = None,
     ) -> QualificationResult:
         if state in (ProcessState.NEEDS_HUMAN, ProcessState.LOST):
-            # TEMPORARY diagnostic logging (2026-08-17): reasons are this
-            # file's own fixed strings, never customer content.
+            # 2026-08-25: this used to log `reasons` -- this file's own fixed
+            # strings, except once: the "service is not offered" reason
+            # interpolated intent.service_requested, which could hold the
+            # customer's own words verbatim (see
+            # IntentResult.unsupported_service_name). That was live for eight
+            # days under a comment claiming it never happened. `reasons` is
+            # free prose by construction and nothing stops the next one being
+            # written the same way, so it no longer reaches this log at all --
+            # only `reason_code`, which QualificationResult.__post_init__
+            # rejects unless it is a QualificationReasonCode member. See that
+            # enum's docstring for the guarantee this is standing in for.
             _log_event(
                 logging.INFO,
                 "qualification_terminal_diagnostic",
                 state=state.value,
-                reasons=reasons,
+                reason_code=reason_code.value,
                 service_id=QualificationService._service_id(service),
             )
         return QualificationResult(
             qualified=state is ProcessState.QUALIFIED,
             reasons=reasons,
+            reason_codes=(reason_code.value,),
             missing_fields=(),
             unanswered_questions=(),
             confidence=intent.confidence,

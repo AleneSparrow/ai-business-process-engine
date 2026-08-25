@@ -14,6 +14,7 @@ from src.domain.qualification import (
     IncomingMessage,
     IntentResult,
     LeadIntakeResult,
+    QualificationReasonCode,
     QualificationResult,
 )
 from src.domain.states import ProcessState
@@ -178,6 +179,7 @@ class PersistentLeadIntakeService:
                     "Provided contact identity is already associated with another lead; "
                     "human review is required",
                 ),
+                reason_codes=(QualificationReasonCode.IDENTITY_CONFLICT,),
                 missing_fields=(),
                 unanswered_questions=(),
                 confidence=intent.confidence,
@@ -357,6 +359,11 @@ class PersistentLeadIntakeService:
     def _record_case_facts(case: ProcessCase, intent: IntentResult) -> None:
         for key, value in (
             ("service_requested", intent.service_requested),
+            # Stored, never logged: the customer's own words for a service the
+            # catalog does not have. Staff need it to decide whether to add the
+            # service or refer the lead on; keeping it out of service_requested
+            # is what stopped it reaching the logs.
+            ("unsupported_service_name", intent.unsupported_service_name),
             ("customer_location", intent.customer_location),
             ("preferred_time", intent.preferred_time),
             ("urgency", intent.urgency.value),
@@ -471,6 +478,7 @@ class PersistentLeadIntakeService:
             "qualification": {
                 "qualified": qualification.qualified,
                 "reasons": list(qualification.reasons),
+                "reason_codes": list(qualification.reason_codes),
                 "missing_fields": list(qualification.missing_fields),
                 "unanswered_questions": list(qualification.unanswered_questions),
                 "confidence": qualification.confidence,
@@ -499,6 +507,15 @@ class PersistentLeadIntakeService:
         qualification = QualificationResult(
             qualified=qualification_value["qualified"],
             reasons=tuple(qualification_value["reasons"]),
+            # .get with a fallback: an idempotency-cache entry written before
+            # reason_codes existed (short-lived request-dedup cache, not
+            # permanent storage, but a deploy can still straddle its TTL)
+            # won't have this key. LEGACY_UNSPECIFIED is reserved exactly for
+            # that -- see QualificationReasonCode.
+            reason_codes=tuple(
+                qualification_value.get("reason_codes")
+                or (QualificationReasonCode.LEGACY_UNSPECIFIED,)
+            ),
             missing_fields=tuple(qualification_value["missing_fields"]),
             unanswered_questions=tuple(qualification_value["unanswered_questions"]),
             confidence=qualification_value["confidence"],
