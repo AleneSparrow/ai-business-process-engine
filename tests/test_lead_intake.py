@@ -133,6 +133,78 @@ def test_outside_enforced_service_area_is_lost() -> None:
     assert result.qualification.reasons == ("Customer is outside the configured service area",)
 
 
+OUT_OF_AREA_TEXT = (
+    "Sorry — that address is outside the area we currently serve. "
+    "If you have another address nearby, send the ZIP code and we'll check it."
+)
+
+
+def _dna_with_out_of_area_message() -> dict:
+    dna = business_dna()
+    dna["qualification"]["lost_message_out_of_area"] = OUT_OF_AREA_TEXT
+    return dna
+
+
+def test_out_of_area_decline_says_it_is_about_the_area() -> None:
+    """The only LOST reason a customer can act on gets its own wording.
+
+    Live finding 2026-08-24 on production: a lead whose ZIP fell outside the
+    configured service area was told "this request falls outside what we
+    currently support" -- the same sentence a business gives for a service it
+    does not offer. The engine knew the real reason deterministically and threw
+    it away, so someone ten miles out never learned that a different address
+    was all it took.
+    """
+    intake = service_with(
+        {"msg-area": valid_intent(customer_location="99999")},
+        dna=_dna_with_out_of_area_message(),
+    )
+
+    result = intake.receive(message("msg-area"))
+
+    assert result.current_state is ProcessState.LOST
+    assert result.response is not None
+    assert result.response.message_text.startswith(OUT_OF_AREA_TEXT)
+
+
+def test_other_lost_reasons_keep_the_general_decline() -> None:
+    """Only the area reason is special-cased -- an unoffered service is not.
+
+    Guards the obvious over-correction: telling someone who asked for a service
+    the business does not provide to "send another ZIP code" would be worse
+    than the generic sentence, not better.
+    """
+    intake = service_with(
+        {"msg-svc": valid_intent(service_requested="roof_replacement")},
+        dna=_dna_with_out_of_area_message(),
+    )
+
+    result = intake.receive(message("msg-svc"))
+
+    assert result.current_state is ProcessState.LOST
+    assert result.response is not None
+    assert OUT_OF_AREA_TEXT not in result.response.message_text
+
+
+def test_dna_without_the_new_field_falls_back_to_the_general_decline() -> None:
+    """No migration needed: DNA predating the field must keep working.
+
+    business_dna.example.json deliberately does NOT define
+    lost_message_out_of_area, so this exercises the fallback path that every
+    business created before 2026-08-25 takes.
+    """
+    dna = business_dna()
+    assert "lost_message_out_of_area" not in dna["qualification"]
+
+    intake = service_with({"msg-old": valid_intent(customer_location="99999")}, dna=dna)
+
+    result = intake.receive(message("msg-old"))
+
+    assert result.current_state is ProcessState.LOST
+    assert result.response is not None
+    assert result.response.message_text.startswith(dna["qualification"]["lost_message"])
+
+
 def test_low_confidence_intent_requires_human() -> None:
     intake = service_with({"msg-e": valid_intent(confidence=0.2)})
 

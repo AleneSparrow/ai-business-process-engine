@@ -223,6 +223,19 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
                 "Sorry, this request is outside what we currently support "
                 "— we'll follow up if that changes."
             ),
+            # Separate wording for the one decline the customer can act on.
+            # The generic sentence above reads as "we don't do that", so a
+            # lead just outside the area never learns that the address was
+            # the problem. Zero-config: shipped as a default, not a field the
+            # owner has to discover. Optional downstream -- LeadIntakeService
+            # falls back to lost_message when it is absent (see
+            # _lost_message), so DNA written before 2026-08-25 is unaffected
+            # and no migration is required.
+            "lost_message_out_of_area": (
+                "Sorry — that address is outside the area we currently serve. "
+                "If you have another address nearby, send the ZIP code and "
+                "we'll check it right away."
+            ),
             # Empty by default -- no behavior change for businesses that don't
             # need it (see QualificationService: an empty list here means the
             # reassurance-response feature never activates). An owner fills

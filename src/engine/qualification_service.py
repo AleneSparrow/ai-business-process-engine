@@ -29,6 +29,21 @@ def _log_event(level: int, event: str, **fields: Any) -> None:
     _LOGGER.log(level, json.dumps(payload, separators=(",", ":"), default=str))
 
 
+# The engine distinguishes four different LOST reasons, but until 2026-08-25
+# every one of them produced the same customer-facing sentence
+# (qualification.lost_message). A lead ten miles outside the service area heard
+# the identical wording as someone asking for a service the business does not
+# offer, and left without learning that a different address was all it took --
+# a straight loss at the edge of the cycle, worst in exactly the field-service
+# verticals (plumbing, roofing, HVAC) where the service area IS the filter.
+#
+# This constant exists so LeadIntakeService can recognise THIS reason without
+# matching on prose. Reasons are this module's own fixed strings and never
+# contain customer content, so comparing against them is safe -- but they are
+# still prose, so there is exactly one place that spells this one out.
+OUT_OF_SERVICE_AREA_REASON = "Customer is outside the configured service area"
+
+
 class QualificationService:
     _POSTAL_CODE_LABEL = re.compile(
         r"^(?:zip(?:\s+code)?|postal\s+code|postcode)\s*(?:is\s+)?[:#-]?\s*",
@@ -134,7 +149,7 @@ class QualificationService:
         if area_status == "missing" and not location_fields.intersection(missing_fields):
             missing_fields = (*missing_fields, "customer_location")
         elif area_status == "outside":
-            return self._result(ProcessState.LOST, ("Customer is outside the configured service area",), intent, service)
+            return self._result(ProcessState.LOST, (OUT_OF_SERVICE_AREA_REASON,), intent, service)
         elif area_status == "unknown":
             return self._result(
                 ProcessState.NEEDS_HUMAN,

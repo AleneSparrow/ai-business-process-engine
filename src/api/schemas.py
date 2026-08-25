@@ -630,6 +630,19 @@ class DashboardCaseSummarySchema(ApiModel):
         )
         if qualification is None:
             return "already_pending"
+        # DELIBERATELY FROZEN LITERALS -- do not "tidy" these into imports of
+        # the live reason constants (OUT_OF_SERVICE_AREA_REASON and friends).
+        # These substrings are matched against reason text that was WRITTEN TO
+        # EVENT HISTORY IN THE PAST. Stored events never change, so this
+        # matcher has to keep speaking the vocabulary of the day the event was
+        # written. Coupling it to today's constants would look tidier and
+        # would silently stop recognising old cases the moment anyone reworded
+        # a reason -- the failure would be invisible, because the fallback
+        # below quietly returns "ai_review" instead of raising.
+        #
+        # New cases do not come through here at all: they carry an explicit
+        # escalation_reason, handled above. This branch exists only for cases
+        # created before that field did.
         reasons = " ".join(
             str(value) for value in qualification.payload.get("reasons", ())
         ).casefold()

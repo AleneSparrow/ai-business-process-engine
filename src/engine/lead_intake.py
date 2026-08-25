@@ -30,7 +30,7 @@ from .customer_response_generator import (
 )
 from .intent_extractor import IntentExtractor
 from .process_engine import ProcessEngine
-from .qualification_service import QualificationService
+from .qualification_service import OUT_OF_SERVICE_AREA_REASON, QualificationService
 from .question_generator import DeterministicQuestionGenerator, QuestionGenerator
 from .reassurance_response_generator import (
     DeterministicReassuranceResponseGenerator,
@@ -305,6 +305,31 @@ class LeadIntakeService:
             DecisionRequest(decision_type, requested_target),
         )
 
+    def _lost_message(self, qualification: QualificationResult) -> str:
+        """Pick the approved decline wording for THIS reason, not a generic one.
+
+        The decision is still made entirely in QualificationService; this only
+        selects which already-approved sentence to hand to response generation,
+        exactly like the human_escalation branch above. Nothing is generated
+        here, and the AI (when configured) still only rewords what it is given.
+
+        Out-of-service-area is the one reason worth separating: it is the only
+        LOST reason the customer can actually act on. Everything else -- service
+        not offered, a qualification question answered disqualifyingly, a
+        configured rule -- keeps the general message.
+
+        `lost_message_out_of_area` is optional. A business whose DNA predates
+        it (or who deliberately cleared it) falls back to `lost_message`, so
+        this needs no migration and changes nothing for anyone who has not got
+        the new default.
+        """
+        qualification_dna = self.business_dna["qualification"]
+        if OUT_OF_SERVICE_AREA_REASON in qualification.reasons:
+            specific = qualification_dna.get("lost_message_out_of_area")
+            if isinstance(specific, str) and specific.strip():
+                return specific
+        return qualification_dna["lost_message"]
+
     def _create_response(
         self,
         case: ProcessCase,
@@ -365,7 +390,7 @@ class LeadIntakeService:
                 customer_tone=intent.customer_tone,
             )
         if state is ProcessState.LOST:
-            text = self.business_dna["qualification"]["lost_message"]
+            text = self._lost_message(qualification)
             return self.customer_response_generator.generate(
                 response_type="not_qualified",
                 approved_message=text,

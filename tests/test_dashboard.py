@@ -191,6 +191,50 @@ def test_case_summary_reconstructs_safe_reason_for_legacy_escalation() -> None:
     assert summary.escalation_reason == "low_confidence"
 
 
+@pytest.mark.parametrize(
+    ("legacy_reason", "expected"),
+    (
+        (
+            "Provided contact identity is already associated with another lead; "
+            "a person must confirm before continuing",
+            "identity_conflict",
+        ),
+        ("Service area cannot be evaluated deterministically", "service_area_uncertain"),
+        ("Configured qualification policy requires human review", "policy_review"),
+        ("Case is already awaiting human review", "already_pending"),
+    ),
+)
+def test_legacy_reason_vocabulary_stays_recognised(legacy_reason: str, expected: str) -> None:
+    """Pins the frozen substrings in escalation_reason_from_domain.
+
+    Those substrings are matched against reason text already WRITTEN TO EVENT
+    HISTORY. Stored events never change, so the matcher must keep speaking the
+    vocabulary of the day the event was written -- it must NOT be refactored to
+    import today's reason constants, however much tidier that looks.
+
+    Without this test the breakage would be silent: an unrecognised reason
+    falls through to "ai_review" rather than raising, so a staff member would
+    just see a vaguer category and nobody would know why.
+    """
+    case = ProcessCase(
+        f"case-legacy-{expected}",
+        "biz-1",
+        Lead(f"lead-legacy-{expected}", name="Ada"),
+        ProcessState.NEEDS_HUMAN,
+        NOW,
+        NOW,
+    )
+    case.record(ProcessEvent(
+        "QUALIFICATION_EVALUATED",
+        occurred_at=NOW,
+        payload={"requires_human": True, "reasons": [legacy_reason]},
+    ))
+
+    summary = DashboardCaseSummarySchema.from_domain(case)
+
+    assert summary.escalation_reason == expected
+
+
 def test_staff_can_record_escalation_feedback_in_audit_trail(dashboard_environment) -> None:
     client, factory = dashboard_environment
     token = signup_and_login(client, "feedback-owner@example.com")
