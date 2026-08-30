@@ -289,6 +289,19 @@ class LeadIntakeService:
             self._transition(case, message, ProcessState.QUALIFYING, "qualifying")
         target = qualification.recommended_next_state
         if target is not ProcessState.QUALIFYING and case.current_state is not target:
+            if target is ProcessState.NEEDS_HUMAN and qualification.reason_codes:
+                # Recorded on case.metadata (not just the event log) so a
+                # later, code-driven decision -- "is this specific
+                # NEEDS_HUMAN episode eligible for a bounded, automatic
+                # return to the qualification loop" -- can read it back
+                # without re-deriving it from prose. Only ever written here,
+                # on the message that actually CAUSES the transition (this
+                # method returns early above once already NEEDS_HUMAN, so a
+                # later "still pending" message never overwrites it with a
+                # less specific reason). See ConversationService for the
+                # eligibility check and QualificationReasonCode for the
+                # closed vocabulary this value is drawn from.
+                case.metadata["needs_human_reason_code"] = qualification.reason_codes[0]
             self._transition(case, message, target, "outcome")
 
     def _transition(

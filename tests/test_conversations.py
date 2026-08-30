@@ -578,7 +578,19 @@ def test_duplicate_message_id_with_different_text_is_collision(conversation_envi
     assert collision.json()["error"]["code"] == "idempotency_collision"
 
 
-def test_needs_human_pauses_autonomous_processing(conversation_environment) -> None:
+def test_needs_human_bounces_back_for_ai_uncertainty_reason(conversation_environment) -> None:
+    """Live defect (2026-08-30): NEEDS_HUMAN used to be an unconditional
+    dead end -- every message after it, forever, got the identical static
+    escalation sentence back without ever being looked at again. For the
+    narrow set of reasons that just mean "the AI itself was uncertain"
+    (REQUIRES_HUMAN here -- see ConversationService.
+    _maybe_requalify_needs_human_case / _REQUALIFIABLE_NEEDS_HUMAN_REASONS),
+    the very next message now gets a real, fresh qualification attempt
+    instead. A bounded retry is not a guarantee of success -- this
+    follow-up is itself low-confidence under the deterministic extractor,
+    so it correctly lands back on NEEDS_HUMAN -- what matters is that it
+    was actually re-evaluated (extractor.calls advances) rather than
+    silently discarded."""
     client, _, extractor = conversation_environment
     first = create_conversation(client, "This is ambiguous", "human-1")
     token = first.json()["conversation_token"]
@@ -587,9 +599,9 @@ def test_needs_human_pauses_autonomous_processing(conversation_environment) -> N
     assert first.json()["status"] == "human_takeover_requested"
     assert first.json()["current_state"] == "NEEDS_HUMAN"
     assert follow_up.status_code == 200
+    assert extractor.calls == 2
     assert follow_up.json()["current_state"] == "NEEDS_HUMAN"
     assert follow_up.json()["requires_human"] is True
-    assert extractor.calls == 1
 
 
 def test_externally_terminal_case_does_not_restart_qualification(conversation_environment) -> None:

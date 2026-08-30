@@ -154,6 +154,15 @@ class Conversation:
             ConversationStatus.HUMAN_TAKEOVER_REQUESTED: {
                 ConversationStatus.HUMAN_TAKEOVER_ACTIVE,
                 ConversationStatus.CLOSED,
+                # Bounded, code-driven return to the qualification loop for
+                # a narrow set of escalation reasons (the AI itself was
+                # uncertain, not a genuine human-required signal) -- see
+                # ConversationService._maybe_requalify_needs_human_case.
+                # Deliberately NOT allowed from HUMAN_TAKEOVER_ACTIVE: once
+                # a human has actually started working the case (see
+                # StaffActionService), an automatic bounce-back must never
+                # reclaim it out from under them.
+                ConversationStatus.AI_ACTIVE,
             },
             ConversationStatus.HUMAN_TAKEOVER_ACTIVE: {ConversationStatus.CLOSED},
             # CLOSED -> AI_ACTIVE: reopening a LOST case's conversation for

@@ -29,7 +29,9 @@ from src.engine.commercial import (
     CommercialPathSelector,
     DeterministicAvailabilityEngine,
     DeterministicPricingEngine,
+    DeterministicQuoteReplyInterpreter,
     DeterministicSlotPreferenceInterpreter,
+    QuoteReplyInterpreter,
     find_service,
     payment_amount,
 )
@@ -64,18 +66,29 @@ _NUMBER = re.compile(r"(?<![\w.])(?:\d+(?:\.\d{1,3})?)(?![\w.])")
 class CommercialWorkflowService:
     """Executes only Business-DNA-authorized booking, quote, and payment preparation."""
 
+    # Bounded per case, same shape and reasoning as
+    # QualificationService.MAX_CLARIFICATION_ATTEMPTS: a quote reply the
+    # interpreter genuinely can't resolve to accept/decline (see
+    # DeterministicQuoteReplyInterpreter) is re-asked instead of
+    # escalating on the first miss, but only up to this many times --
+    # without a cap a customer who never sends a clear answer would loop
+    # with the bot forever.
+    MAX_QUOTE_REPLY_ATTEMPTS = 3
+
     def __init__(
         self,
         *,
         path_selector: CommercialPathSelector | None = None,
         availability: DeterministicAvailabilityEngine | None = None,
         slot_interpreter: DeterministicSlotPreferenceInterpreter | None = None,
+        quote_reply_interpreter: QuoteReplyInterpreter | None = None,
         pricing: DeterministicPricingEngine | None = None,
         process_engine: ProcessEngine | None = None,
     ) -> None:
         self.path_selector = path_selector or CommercialPathSelector()
         self.availability = availability or DeterministicAvailabilityEngine()
         self.slot_interpreter = slot_interpreter or DeterministicSlotPreferenceInterpreter()
+        self.quote_reply_interpreter = quote_reply_interpreter or DeterministicQuoteReplyInterpreter()
         self.pricing = pricing or DeterministicPricingEngine()
         self.process_engine = process_engine or ProcessEngine()
 
@@ -855,23 +868,44 @@ class CommercialWorkflowService:
                 occurred_at,
                 "Customer requested a price exception",
             )
-        accepted = self._has_word(text, "accept", "accepted", "yes", "approve", "proceed")
-        rejected = (
-            self._has_word(text, "reject", "decline")
-            or text in {"no", "no thanks", "no thank you"}
-            or "too expensive" in text
-        )
-        if accepted == rejected:
-            return self._escalate(
-                uow,
-                case,
-                dna,
-                ProcessState.FOLLOW_UP,
-                occurred_at,
-                "Quote acceptance or rejection is ambiguous",
+        # The model only recognizes the customer's decision; the code below
+        # is what actually acts on it. accept/decline apply ONLY to the
+        # quote already loaded above, at its already-fixed total -- nothing
+        # here can change the amount or create a new quote. See
+        # DeterministicQuoteReplyInterpreter's own docstring for why a
+        # negation, deferral, or condition is never treated as accept.
+        preference = self.quote_reply_interpreter.interpret(text)
+        if preference.decision == "unclear":
+            # Live defect (2026-08-30): "sounds good, lets do it" used to
+            # fall straight into the ambiguous branch below and escalate to
+            # NEEDS_HUMAN on the very first reply -- a customer who had
+            # just said yes got frozen at the exact moment they closed the
+            # deal. A reply the interpreter genuinely can't resolve is now
+            # re-asked, the same bounded-clarification shape as an
+            # unintelligible qualification message (see
+            # QualificationService.MAX_CLARIFICATION_ATTEMPTS); only once
+            # that's exhausted does it escalate.
+            attempts = int(commercial.get("quote_reply_attempts", 0) or 0)
+            if attempts >= self.MAX_QUOTE_REPLY_ATTEMPTS:
+                return self._escalate(
+                    uow,
+                    case,
+                    dna,
+                    ProcessState.FOLLOW_UP,
+                    occurred_at,
+                    "Quote acceptance or rejection could not be understood after repeated attempts",
+                )
+            commercial["quote_reply_attempts"] = attempts + 1
+            return CommercialResponse(
+                "Sorry, I didn't quite catch that — could you reply to let us know if you'd "
+                "like to accept or decline the quote?",
+                "quote_reply_unclear",
+                case.current_state.value,
+                quote_id=quote.quote_id,
             )
+        commercial.pop("quote_reply_attempts", None)
         expected = quote.version
-        if accepted:
+        if preference.decision == "accept":
             quote.change_status(QuoteStatus.ACCEPTED, occurred_at)
             uow.quotes.save(quote, expected)
             self._audit(
@@ -1233,6 +1267,15 @@ class CommercialWorkflowService:
         occurred_at: datetime,
         reason: str,
     ) -> CommercialResponse:
+        # A commercial escalation has no QualificationReasonCode of its own
+        # -- clear any stale one left over from an earlier qualification-
+        # stage escalation on this same case, so ConversationService's
+        # bounded auto-requalification (which reads this key) never
+        # mistakes a "customer wants a discount" / "payment needs approval"
+        # escalation for one of the two AI-uncertainty reasons it's allowed
+        # to bounce back automatically. See LeadIntakeService._progress_case,
+        # the only other place this key is written.
+        case.metadata.pop("needs_human_reason_code", None)
         self._transition(
             uow,
             case,

@@ -17,12 +17,24 @@ class DecisionRequest:
     action: Action | None = None
     approved_by: str | None = None
     context: Mapping[str, Any] = field(default_factory=dict)
+    # Signals ProcessEngine.receive() that a NEEDS_HUMAN case's requested
+    # transition is a bounded, code-driven re-entry into the qualification
+    # loop -- see StateMachine.validate_bounded_requalification -- never an
+    # identified-human approval. Distinct from approved_by: this is not
+    # "who approved it", it is "this is not staff approval at all, and the
+    # caller has already checked this specific case is eligible (reason
+    # code, attempt count) before asking". Only meaningful together with
+    # DecisionType.RULE; never combine with a HUMAN decision, which has its
+    # own, staff-approval-only exit path.
+    bounded_requalification: bool = False
 
     def __post_init__(self) -> None:
         if self.confidence is not None and not 0.0 <= self.confidence <= 1.0:
             raise ValueError("confidence must be between 0 and 1")
         if self.approved_by is not None and not self.approved_by.strip():
             raise ValueError("approved_by must not be empty")
+        if self.bounded_requalification and self.decision_type is not DecisionType.RULE:
+            raise ValueError("bounded_requalification is only valid with DecisionType.RULE")
         object.__setattr__(self, "context", MappingProxyType(dict(self.context)))
 
 

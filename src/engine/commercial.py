@@ -284,7 +284,19 @@ class DeterministicSlotPreferenceInterpreter:
                 return SlotPreference(
                     proposed_slots[index] if index < len(proposed_slots) else None
                 )
-        numeric = re.fullmatch(r"(?:option\s*)?([1-9])", text_value)
+        # Live defect (2026-08-30): "Option 2 please" fell all the way
+        # through to "not understood" while a bare "2" or an exact
+        # "option 2" worked -- the old pattern required the ENTIRE message
+        # to be just the number (fullmatch), so any wrapping ("please",
+        # "I'll take", "the") broke it. Searched (not anchored to the whole
+        # message) but still requires the literal word "option" immediately
+        # before the digit, so it can never mistake an unrelated number
+        # elsewhere in the message (a time, a quantity) for an option pick.
+        option_match = re.search(r"\boption\s*([1-9])\b", text_value)
+        if option_match:
+            index = int(option_match.group(1)) - 1
+            return SlotPreference(proposed_slots[index] if index < len(proposed_slots) else None)
+        numeric = re.fullmatch(r"([1-9])", text_value)
         if numeric:
             index = int(numeric.group(1)) - 1
             return SlotPreference(proposed_slots[index] if index < len(proposed_slots) else None)
@@ -346,6 +358,90 @@ class DeterministicSlotPreferenceInterpreter:
         if matches and matches != list(proposed_slots):
             return SlotPreference(None, tuple(matches))
         return SlotPreference(None)
+
+
+@dataclass(frozen=True, slots=True)
+class QuoteReplyPreference:
+    """Resolves ONLY to "accept" or "decline" when the customer's reply is
+    genuinely unambiguous; everything else -- including any negation,
+    deferral, or condition -- is "unclear" and must be re-asked, never
+    guessed at. See DeterministicQuoteReplyInterpreter."""
+
+    decision: str
+
+    def __post_init__(self) -> None:
+        if self.decision not in {"accept", "decline", "unclear"}:
+            raise ValueError(f"unknown quote reply decision: {self.decision!r}")
+
+
+class QuoteReplyInterpreter(Protocol):
+    def interpret(self, customer_text: str) -> QuoteReplyPreference: ...
+
+
+class DeterministicQuoteReplyInterpreter:
+    """Recognizes a customer's decision on an already-presented quote by
+    matching a broad, explicit set of phrasings -- narrow single-word
+    matching ("accept"/"yes"/"approve"/"proceed" only) missed ordinary
+    replies like "sounds good, lets do it" or "works for me", which used to
+    fall through to CommercialWorkflowService's ambiguous-reply escalation
+    on the very first message even though the customer had clearly said
+    yes (live defect, 2026-08-30).
+
+    Never sums, never creates or alters the quote itself -- see
+    CommercialWorkflowService._handle_quote, which applies this only to a
+    quote that already exists at its already-fixed amount and treats
+    anything other than a clean "accept"/"decline" as unresolved. A
+    deferral ("not right now", "maybe later") or a condition ("only if
+    it's under 200") is NEVER accept, even though neither is a firm
+    decline either -- both resolve to "unclear" so the caller re-asks
+    instead of guessing, on the principle that a false "accept" costs far
+    more than one more question.
+    """
+
+    _ACCEPT_PHRASES = (
+        "sounds good", "let's do it", "lets do it", "go ahead", "go for it",
+        "works for me", "let's proceed", "lets proceed", "let's go", "lets go",
+        "давайте",
+    )
+    _ACCEPT_WORDS = (
+        "accept", "accepted", "approve", "approved", "confirm", "confirmed",
+        "proceed", "yes", "yeah", "yep", "yup", "да",
+    )
+    _DECLINE_PHRASES = ("no thanks", "no thank you", "too expensive")
+    _DECLINE_WORDS = ("decline", "declined", "reject", "rejected", "no")
+    # Checked BEFORE the accept/decline lists: a deferral or a condition is
+    # never itself a firm "no", but it must never be read as a "yes"
+    # either -- including a message that combines one with an accept word,
+    # e.g. "yes, but not right now".
+    _CONDITIONAL_MARKERS = (
+        "only if", "as long as", "provided that", "if it's under", "if it is under", "if you can",
+    )
+    _DEFERRAL_MARKERS = (
+        "not right now", "not now", "maybe later", "not yet", "need time",
+        "need some time", "think about it", "get back to you",
+    )
+
+    def interpret(self, customer_text: str) -> QuoteReplyPreference:
+        text = customer_text.strip().casefold()
+        if not text:
+            return QuoteReplyPreference("unclear")
+        if self._has_phrase(text, self._CONDITIONAL_MARKERS) or self._has_phrase(text, self._DEFERRAL_MARKERS):
+            return QuoteReplyPreference("unclear")
+        accepted = self._has_phrase(text, self._ACCEPT_PHRASES) or self._has_word(text, self._ACCEPT_WORDS)
+        declined = self._has_phrase(text, self._DECLINE_PHRASES) or self._has_word(text, self._DECLINE_WORDS)
+        if accepted and not declined:
+            return QuoteReplyPreference("accept")
+        if declined and not accepted:
+            return QuoteReplyPreference("decline")
+        return QuoteReplyPreference("unclear")
+
+    @staticmethod
+    def _has_phrase(text: str, phrases: tuple[str, ...]) -> bool:
+        return any(phrase in text for phrase in phrases)
+
+    @staticmethod
+    def _has_word(text: str, words: tuple[str, ...]) -> bool:
+        return any(re.search(rf"(?<!\w){re.escape(word)}(?!\w)", text) for word in words)
 
 
 @dataclass(frozen=True, slots=True)

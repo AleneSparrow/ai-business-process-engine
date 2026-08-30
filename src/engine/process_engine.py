@@ -47,16 +47,24 @@ class ProcessEngine:
             if not decision.approved:
                 raise InvalidTransition("Decision was not approved")
             if case.current_state is ProcessState.NEEDS_HUMAN:
-                # "Identified human approved this exact decision" is this
-                # engine's call, not the state machine's -- StateMachine
-                # only knows about states, not who is allowed to move them.
-                if decision.decision_type is not DecisionType.HUMAN or not request.approved_by:
+                if request.bounded_requalification:
+                    # A bounded, code-driven re-entry into the qualification
+                    # loop -- the caller has already checked eligibility
+                    # (reason code, attempt count); this engine only enforces
+                    # the state-machine shape of the exit. Never a staff
+                    # approval -- see StateMachine.validate_bounded_requalification.
+                    self.state_machine.validate_bounded_requalification(case.current_state, target)
+                elif decision.decision_type is not DecisionType.HUMAN or not request.approved_by:
+                    # "Identified human approved this exact decision" is this
+                    # engine's call, not the state machine's -- StateMachine
+                    # only knows about states, not who is allowed to move them.
                     raise InvalidTransition("NEEDS_HUMAN requires approval by an identified human")
-                # Whether the resulting state change is even a legal exit
-                # from NEEDS_HUMAN (case really is NEEDS_HUMAN, a pending
-                # transition really was recorded, target matches it exactly)
-                # is the state machine's call -- see validate_human_resume.
-                self.state_machine.validate_human_resume(case.current_state, case.pending_transition, target)
+                else:
+                    # Whether the resulting state change is even a legal exit
+                    # from NEEDS_HUMAN (case really is NEEDS_HUMAN, a pending
+                    # transition really was recorded, target matches it exactly)
+                    # is the state machine's call -- see validate_human_resume.
+                    self.state_machine.validate_human_resume(case.current_state, case.pending_transition, target)
             else:
                 self.state_machine.validate(case.current_state, target)
         except InvalidTransition as exc:

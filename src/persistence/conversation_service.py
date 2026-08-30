@@ -22,7 +22,7 @@ from src.domain.conversations import (
 from src.domain.events import EventType
 from src.domain.models import DecisionType, ProcessEvent, utc_now
 from src.domain.commercial import BookingStatus, PaymentStatus, PaymentType, QuoteStatus
-from src.domain.qualification import IncomingMessage, LeadIntakeResult
+from src.domain.qualification import IncomingMessage, LeadIntakeResult, QualificationReasonCode
 from src.domain.states import ProcessState
 from src.engine.customer_response_generator import CustomerResponseGenerator
 from src.engine.decision_router import DecisionRequest
@@ -61,6 +61,25 @@ _AUTONOMOUS_CASE_STATES = frozenset({
     ProcessState.BOOKED,
     ProcessState.WON,
 })
+# Which QualificationReasonCode a NEEDS_HUMAN case escalated for is allowed
+# to bounce back into the qualification loop automatically -- see
+# _maybe_requalify_needs_human_case. Closed and deliberately narrow: both of
+# these mean "the AI itself was uncertain" (a low extraction confidence, or
+# an intent.requires_human signal that didn't hit a more specific reason),
+# not "this customer genuinely needs a person". Every other reason --
+# SAFETY_EMERGENCY and URGENT_REQUEST (a real escalation trigger fired),
+# IDENTITY_CONFLICT, ALREADY_PENDING, POLICY_REJECTED/REVIEW, and anything
+# added to QualificationReasonCode later -- is excluded by default and stays
+# excluded until a human resolves it; this is an allowlist, not a denylist,
+# so a new reason code never becomes auto-requalifiable by omission.
+_REQUALIFIABLE_NEEDS_HUMAN_REASONS = frozenset({
+    QualificationReasonCode.LOW_CONFIDENCE,
+    QualificationReasonCode.REQUIRES_HUMAN,
+})
+_HUMAN_ESCALATION_FOLLOWUP_MESSAGES = (
+    "Got it — I've added that to your request for the team to review.",
+    "Thanks, that's noted on your request. Someone from the team will follow up as soon as possible.",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,6 +167,13 @@ class ConversationService:
     # conversation can't trigger unbounded AI intent-extraction calls --
     # same bounded-retry shape as AnthropicProvider._MAX_STRUCTURED_OUTPUT_ATTEMPTS.
     MAX_REACTIVATION_ATTEMPTS = 3
+
+    # NEEDS_HUMAN's counterpart to the above -- see
+    # _maybe_requalify_needs_human_case. Bounded for the same reason: a
+    # case that never becomes eligible again (or whose customer never sends
+    # another interpretable message) must eventually stay escalated rather
+    # than cycle through requalification attempts forever.
+    MAX_NEEDS_HUMAN_REQUALIFICATION_ATTEMPTS = 3
 
     def __init__(
         self,
@@ -424,6 +450,7 @@ class ConversationService:
         ))
 
         self._maybe_reactivate_lost_case(uow, conversation, occurred_at)
+        self._maybe_requalify_needs_human_case(uow, conversation, occurred_at)
 
         if conversation.status is ConversationStatus.AI_ACTIVE:
             case = (
@@ -483,6 +510,13 @@ class ConversationService:
                     conversation.metadata["unresolved_items"] = []
             conversation.metadata["current_state"] = current_state.value
             if current_state is ProcessState.NEEDS_HUMAN:
+                # Fresh escalation (this branch only runs while the
+                # conversation was AI_ACTIVE, i.e. not already paused) --
+                # reset the reply-variation counter so the very next paused
+                # response is the business's own escalation message again,
+                # not wherever a PRIOR episode's counter had gotten to. See
+                # _paused_response.
+                conversation.metadata["human_escalation_reply_count"] = 0
                 conversation.set_status(
                     ConversationStatus.HUMAN_TAKEOVER_REQUESTED, occurred_at
                 )
@@ -530,6 +564,12 @@ class ConversationService:
             raise RuntimeError("conversation references an invalid tenant case")
         conversation.metadata["current_state"] = case.current_state.value
         if case.current_state is ProcessState.NEEDS_HUMAN:
+            # Same reset as _process_message's own NEEDS_HUMAN branch, for
+            # the same reason -- this function only reaches here while the
+            # conversation was still AI_ACTIVE (guard above), so this is
+            # always a fresh escalation, never a repeat sync of one already
+            # in progress.
+            conversation.metadata["human_escalation_reply_count"] = 0
             conversation.set_status(
                 ConversationStatus.HUMAN_TAKEOVER_REQUESTED, occurred_at
             )
@@ -587,6 +627,78 @@ class ConversationService:
             )
 
         conversation.metadata["reactivation_attempts"] = attempts + 1
+        conversation.set_status(ConversationStatus.AI_ACTIVE, occurred_at)
+
+    def _maybe_requalify_needs_human_case(
+        self,
+        uow: UnitOfWork,
+        conversation: Conversation,
+        occurred_at: datetime,
+    ) -> None:
+        """NEEDS_HUMAN's counterpart to _maybe_reactivate_lost_case, for the
+        narrow set of escalations that were really just the AI being
+        uncertain rather than a genuine "a person must handle this" signal
+        -- see _REQUALIFIABLE_NEEDS_HUMAN_REASONS. Gives the customer's next
+        message a real, fresh qualification attempt instead of leaving the
+        conversation stuck until a human resolves it, bounded the same way
+        LOST reactivation is.
+
+        Deliberately does NOT use ProcessEngine's staff-approval exit
+        (validate_human_resume / case.pending_transition) -- there is no
+        human here, and pending_transition (always QUALIFIED for a
+        qualification-driven escalation -- see LeadIntakeService._transition)
+        would skip re-qualification entirely rather than re-run it. Instead
+        this goes through ProcessEngine.receive with
+        DecisionRequest.bounded_requalification=True, which StateMachine
+        only allows to land on CONTACTED -- the same re-entry point LOST
+        reactivation uses, so the very next message is qualified from
+        scratch.
+
+        Reasons that are NOT in the allowlist (a real safety/urgency
+        trigger, an identity conflict, a policy review, ...) are left alone
+        entirely: the case stays NEEDS_HUMAN until a human resolves it,
+        exactly as before this fix -- this method only ever narrows when a
+        case is stuck, never how it exits when it's genuinely not eligible.
+        """
+        if conversation.case_id is None or conversation.status is not ConversationStatus.HUMAN_TAKEOVER_REQUESTED:
+            # HUMAN_TAKEOVER_ACTIVE deliberately excluded: once a human has
+            # actually started working the case (StaffActionService), an
+            # automatic bounce-back must never reclaim it out from under
+            # them -- see Conversation.set_status's transition table.
+            return
+        case = uow.cases.get(conversation.business_id, conversation.case_id)
+        if case is None or case.current_state is not ProcessState.NEEDS_HUMAN:
+            return
+        reason_code = case.metadata.get("needs_human_reason_code")
+        if reason_code not in _REQUALIFIABLE_NEEDS_HUMAN_REASONS:
+            return
+        attempts = int(conversation.metadata.get("needs_human_requalification_attempts", 0) or 0)
+        if attempts >= self.MAX_NEEDS_HUMAN_REQUALIFICATION_ATTEMPTS:
+            return
+
+        expected = case.version
+        existing_event_count = len(case.event_history)
+        event = ProcessEvent(
+            EventType.TRIGGER_RECEIVED,
+            occurred_at=occurred_at,
+            source="conversation_service",
+            payload={
+                "reason": "Bounded automatic requalification after NEEDS_HUMAN",
+                "requested_target": ProcessState.CONTACTED.value,
+            },
+        )
+        self.intake.process_engine.receive(
+            case,
+            event,
+            DecisionRequest(DecisionType.RULE, ProcessState.CONTACTED, bounded_requalification=True),
+        )
+        uow.cases.save(case, expected)
+        uow.events.add_many(
+            case.business_id, case.case_id, case.event_history[existing_event_count:]
+        )
+
+        conversation.metadata["needs_human_requalification_attempts"] = attempts + 1
+        conversation.metadata["human_escalation_reply_count"] = 0
         conversation.set_status(ConversationStatus.AI_ACTIVE, occurred_at)
 
     def _run_intake(
@@ -681,12 +793,31 @@ class ConversationService:
             ConversationStatus.HUMAN_TAKEOVER_REQUESTED,
             ConversationStatus.HUMAN_TAKEOVER_ACTIVE,
         }:
-            escalation = dna.get("human_escalation", {})
-            if not isinstance(escalation, Mapping) or not isinstance(
-                escalation.get("customer_message"), str
-            ):
-                raise RuntimeError("Business DNA has no safe human escalation response")
-            return str(escalation["customer_message"]), "human_escalation"
+            # Live defect (2026-08-30): every message after NEEDS_HUMAN got
+            # this exact escalation sentence back, verbatim, forever -- a
+            # customer who kept adding detail while waiting for a human saw
+            # no acknowledgment that any of it was received. The reply
+            # count is reset to 0 on each fresh escalation (see
+            # _process_message / _synchronize_case_status) and incremented
+            # here on every paused reply, so the FIRST reply after
+            # escalating is still the business's own configured message
+            # (sets the right expectation), and every one after that
+            # confirms the message was read and added to the request
+            # instead of repeating itself -- cycling through a small fixed
+            # set of acknowledgments rather than freezing on a second one.
+            count = int(conversation.metadata.get("human_escalation_reply_count", 0) or 0)
+            conversation.metadata["human_escalation_reply_count"] = count + 1
+            if count == 0:
+                escalation = dna.get("human_escalation", {})
+                if not isinstance(escalation, Mapping) or not isinstance(
+                    escalation.get("customer_message"), str
+                ):
+                    raise RuntimeError("Business DNA has no safe human escalation response")
+                return str(escalation["customer_message"]), "human_escalation"
+            followup = _HUMAN_ESCALATION_FOLLOWUP_MESSAGES[
+                (count - 1) % len(_HUMAN_ESCALATION_FOLLOWUP_MESSAGES)
+            ]
+            return followup, "human_escalation_followup"
         state = ConversationService._stored_state(conversation)
         if state is ProcessState.LOST:
             qualification = dna.get("qualification", {})
