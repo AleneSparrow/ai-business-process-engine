@@ -109,7 +109,16 @@ def _follow_up_config(business_dna: Mapping[str, object]) -> tuple[tuple[int, ..
         return None
     delays = follow_up.get("delays_hours")
     maximum_attempts = follow_up.get("maximum_attempts")
-    if not isinstance(delays, list) or not delays:
+    # (list, tuple), not just list: BusinessDNAVersion freezes its whole
+    # configuration (see domain/models._freeze) -- every business_dna that
+    # actually reaches this function through the persistence layer
+    # (BusinessDNARepository.get_active, what PersistentFollowUpRunner uses)
+    # has already had delays_hours converted from a JSON list into a tuple.
+    # Requiring `list` here rejected every real, persisted business_dna --
+    # found via tests/test_follow_up_service.py, which is the first test to
+    # exercise this against an actual persisted (frozen) configuration
+    # rather than a hand-built plain dict.
+    if not isinstance(delays, (list, tuple)) or not delays:
         return None
     if not all(isinstance(item, int) and item > 0 for item in delays):
         return None

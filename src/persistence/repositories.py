@@ -29,6 +29,27 @@ class IdempotencyRecord:
     created_at: datetime
 
 
+class DeliveryStatus(StrEnum):
+    """State of one durable follow-up SMS delivery attempt -- see
+    FollowUpDeliveryRepository / PersistentFollowUpRunner._send_one."""
+
+    PENDING = "PENDING"
+    SENT = "SENT"
+    FAILED = "FAILED"
+
+
+@dataclass(frozen=True, slots=True)
+class FollowUpDeliveryAttempt:
+    business_id: str
+    case_id: str
+    attempt_number: int
+    status: DeliveryStatus
+    message_text: str
+    twilio_sid: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
 class BusinessRepository(Protocol):
     def add(self, business: Business) -> None: ...
     def get(self, business_id: str) -> Business | None: ...
@@ -50,7 +71,17 @@ class BusinessRepository(Protocol):
         subscription_status: str,
         trial_ends_at: datetime | None,
         current_period_end: datetime | None,
-    ) -> Business: ...
+        event_at: datetime | None = None,
+    ) -> Business:
+        """`event_at` is the webhook snapshot's own timestamp (see
+        BillingService._event_timestamp). When it is older than the
+        business's stored `billing_event_at` watermark, the update is
+        skipped entirely (an out-of-order/delayed delivery must not
+        resurrect a since-superseded billing state) and the business is
+        returned unchanged. `None` (no comparable timestamp on this event,
+        or no watermark recorded yet) always applies -- there is nothing to
+        protect against overwriting."""
+        ...
 
 
 class BusinessDNARepository(Protocol):
@@ -206,6 +237,58 @@ class SmsConnectionRepository(Protocol):
     ) -> None: ...
 
 
+class BillingWebhookEventRepository(Protocol):
+    def claim(self, event_fingerprint: str, event_name: str, *, now: datetime) -> bool:
+        """Atomically records that this exact webhook delivery (identified
+        by a fingerprint of its raw payload bytes) is being processed.
+        Returns True the first time a given fingerprint is seen (the caller
+        should apply it), False if it was already recorded -- Lemon
+        Squeezy resends a retried delivery with identical bytes, so a
+        repeat hashes to the same fingerprint and must be treated as a
+        no-op, never reapplied."""
+        ...
+
+
+class FollowUpDeliveryRepository(Protocol):
+    def claim_attempt(
+        self,
+        business_id: str,
+        case_id: str,
+        attempt_number: int,
+        *,
+        message_text: str,
+        now: datetime,
+    ) -> tuple[FollowUpDeliveryAttempt, bool]:
+        """Atomically get-or-creates the delivery-attempt row for this
+        (business_id, case_id, attempt_number) -- the durable outbox
+        "intent" record, written *before* Twilio is ever called. Returns
+        `(attempt, owns_send)`.
+
+        `owns_send` is True only for the caller that should actually call
+        Twilio: either it just created the row (first-ever claim), or an
+        existing PENDING row is older than the abandoned-attempt grace
+        period (the process that claimed it crashed before recording any
+        outcome) and this call is taking over. Every other caller --
+        concurrent claims racing the winner, or a PENDING row still within
+        its grace period -- gets `owns_send=False` and MUST NOT send;
+        `attempt.status` tells it what to do instead: SENT/FAILED means the
+        attempt already has a final outcome (finish the case update, don't
+        resend), PENDING-but-not-owned means another process is (or very
+        recently was) actively handling it (back off, try again later)."""
+        ...
+
+    def mark_result(
+        self,
+        business_id: str,
+        case_id: str,
+        attempt_number: int,
+        *,
+        sent: bool,
+        twilio_sid: str | None,
+        now: datetime,
+    ) -> None: ...
+
+
 class StaffUserRepository(Protocol):
     def add(self, user: StaffUser) -> None: ...
     def get(self, user_id: str) -> StaffUser | None: ...
@@ -235,6 +318,8 @@ class UnitOfWork(Protocol):
     staff_sessions: StaffSessionRepository
     crm_webhook_connections: CrmWebhookConnectionRepository
     sms_connections: SmsConnectionRepository
+    billing_webhook_events: BillingWebhookEventRepository
+    follow_up_deliveries: FollowUpDeliveryRepository
 
     def __enter__(self) -> "UnitOfWork": ...
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None: ...

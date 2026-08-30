@@ -43,6 +43,7 @@ class BusinessRow(Base):
     subscription_status: Mapped[str] = mapped_column(String(32), nullable=False, server_default="incomplete")
     trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    billing_event_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         # Not unique -- see migration 0009. The same real person/email can run
@@ -116,6 +117,23 @@ class SmsConnectionRow(Base):
     twilio_phone_sid: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class BillingWebhookEventRow(Base):
+    """One row per distinct Lemon Squeezy webhook delivery ever accepted
+    (verified signature + a handled event type), keyed by a fingerprint of
+    the exact payload bytes -- see BillingService.handle_webhook. Lemon
+    Squeezy retries a webhook by resending the identical body, so a repeat
+    delivery hashes to the same fingerprint and is rejected by the unique
+    constraint (see SQLAlchemyBillingWebhookEventRepository.claim), never
+    reapplied. Deliberately stores no payload or customer data -- only the
+    fingerprint (not reversible to the original bytes) and the event name."""
+
+    __tablename__ = "billing_webhook_events"
+
+    event_fingerprint: Mapped[str] = mapped_column(String(64), primary_key=True)
+    event_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class StaffUserRow(Base):
@@ -300,6 +318,46 @@ class ProcessedMessageRow(Base):
             name="ck_processed_messages_completion",
         ),
         Index("ix_processed_messages_case", "business_id", "case_id"),
+    )
+
+
+class FollowUpDeliveryAttemptRow(Base):
+    """Durable outbox row for one proactive follow-up SMS attempt -- see
+    PersistentFollowUpRunner._send_one. The primary key IS the idempotency
+    key: (business_id, case_id, attempt_number) is claimed atomically
+    (INSERT ... ON CONFLICT DO NOTHING) *before* Twilio is ever called, so a
+    crash between a successful send and recording it on the case can resume
+    from this row (status == SENT, twilio_sid populated) instead of sending
+    a second message. Twilio's Messages API has no client-supplied
+    idempotency key, so exact-once isn't achievable end-to-end -- this
+    narrows the unavoidable duplicate window to "Twilio confirmed dispatch,
+    the process crashed before persisting that confirmation", down from
+    today's "any DB failure after any send retries forever"."""
+
+    __tablename__ = "follow_up_delivery_attempts"
+
+    business_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("businesses.id", ondelete="CASCADE"), primary_key=True
+    )
+    case_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    attempt_number: Mapped[int] = mapped_column(Integer, primary_key=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    message_text: Mapped[str] = mapped_column(Text, nullable=False)
+    twilio_sid: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["business_id", "case_id"],
+            ["process_cases.business_id", "process_cases.id"],
+            ondelete="CASCADE",
+            name="fk_follow_up_delivery_attempts_tenant_case",
+        ),
+        CheckConstraint(
+            "status IN ('PENDING', 'SENT', 'FAILED')",
+            name="ck_follow_up_delivery_attempts_status",
+        ),
     )
 
 

@@ -42,7 +42,7 @@ from src.engine.follow_up import (
 )
 
 from .errors import StaleCaseError
-from .repositories import UnitOfWorkFactory
+from .repositories import DeliveryStatus, UnitOfWorkFactory
 from .sms_service import SmsService
 
 LOGGER = logging.getLogger("uvicorn.error")
@@ -136,7 +136,32 @@ class PersistentFollowUpRunner:
         time we get here (the customer replied, another sweep already sent
         this one, an escalation fired). Never raises: StaleCaseError from
         the version-conflict race is caught and treated as "try again next
-        sweep", exactly like an unmet delay would be."""
+        sweep", exactly like an unmet delay would be.
+
+        Durable-outbox delivery, in three separate transactions rather than
+        "send, then hope the one DB write after it succeeds":
+
+        1. Atomically claim the (business_id, case_id, attempt_number)
+           delivery-attempt row -- the outbox "intent" -- *before* Twilio is
+           ever called. The unique key on that row is what makes this safe
+           to re-enter: a retried sweep for the same attempt gets back the
+           same row instead of creating a second one.
+        2. Call Twilio (only if the claimed row isn't already SENT -- see
+           below), then record the outcome (SID or failure) on that same
+           row, in its own transaction.
+        3. Only then update the case (FOLLOW_UP_SENT event, attempt count).
+
+        Twilio's Messages API has no client-supplied idempotency key, so
+        exact-once isn't achievable end-to-end. What this buys over the
+        previous send-then-persist ordering is a much narrower duplicate
+        window: today, ANY failure in step 3 (for any reason, on any future
+        sweep) resent the SMS, indefinitely. With the attempt row claimed
+        first, the only way to still get a duplicate is a crash strictly
+        between Twilio confirming dispatch and this process persisting that
+        confirmation in step 2 -- and even then, at most one extra send,
+        never a repeat on every later sweep. That's the documented
+        at-least-once behavior the task calls for when exact-once isn't
+        available."""
         with self.unit_of_work_factory() as uow:
             case = uow.cases.get(business_id, case_id)
             if case is None:
@@ -156,8 +181,47 @@ class PersistentFollowUpRunner:
             response = self.message_generator.generate(
                 missing, business_dna, "sms", case.case_id, attempt_number=decision.attempt_number,
             )
-            delivered = self.sms_service.send_outbound(business_id, to_number=phone, body=response.message_text)
+            attempt, owns_send = uow.follow_up_deliveries.claim_attempt(
+                business_id, case_id, decision.attempt_number,
+                message_text=response.message_text, now=now,
+            )
+            uow.commit()
 
+        if not owns_send:
+            if attempt.status == DeliveryStatus.SENT:
+                # Resuming after a crash between Twilio confirming dispatch
+                # and this process recording it below -- the SMS already
+                # went out (twilio_sid is that proof). Do not send it
+                # again; just finish updating the case.
+                delivered, twilio_sid = True, attempt.twilio_sid
+            elif attempt.status == DeliveryStatus.FAILED:
+                # A previous attempt at this exact delivery already failed
+                # and was recorded as such -- nothing new to send; finish
+                # the case update with the same outcome so the attempt is
+                # still consumed.
+                delivered, twilio_sid = False, None
+            else:
+                # Someone else (a concurrent sweep, most likely) claimed
+                # this attempt and hasn't recorded an outcome yet. Sending
+                # here too would risk a duplicate -- back off and let the
+                # owner finish; this case is picked up again next sweep.
+                return "already_claimed"
+        else:
+            twilio_sid = self.sms_service.send_outbound(
+                business_id, to_number=phone, body=attempt.message_text
+            )
+            delivered = twilio_sid is not None
+            with self.unit_of_work_factory() as uow:
+                uow.follow_up_deliveries.mark_result(
+                    business_id, case_id, decision.attempt_number,
+                    sent=delivered, twilio_sid=twilio_sid, now=now,
+                )
+                uow.commit()
+
+        with self.unit_of_work_factory() as uow:
+            case = uow.cases.get(business_id, case_id)
+            if case is None:
+                return "gone"
             expected_version = case.version
             existing_event_count = len(case.event_history)
             # An attempt is consumed regardless of delivery outcome (same
@@ -172,8 +236,9 @@ class PersistentFollowUpRunner:
                 source="follow_up_runner",
                 payload={
                     "attempt_number": decision.attempt_number,
-                    "message_text": response.message_text,
+                    "message_text": attempt.message_text,
                     "delivered": delivered,
+                    "twilio_sid": twilio_sid,
                 },
             ))
             try:

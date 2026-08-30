@@ -56,6 +56,7 @@ from src.config import Settings
 from src.domain.tenancy import PLAN_IDS, Business
 
 from .errors import (
+    BillingAlreadyActiveError,
     BillingAccountNotFoundError,
     BillingNotConfiguredError,
     InvalidPlanError,
@@ -92,6 +93,21 @@ def _parse_timestamp(value: str | None) -> datetime | None:
     normalized = value[:-1] + "+00:00" if value.endswith("Z") else value
     parsed = datetime.fromisoformat(normalized)
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _event_timestamp(attributes: Mapping[str, Any]) -> datetime | None:
+    """The subscription/invoice snapshot's own last-modified time -- used to
+    reject a webhook delivery older than the billing state already applied
+    (e.g. a delayed subscription_created retry arriving after
+    subscription_cancelled). Prefers `updated_at` (bumped on every change to
+    the resource) over `created_at` (fixed at the resource's creation, so it
+    can't tell two different snapshots of the same subscription apart).
+    Real Lemon Squeezy payloads always carry at least one of these; a fixture
+    or unusual payload missing both yields None, which BusinessRepository.
+    update_billing treats conservatively -- it applies the event (nothing
+    else to go on) but does not move the staleness watermark, so it can
+    never itself cause a later, comparable-timestamp event to be rejected."""
+    return _parse_timestamp(attributes.get("updated_at")) or _parse_timestamp(attributes.get("created_at"))
 
 
 class BillingService:
@@ -155,6 +171,10 @@ class BillingService:
             business = unit_of_work.businesses.get(business_id)
         if business is None:
             raise KeyError(f"unknown business_id: {business_id}")
+        if business.has_billing_access:
+            raise BillingAlreadyActiveError(
+                "This business already has billing access; use the customer portal to manage it"
+            )
 
         response = self._client.create_checkout(
             store_id=self._settings.lemonsqueezy_store_id,
@@ -185,7 +205,14 @@ class BillingService:
     def handle_webhook(self, payload: bytes, signature_header: str | None) -> None:
         """Verifies and applies a Lemon Squeezy webhook event. Unrecognized
         event types (order/customer/license events we don't act on) are
-        silently accepted -- there's nothing to retry for those."""
+        silently accepted -- there's nothing to retry for those.
+
+        Duplicate deliveries (Lemon Squeezy retries a webhook by resending
+        the identical body) and out-of-order deliveries (a late
+        subscription_created/updated arriving after a more recent
+        cancelled/expired) are both handled defensively -- see
+        `billing_webhook_events.claim` and `_event_timestamp` /
+        `BusinessRepository.update_billing`."""
         self._require_configured()
         expected = hmac.new(
             self._settings.lemonsqueezy_webhook_secret.encode("utf-8"), payload, hashlib.sha256
@@ -202,7 +229,23 @@ class BillingService:
         if event_name not in _HANDLED_EVENT_TYPES:
             return
 
+        # Lemon Squeezy gives webhooks no delivery-specific id to key
+        # dedup on -- a content fingerprint of the (already
+        # signature-verified) raw payload is exact for true retries (same
+        # bytes in, same fingerprint out) without storing the payload
+        # itself. Computed from `payload`, never logged.
+        fingerprint = hashlib.sha256(payload).hexdigest()
+
         with self._unit_of_work_factory() as unit_of_work:
+            first_delivery = unit_of_work.billing_webhook_events.claim(
+                fingerprint, event_name, now=datetime.now(timezone.utc)
+            )
+            if not first_delivery:
+                # Already processed this exact delivery -- a Lemon Squeezy
+                # retry. Applying it again would be a safe no-op given the
+                # staleness guard below, but skipping entirely avoids an
+                # unnecessary write and keeps this path trivially idempotent.
+                return
             if event_name in _SUBSCRIPTION_SNAPSHOT_EVENTS:
                 self._apply_subscription_snapshot(unit_of_work, event)
             elif event_name in _PAYMENT_FAILED_EVENTS:
@@ -256,6 +299,7 @@ class BillingService:
             # charge" date while on_trial/active -- either way this is "the
             # date through which access is paid for".
             current_period_end=_parse_timestamp(ends_at) or _parse_timestamp(renews_at),
+            event_at=_event_timestamp(attributes),
         )
 
     def _apply_payment_failed(self, unit_of_work: UnitOfWork, event: Mapping[str, Any]) -> None:
@@ -277,4 +321,5 @@ class BillingService:
             subscription_status="past_due",
             trial_ends_at=business.trial_ends_at,
             current_period_end=business.current_period_end,
+            event_at=_event_timestamp(attributes),
         )

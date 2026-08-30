@@ -28,6 +28,7 @@ from src.domain.auth import StaffUser
 from src.domain.business_dna_builder import OnboardingInput, OnboardingService, build_business_dna
 from src.persistence.billing_service import BillingService
 from src.persistence.errors import (
+    BillingAlreadyActiveError,
     BillingAccountNotFoundError,
     BillingNotConfiguredError,
     InvalidPlanError,
@@ -100,24 +101,41 @@ def _subscription_event(
     renews_at: str | None = None,
     ends_at: str | None = None,
     custom_data: dict | None = None,
+    updated_at: str | None = None,
+    created_at: str | None = None,
+    nonce: str | None = None,
 ) -> bytes:
     """Builds a `subscription_*` webhook payload -- these carry a full
-    subscription snapshot in data.attributes (data.type == "subscriptions")."""
+    subscription snapshot in data.attributes (data.type == "subscriptions").
+
+    `updated_at`/`created_at` mirror the real Lemon Squeezy subscription
+    object's own timestamps (https://docs.lemonsqueezy.com/api/subscriptions/
+    the-subscription-object) -- BillingService reads these to reject an
+    out-of-order delivery; omit them (as most tests here do, since ordering
+    is untested by default) to exercise the "no comparable timestamp"
+    fallback. `nonce` exists purely so two calls that are otherwise
+    byte-for-byte identical (e.g. simulating a genuinely distinct delivery
+    of the "same" logical event, as opposed to a Lemon Squeezy retry of one
+    delivery) don't collide on the dedup fingerprint, which hashes raw
+    payload bytes."""
+    attributes = {
+        "customer_id": customer_id,
+        "variant_id": variant_id,
+        "status": status,
+        "trial_ends_at": trial_ends_at,
+        "renews_at": renews_at,
+        "ends_at": ends_at,
+    }
+    if updated_at is not None:
+        attributes["updated_at"] = updated_at
+    if created_at is not None:
+        attributes["created_at"] = created_at
+    if nonce is not None:
+        attributes["_nonce"] = nonce
     return json.dumps(
         {
             "meta": {"event_name": event_name, "custom_data": custom_data or {}},
-            "data": {
-                "type": "subscriptions",
-                "id": subscription_id,
-                "attributes": {
-                    "customer_id": customer_id,
-                    "variant_id": variant_id,
-                    "status": status,
-                    "trial_ends_at": trial_ends_at,
-                    "renews_at": renews_at,
-                    "ends_at": ends_at,
-                },
-            },
+            "data": {"type": "subscriptions", "id": subscription_id, "attributes": attributes},
         }
     ).encode("utf-8")
 
@@ -127,21 +145,21 @@ def _payment_failed_event(
     subscription_id: str,
     customer_id: str | None = None,
     custom_data: dict | None = None,
+    updated_at: str | None = None,
 ) -> bytes:
     """Builds a `subscription_payment_failed` payload -- a different shape
     (a subscription-invoice object), see BillingService._apply_payment_failed."""
+    attributes = {
+        "subscription_id": subscription_id,
+        "customer_id": customer_id,
+        "status": "pending",
+    }
+    if updated_at is not None:
+        attributes["updated_at"] = updated_at
     return json.dumps(
         {
             "meta": {"event_name": "subscription_payment_failed", "custom_data": custom_data or {}},
-            "data": {
-                "type": "subscription-invoices",
-                "id": "inv_1",
-                "attributes": {
-                    "subscription_id": subscription_id,
-                    "customer_id": customer_id,
-                    "status": "pending",
-                },
-            },
+            "data": {"type": "subscription-invoices", "id": "inv_1", "attributes": attributes},
         }
     ).encode("utf-8")
 
@@ -219,6 +237,27 @@ def test_checkout_session_requires_billing_configured(uow_factory) -> None:
     service = BillingService(uow_factory, Settings(database_url="sqlite+pysqlite:///:memory:", app_env="test"))
     with pytest.raises(BillingNotConfiguredError):
         service.create_checkout_session("acme-co", "starter", "owner@example.com")
+
+
+def test_checkout_session_rejects_second_active_subscription(uow_factory) -> None:
+    _make_business(uow_factory)
+    fake = FakeLemonSqueezyClient()
+    service = BillingService(uow_factory, _billing_settings(), client=fake)
+    with uow_factory() as unit_of_work:
+        unit_of_work.businesses.update_billing(
+            "acme-co",
+            payment_customer_id="cus_existing",
+            payment_subscription_id="sub_existing",
+            plan="starter",
+            subscription_status="active",
+            trial_ends_at=None,
+            current_period_end=None,
+        )
+        unit_of_work.commit()
+
+    with pytest.raises(BillingAlreadyActiveError):
+        service.create_checkout_session("acme-co", "pro", "owner@example.com")
+    assert fake.checkout_calls == []
 
 
 def test_portal_session_requires_existing_subscription(uow_factory) -> None:
@@ -476,6 +515,187 @@ def test_webhook_ignores_unhandled_event_types(uow_factory) -> None:
     service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
     payload = json.dumps({"meta": {"event_name": "order_created"}, "data": {"id": "order_1"}}).encode("utf-8")
     service.handle_webhook(payload, _sign(payload))  # must not raise
+
+
+# --- BillingService: webhook duplicate / out-of-order protection --------------------
+
+
+def test_webhook_duplicate_delivery_is_a_no_op(uow_factory) -> None:
+    """A Lemon Squeezy retry resends the byte-identical body. Resending the
+    very first subscription_created delivery -- arriving late, after the
+    subscription was already cancelled -- must not revert the business back
+    to on_trial. This is the exact production risk named in the task: an
+    unconditional handler would happily reapply it."""
+    _make_business(uow_factory)
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+    created = _subscription_event(
+        "subscription_created",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="on_trial",
+        trial_ends_at="2024-01-08T00:00:00.000000Z",
+        custom_data={"business_id": "acme-co", "plan": "starter"},
+    )
+    service.handle_webhook(created, _sign(created))
+    cancelled = _subscription_event(
+        "subscription_cancelled",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="cancelled",
+        ends_at="2024-02-01T00:00:00.000000Z",
+    )
+    service.handle_webhook(cancelled, _sign(cancelled))
+    assert service.get_status("acme-co").subscription_status == "cancelled"
+
+    # Lemon Squeezy retries the ORIGINAL created delivery (identical bytes).
+    service.handle_webhook(created, _sign(created))
+
+    business = service.get_status("acme-co")
+    assert business.subscription_status == "cancelled"  # not reverted to on_trial
+
+
+def test_webhook_stale_update_does_not_resurrect_access_after_cancelled(uow_factory) -> None:
+    """A late, OLDER subscription_updated (distinct delivery, not a byte-
+    identical retry -- dedup alone wouldn't catch this) must not undo a
+    more recent subscription_cancelled."""
+    _make_business(uow_factory)
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+    created = _subscription_event(
+        "subscription_created",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="on_trial",
+        updated_at="2024-01-01T00:00:00.000000Z",
+        custom_data={"business_id": "acme-co", "plan": "starter"},
+    )
+    service.handle_webhook(created, _sign(created))
+    cancelled = _subscription_event(
+        "subscription_cancelled",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="cancelled",
+        ends_at="2024-03-01T00:00:00.000000Z",
+        updated_at="2024-01-03T00:00:00.000000Z",
+    )
+    service.handle_webhook(cancelled, _sign(cancelled))
+    assert service.get_status("acme-co").subscription_status == "cancelled"
+
+    # Delivered out of order: timestamped BEFORE the cancellation above, but
+    # arrives at the server after it.
+    stale_update = _subscription_event(
+        "subscription_updated",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="active",
+        updated_at="2024-01-02T00:00:00.000000Z",
+    )
+    service.handle_webhook(stale_update, _sign(stale_update))
+
+    business = service.get_status("acme-co")
+    assert business.subscription_status == "cancelled"  # not reverted to active
+
+
+def test_webhook_stale_update_does_not_resurrect_access_after_expired(uow_factory) -> None:
+    _make_business(uow_factory)
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+    created = _subscription_event(
+        "subscription_created",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="active",
+        updated_at="2024-01-01T00:00:00.000000Z",
+        custom_data={"business_id": "acme-co", "plan": "starter"},
+    )
+    service.handle_webhook(created, _sign(created))
+    expired = _subscription_event(
+        "subscription_expired",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="expired",
+        ends_at="2024-01-15T00:00:00.000000Z",
+        updated_at="2024-01-15T00:00:00.000000Z",
+    )
+    service.handle_webhook(expired, _sign(expired))
+    assert service.get_status("acme-co").subscription_status == "expired"
+
+    stale_update = _subscription_event(
+        "subscription_updated",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="active",
+        updated_at="2024-01-10T00:00:00.000000Z",
+    )
+    service.handle_webhook(stale_update, _sign(stale_update))
+
+    business = service.get_status("acme-co")
+    assert business.subscription_status == "expired"  # not reverted to active
+    assert business.has_billing_access is False
+
+
+def test_webhook_newer_update_after_cancelled_still_applies(uow_factory) -> None:
+    """The staleness guard must only block OLDER events -- a genuinely newer
+    snapshot (e.g. the customer resubscribed) still needs to go through."""
+    _make_business(uow_factory)
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+    cancelled = _subscription_event(
+        "subscription_cancelled",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="cancelled",
+        ends_at="2024-02-01T00:00:00.000000Z",
+        updated_at="2024-01-03T00:00:00.000000Z",
+        custom_data={"business_id": "acme-co", "plan": "starter"},
+    )
+    service.handle_webhook(cancelled, _sign(cancelled))
+    assert service.get_status("acme-co").subscription_status == "cancelled"
+
+    resumed = _subscription_event(
+        "subscription_updated",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="active",
+        updated_at="2024-01-10T00:00:00.000000Z",
+    )
+    service.handle_webhook(resumed, _sign(resumed))
+
+    assert service.get_status("acme-co").subscription_status == "active"
+
+
+def test_webhook_missing_timestamp_fields_still_applies_conservatively(uow_factory) -> None:
+    """Neither fixture here sets updated_at/created_at -- BillingService must
+    handle that absence conservatively (apply, since there's nothing to
+    compare against) rather than erroring or silently dropping the event."""
+    _make_business(uow_factory)
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+    created = _subscription_event(
+        "subscription_created",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="on_trial",
+        custom_data={"business_id": "acme-co", "plan": "starter"},
+    )
+    service.handle_webhook(created, _sign(created))
+    updated = _subscription_event(
+        "subscription_updated",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="active",
+    )
+    service.handle_webhook(updated, _sign(updated))
+
+    assert service.get_status("acme-co").subscription_status == "active"
 
 
 # --- HTTP layer: gate + reachability -------------------------------------------------

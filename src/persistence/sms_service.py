@@ -124,20 +124,22 @@ class SmsService:
             uow.commit()
         return available
 
-    def send_outbound(self, business_id: str, *, to_number: str, body: str) -> bool:
-        """Best-effort, never raises. Returns whether the send succeeded."""
+    def send_outbound(self, business_id: str, *, to_number: str, body: str) -> str | None:
+        """Best-effort, never raises. Returns the Twilio message SID on
+        success (the durable proof of dispatch a caller can persist for
+        outbox-style delivery tracking -- see PersistentFollowUpRunner), or
+        None on any failure."""
         if not self.configured:
-            return False
+            return None
         try:
             from_number = self.get_number(business_id)
             if from_number is None:
                 LOGGER.warning("sms_send_no_number_configured business_id=%s", business_id)
-                return False
-            self._client().send_sms(from_number=from_number, to_number=to_number, body=body)
-            return True
+                return None
+            return self._client().send_sms(from_number=from_number, to_number=to_number, body=body)
         except TwilioAPIError:
             LOGGER.exception(
                 "sms_send_failed business_id=%s to_number_suffix=%s",
                 business_id, to_number[-4:] if len(to_number) >= 4 else "****",
             )
-            return False
+            return None

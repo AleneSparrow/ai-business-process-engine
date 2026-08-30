@@ -6,12 +6,14 @@ from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.orm import Session, sessionmaker
 
 from .sqlalchemy_repositories import (
+    SQLAlchemyBillingWebhookEventRepository,
     SQLAlchemyBusinessDNARepository,
     SQLAlchemyBusinessRepository,
     SQLAlchemyBookingRepository,
     SQLAlchemyConversationMessageRepository,
     SQLAlchemyConversationRepository,
     SQLAlchemyCrmWebhookConnectionRepository,
+    SQLAlchemyFollowUpDeliveryRepository,
     SQLAlchemyIdempotencyRepository,
     SQLAlchemyLeadRepository,
     SQLAlchemyPaymentRequestRepository,
@@ -68,6 +70,8 @@ class SQLAlchemyUnitOfWork:
         self.staff_sessions = SQLAlchemyStaffSessionRepository(self.session)
         self.crm_webhook_connections = SQLAlchemyCrmWebhookConnectionRepository(self.session)
         self.sms_connections = SQLAlchemySmsConnectionRepository(self.session)
+        self.billing_webhook_events = SQLAlchemyBillingWebhookEventRepository(self.session)
+        self.follow_up_deliveries = SQLAlchemyFollowUpDeliveryRepository(self.session)
         return self
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:

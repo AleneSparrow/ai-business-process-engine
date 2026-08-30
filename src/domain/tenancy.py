@@ -35,6 +35,15 @@ class Business:
     subscription_status: str = "incomplete"
     trial_ends_at: datetime | None = None
     current_period_end: datetime | None = None
+    billing_event_at: datetime | None = None
+    """The Lemon Squeezy snapshot timestamp (subscription/invoice
+    `updated_at`, falling back to `created_at`) of the most recent webhook
+    event actually applied to the billing fields above. Used to reject an
+    out-of-order delivery -- e.g. a delayed `subscription_created` retry
+    arriving after a `subscription_cancelled` -- rather than letting it
+    resurrect access. None means no event carrying a usable timestamp has
+    been applied yet, so there is nothing to protect against overwriting.
+    See BillingService.handle_webhook / BusinessRepository.update_billing."""
 
     def __post_init__(self) -> None:
         _require_text(self.business_id, "business_id")
@@ -49,6 +58,8 @@ class Business:
             _require_aware(self.trial_ends_at, "trial_ends_at")
         if self.current_period_end is not None:
             _require_aware(self.current_period_end, "current_period_end")
+        if self.billing_event_at is not None:
+            _require_aware(self.billing_event_at, "billing_event_at")
 
     @property
     def has_billing_access(self) -> bool:

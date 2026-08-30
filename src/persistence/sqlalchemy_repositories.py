@@ -1,7 +1,7 @@
 """Synchronous SQLAlchemy implementations of repository protocols."""
 
 import hashlib
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Sequence
 
 from sqlalchemy import func, select, update
@@ -39,14 +39,16 @@ from .errors import (
     StalePaymentRequestError,
     StaleQuoteError,
 )
-from .repositories import ClaimStatus, IdempotencyRecord
+from .repositories import ClaimStatus, DeliveryStatus, FollowUpDeliveryAttempt, IdempotencyRecord
 from .sqlalchemy_models import (
+    BillingWebhookEventRow,
     BusinessDNARow,
     BusinessRow,
     BookingRow,
     ConversationMessageRow,
     ConversationRow,
     CrmWebhookConnectionRow,
+    FollowUpDeliveryAttemptRow,
     SmsConnectionRow,
     LeadRow,
     PaymentRequestRow,
@@ -87,6 +89,7 @@ def _business_from_row(row: BusinessRow) -> Business:
         subscription_status=row.subscription_status,
         trial_ends_at=_aware(row.trial_ends_at) if row.trial_ends_at else None,
         current_period_end=_aware(row.current_period_end) if row.current_period_end else None,
+        billing_event_at=_aware(row.billing_event_at) if row.billing_event_at else None,
     )
 
 
@@ -151,12 +154,21 @@ class SQLAlchemyBusinessRepository:
         subscription_status: str,
         trial_ends_at: datetime | None,
         current_period_end: datetime | None,
+        event_at: datetime | None = None,
     ) -> Business:
         row = self.session.scalar(
             select(BusinessRow).where(BusinessRow.id == business_id).with_for_update()
         )
         if row is None:
             raise KeyError(f"unknown business_id: {business_id}")
+        stored_event_at = _aware(row.billing_event_at) if row.billing_event_at else None
+        if event_at is not None and stored_event_at is not None and event_at < stored_event_at:
+            # Out-of-order delivery: a newer billing snapshot (by event_at)
+            # has already been applied -- e.g. a delayed subscription_created
+            # retry arriving after subscription_cancelled/expired. Leave
+            # billing state untouched rather than let a stale event
+            # resurrect access.
+            return _business_from_row(row)
         if payment_customer_id is not None:
             row.payment_customer_id = payment_customer_id
         if payment_subscription_id is not None:
@@ -166,9 +178,38 @@ class SQLAlchemyBusinessRepository:
         row.subscription_status = subscription_status
         row.trial_ends_at = trial_ends_at
         row.current_period_end = current_period_end
+        if event_at is not None:
+            row.billing_event_at = event_at
         row.updated_at = utc_now()
         self.session.flush()
         return _business_from_row(row)
+
+
+class SQLAlchemyBillingWebhookEventRepository:
+    """See BillingWebhookEventRow for why this exists and stores no payload
+    or customer data."""
+
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def claim(self, event_fingerprint: str, event_name: str, *, now: datetime) -> bool:
+        values = {
+            "event_fingerprint": event_fingerprint,
+            "event_name": event_name,
+            "processed_at": now,
+        }
+        dialect = self.session.get_bind().dialect.name
+        if dialect == "postgresql":
+            statement = postgresql_insert(BillingWebhookEventRow).values(**values).on_conflict_do_nothing(
+                index_elements=["event_fingerprint"]
+            ).returning(BillingWebhookEventRow.event_fingerprint)
+        elif dialect == "sqlite":
+            statement = sqlite_insert(BillingWebhookEventRow).values(**values).on_conflict_do_nothing(
+                index_elements=["event_fingerprint"]
+            ).returning(BillingWebhookEventRow.event_fingerprint)
+        else:
+            raise RuntimeError(f"billing webhook dedup is unsupported for database dialect: {dialect}")
+        return self.session.scalar(statement) is not None
 
 
 class SQLAlchemyBusinessDNARepository:
@@ -284,6 +325,122 @@ class SQLAlchemySmsConnectionRepository:
             created_at=now,
             updated_at=now,
         ))
+
+
+# A PENDING row older than this is treated as abandoned -- the process that
+# claimed it crashed somewhere between claiming and recording an outcome
+# (most likely mid-Twilio-call) -- and a later claimer is allowed to take
+# over rather than leave the case stuck retrying forever. This is the one
+# place a duplicate send remains possible (the original claimer may or may
+# not have actually reached Twilio before crashing); see
+# FollowUpDeliveryAttemptRow and PersistentFollowUpRunner._send_one for why
+# that's an accepted, narrowed trade-off, not the common case.
+_ABANDONED_ATTEMPT_GRACE = timedelta(minutes=5)
+
+
+class SQLAlchemyFollowUpDeliveryRepository:
+    """Durable outbox for proactive follow-up SMS. See
+    FollowUpDeliveryAttemptRow for the concurrency/idempotency reasoning."""
+
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def claim_attempt(
+        self,
+        business_id: str,
+        case_id: str,
+        attempt_number: int,
+        *,
+        message_text: str,
+        now: datetime,
+    ) -> tuple[FollowUpDeliveryAttempt, bool]:
+        values = {
+            "business_id": business_id,
+            "case_id": case_id,
+            "attempt_number": attempt_number,
+            "status": DeliveryStatus.PENDING.value,
+            "message_text": message_text,
+            "twilio_sid": None,
+            "created_at": now,
+            "updated_at": now,
+        }
+        index_elements = ["business_id", "case_id", "attempt_number"]
+        dialect = self.session.get_bind().dialect.name
+        if dialect == "postgresql":
+            statement = postgresql_insert(FollowUpDeliveryAttemptRow).values(**values).on_conflict_do_nothing(
+                index_elements=index_elements
+            ).returning(FollowUpDeliveryAttemptRow.business_id)
+        elif dialect == "sqlite":
+            statement = sqlite_insert(FollowUpDeliveryAttemptRow).values(**values).on_conflict_do_nothing(
+                index_elements=index_elements
+            ).returning(FollowUpDeliveryAttemptRow.business_id)
+        else:
+            raise RuntimeError(f"follow-up delivery claims are unsupported for database dialect: {dialect}")
+        inserted = self.session.scalar(statement) is not None
+        if inserted:
+            row = self.session.get(FollowUpDeliveryAttemptRow, (business_id, case_id, attempt_number))
+            if row is None:
+                raise RuntimeError("follow-up delivery claim was not visible in its transaction")
+            return self._to_domain(row), True
+
+        # Someone else already claimed this attempt. Only take over if their
+        # claim looks abandoned (still PENDING well past the grace period) --
+        # an atomic conditional UPDATE, so two callers racing to "take over"
+        # the same stuck row still can't both win.
+        cutoff = now - _ABANDONED_ATTEMPT_GRACE
+        takeover = self.session.execute(
+            update(FollowUpDeliveryAttemptRow)
+            .where(
+                FollowUpDeliveryAttemptRow.business_id == business_id,
+                FollowUpDeliveryAttemptRow.case_id == case_id,
+                FollowUpDeliveryAttemptRow.attempt_number == attempt_number,
+                FollowUpDeliveryAttemptRow.status == DeliveryStatus.PENDING.value,
+                FollowUpDeliveryAttemptRow.updated_at < cutoff,
+            )
+            .values(updated_at=now)
+        )
+        owns_send = takeover.rowcount == 1
+        row = self.session.get(FollowUpDeliveryAttemptRow, (business_id, case_id, attempt_number))
+        if row is None:
+            raise RuntimeError("follow-up delivery claim was not visible in its transaction")
+        return self._to_domain(row), owns_send
+
+    def mark_result(
+        self,
+        business_id: str,
+        case_id: str,
+        attempt_number: int,
+        *,
+        sent: bool,
+        twilio_sid: str | None,
+        now: datetime,
+    ) -> None:
+        self.session.execute(
+            update(FollowUpDeliveryAttemptRow)
+            .where(
+                FollowUpDeliveryAttemptRow.business_id == business_id,
+                FollowUpDeliveryAttemptRow.case_id == case_id,
+                FollowUpDeliveryAttemptRow.attempt_number == attempt_number,
+            )
+            .values(
+                status=(DeliveryStatus.SENT if sent else DeliveryStatus.FAILED).value,
+                twilio_sid=twilio_sid,
+                updated_at=now,
+            )
+        )
+
+    @staticmethod
+    def _to_domain(row: FollowUpDeliveryAttemptRow) -> FollowUpDeliveryAttempt:
+        return FollowUpDeliveryAttempt(
+            row.business_id,
+            row.case_id,
+            row.attempt_number,
+            DeliveryStatus(row.status),
+            row.message_text,
+            row.twilio_sid,
+            _aware(row.created_at),
+            _aware(row.updated_at),
+        )
 
 
 class SQLAlchemyStaffUserRepository:
