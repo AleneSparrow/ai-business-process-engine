@@ -249,7 +249,15 @@ def test_remote_business_with_no_rules_gets_auto_qualify_rule_injected():
     ]
 
 
-def test_remote_business_with_existing_rules_is_not_overwritten():
+def test_remote_business_with_existing_rules_gets_the_safety_net_appended() -> None:
+    """The owner's own rule stays first, and still runs first (rule
+    evaluation is first-match-wins) -- only a trailing safety-net rule gets
+    added, never a replacement or a reorder. Without it, a remote business
+    whose only existing rule doesn't happen to grant "qualified" (this one
+    only grants "lost", and only for one specific notes value) would fall
+    through to default_outcome ("needs_human") for every ordinary lead --
+    same underlying gap as the no-rules-at-all case above, just with an
+    unrelated rule already occupying the list."""
     config = _base_config()
     config["qualification"] = {
         "enforce_service_area": False,
@@ -257,7 +265,47 @@ def test_remote_business_with_existing_rules_is_not_overwritten():
     }
     result = BusinessDNASettingsService._apply(config, _update(service_zip_codes=()))
     assert result["qualification"]["rules"] == [
-        {"field": "notes", "operator": "equals", "value": "x", "outcome": "lost"}
+        {"field": "notes", "operator": "equals", "value": "x", "outcome": "lost"},
+        {"field": "service_id", "operator": "exists", "value": True, "outcome": "qualified"},
+    ]
+
+
+def test_remote_business_with_a_stale_area_rule_gets_the_safety_net_appended() -> None:
+    """Live defect (2026-08-30): a business that was originally local (the
+    onboarding-time rule keyed on service_area_id -- see
+    business_dna_builder.build_business_dna) and later switched to remote
+    here kept that rule as its only rule. service_area_id is always None
+    once enforce_service_area is False, so the rule could never match again
+    -- every lead silently fell through to default_outcome ("needs_human")
+    forever. From the widget's side this looked like "stuck on the same
+    answer": once escalated, every later message correctly gets the
+    identical human-escalation reply (that IS the right reply for
+    NEEDS_HUMAN) -- reaching NEEDS_HUMAN at all, for every single lead, was
+    the actual bug."""
+    config = _base_config()
+    config["qualification"] = {
+        "enforce_service_area": False,
+        "rules": [{"field": "service_area_id", "operator": "in", "value": ["metro"], "outcome": "qualified"}],
+    }
+    result = BusinessDNASettingsService._apply(config, _update(service_zip_codes=()))
+    assert result["qualification"]["rules"] == [
+        {"field": "service_area_id", "operator": "in", "value": ["metro"], "outcome": "qualified"},
+        {"field": "service_id", "operator": "exists", "value": True, "outcome": "qualified"},
+    ]
+
+
+def test_remote_business_safety_net_is_not_duplicated_on_repeated_saves() -> None:
+    """Idempotency: a second Settings save for a business that already has
+    the safety-net rule (from a prior save, or hand-configured identically)
+    must not append a second copy."""
+    config = _base_config()
+    config["qualification"] = {
+        "enforce_service_area": False,
+        "rules": [{"field": "service_id", "operator": "exists", "value": True, "outcome": "qualified"}],
+    }
+    result = BusinessDNASettingsService._apply(config, _update(service_zip_codes=()))
+    assert result["qualification"]["rules"] == [
+        {"field": "service_id", "operator": "exists", "value": True, "outcome": "qualified"}
     ]
 
 

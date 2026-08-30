@@ -349,11 +349,35 @@ class BusinessDNASettingsService:
         # fix): with no rules configured, QualificationService._qualification_rule_outcome
         # falls through to default_outcome ("needs_human"), so a remote business
         # with an empty rules array would otherwise never auto-qualify a single
-        # lead. Only fires when rules is genuinely empty -- never overwrites
-        # rules an owner already configured some other way.
-        if is_remote and not config["qualification"].get("rules"):
+        # lead.
+        #
+        # Live defect (2026-08-30): this used to only fire when `rules` was
+        # genuinely empty. A business that was originally local (rules keyed
+        # on service_area_id, e.g. the onboarding-time
+        # {"field": "service_area_id", "operator": "in", ...} rule) and later
+        # switched to remote here kept that rule untouched -- but
+        # service_area_id is always None once enforce_service_area is False,
+        # so the rule can never match again, and every lead silently fell
+        # through to default_outcome ("needs_human") forever. The widget then
+        # looked "stuck on the same answer": every message after the last
+        # required field is filled gets the identical human-escalation reply,
+        # because that IS the correct reply for NEEDS_HUMAN -- reaching
+        # NEEDS_HUMAN at all was the actual bug.
+        #
+        # Appending (never replacing) is what keeps this safe for a rules
+        # list an owner configured some other way: rule evaluation is
+        # first-match-wins, so a stale service_area_id rule just becomes a
+        # harmless no-op once it can never match, and any of the owner's own
+        # unrelated rules keep running exactly as before. Guarded by "no
+        # rule already grants qualified from service_id" so a repeated
+        # Settings save doesn't keep appending duplicates.
+        if is_remote and not any(
+            isinstance(rule, Mapping) and rule.get("field") == "service_id"
+            for rule in config["qualification"].get("rules", [])
+        ):
             config["qualification"]["rules"] = [
-                {"field": "service_id", "operator": "exists", "value": True, "outcome": "qualified"}
+                *config["qualification"].get("rules", []),
+                {"field": "service_id", "operator": "exists", "value": True, "outcome": "qualified"},
             ]
 
         other_triggers = [
