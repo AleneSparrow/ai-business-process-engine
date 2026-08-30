@@ -357,7 +357,7 @@ def test_quote_rejection_is_persisted_and_moves_case_to_lost(tmp_path) -> None:
     engine.dispose()
 
 
-def test_ambiguous_quote_response_pauses_for_human(tmp_path) -> None:
+def test_ambiguous_quote_response_is_reasked_then_pauses_for_human(tmp_path) -> None:
     engine, factory, dna, case_id = make_factory(tmp_path, "equipment-replacement")
     service = CommercialWorkflowService()
     metadata: dict = {}
@@ -365,6 +365,15 @@ def test_ambiguous_quote_response_pauses_for_human(tmp_path) -> None:
         case = uow.cases.get(dna["business"]["id"], case_id)
         service.initialize(uow, case, dna, metadata, occurred_at=NOW)
         service.handle_message(uow, case, dna, metadata, "1", occurred_at=NOW)
+        for attempt in range(CommercialWorkflowService.MAX_QUOTE_REPLY_ATTEMPTS):
+            response = service.handle_message(
+                uow, case, dna, metadata, "Maybe, I am not sure", occurred_at=NOW
+            )
+            assert response.reason == "quote_reply_unclear"
+            assert response.requires_human is False
+            assert case.current_state is ProcessState.QUOTED
+            assert metadata["commercial"]["quote_reply_attempts"] == attempt + 1
+
         response = service.handle_message(
             uow, case, dna, metadata, "Maybe, I am not sure", occurred_at=NOW
         )
