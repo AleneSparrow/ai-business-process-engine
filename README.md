@@ -28,7 +28,7 @@ The MVP provides:
 - explicit CORS configuration, request limits, and a single-process abuse-control boundary;
 - tests for transitions, rejection, audit history, escalation, idempotency, and end-to-end progression.
 
-Milestone 7 continues qualified website conversations through booking or quoting. Business DNA—not AI—selects the commercial path, availability and price authority remain deterministic, PostgreSQL coordinates capacity and optimistic updates, and payment requests prepare state without collecting money. Staff authentication/UI, calendar/payment providers, other third-party integrations, and non-web outbound delivery are not included yet.
+Qualified website conversations continue through booking or quoting. Business DNA—not AI—selects the commercial path, availability and price authority remain deterministic, PostgreSQL coordinates capacity and optimistic updates, and payment requests prepare state without collecting money. The product includes staff authentication, the React staff UI, Lemon Squeezy subscription billing, CRM webhooks, and optional Twilio delivery. Real customer payment collection, calendar synchronization, and a shared multi-worker rate limiter remain deferred.
 
 ## Architecture
 
@@ -194,7 +194,7 @@ export AI_TIMEOUT_SECONDS=20
 export AI_MAX_RETRIES=2
 ```
 
-Both adapters share the exact same prompts, Pydantic output schemas, and post-hoc unsafe-commitment filtering — swapping `AI_PROVIDER` changes only which model executes an already-constrained request, not what it's allowed to say. The OpenAI adapter uses the official SDK's typed structured-output parsing; the Anthropic adapter forces a single tool call shaped by the same Pydantic schema. Both have an explicit timeout and retry only transient network, timeout, rate-limit, and provider-internal failures, with a maximum of three configured retries. Authentication and invalid-output failures are not retried. Startup and `/ready` validate configuration without making a paid model call. There is no silent fallback to deterministic mode.
+Both adapters share the exact same prompts, Pydantic output schemas, and post-hoc unsafe-commitment filtering — swapping `AI_PROVIDER` changes only which model executes an already-constrained request, not what it's allowed to say. The OpenAI adapter uses the official SDK's typed structured-output parsing; the Anthropic adapter forces a single tool call shaped by the same Pydantic schema. Both have an explicit timeout and retry only transient network, timeout, rate-limit, and provider-internal failures, with a maximum of three configured retries. Authentication and invalid-output failures are not retried. Startup and `/ready` validate configuration without making a paid model call. If an AI provider becomes unavailable at runtime, the corresponding customer-facing operation is explicitly logged and uses the existing deterministic implementation so an outage does not surface as a raw widget error.
 
 Only the current raw customer message, bounded/redacted conversation context, and a task-specific Business DNA subset leave the application: service IDs, names, intake aliases, relevant qualification prompts, and—when drafting wording—configured language, tone, channel, and the already approved response meaning. Explicit phone/email fields, tenant/database IDs, pricing, integration configuration, and secrets are not added to prompts. Customer text is delimited as untrusted content and cannot change rules. Structured output is validated again against current or already validated customer evidence, the supplied service catalog, question set, response type, and unsafe-commitment checks before use.
 
@@ -219,4 +219,4 @@ Every tenant-owned repository lookup requires `business_id`, and composite forei
 
 ## Next milestone
 
-Add authentication and authorization around private tenant/staff routes, replace the process-local public rate limiter for multi-worker deployments, and introduce an outbox-backed integration boundary. Real calendars, payment collection, outbound messaging, and other external integrations remain deferred.
+Replace the process-local public rate limiter for multi-worker deployments and introduce an outbox-backed integration boundary. Real calendar synchronization, customer payment collection, and broader outbound/integration delivery remain deferred.

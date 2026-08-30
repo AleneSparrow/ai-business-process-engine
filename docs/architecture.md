@@ -85,7 +85,7 @@ Uvicorn raw-path access logging is disabled because public bearer tokens are par
 
 Public CORS origins are an explicit environment allowlist; wildcard configuration is rejected in production. Same-origin development needs no CORS grant. The widget renders customer and assistant strings with `textContent`, not HTML. Anonymous routes do not use cookies, but token secrecy and embedding-site XSS controls still matter. A thread-safe in-memory sliding-window limiter applies per-IP/business creation and per-IP/conversation message limits. It is a single-process foundation and must be replaced with shared enforcement for a multi-worker public deployment.
 
-The tenant path value is used for every repository lookup and for the domain `IncomingMessage`. An explicit case ID is queried together with that tenant ID, so another tenant's case is indistinguishable from a missing case. Authentication remains intentionally absent through Milestone 7. The public token authorizes only one anonymous conversation; `business_id` on private routes scopes data but does not authenticate tenant identity. Private tenant/staff routes must not be exposed to untrusted callers until authentication and authorization are added.
+The tenant path value is used for every repository lookup and for the domain `IncomingMessage`. An explicit case ID is queried together with that tenant ID, so another tenant's case is indistinguishable from a missing case. Staff routes authenticate a bearer session whose raw token is returned only once and whose SHA-256 hash is persisted; route dependencies then verify that the user belongs to the requested business. The public token authorizes only one anonymous conversation and must not be treated as staff authority. Actor identities, retention rules, and redaction policy remain future audit-hardening work.
 
 ## Database idempotency and concurrency
 
@@ -115,7 +115,7 @@ Business DNA uses `(business_id, version)` as its primary key. Adding a version 
 
 ## Tenant isolation and persistence
 
-`business_id` is mandatory on every case, repository method, and tenant API route, establishing the current storage boundary. Future authentication must authorize the caller for that tenant before repository access. Actor identities, retention rules, and redaction policy remain future audit-hardening work.
+`business_id` is mandatory on every case, repository method, and tenant API route, establishing the storage boundary. Private route dependencies authenticate the staff caller and authorize their membership of that tenant before repository access; anonymous public conversation routes instead authorize only with a scoped opaque conversation token. Actor identities, retention rules, and redaction policy remain future audit-hardening work.
 
 ## Dependency direction
 

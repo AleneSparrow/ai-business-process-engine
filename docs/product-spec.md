@@ -44,7 +44,7 @@ Milestone 7 continues a qualified conversation into a Business-DNA-selected book
 
 ## Not in this milestone
 
-Persistence, lead intake, public conversations, the website widget, deterministic booking/quoting, and provider-neutral payment-request preparation are implemented. Future milestones defer authentication and authorization, staff UI, real calendar/payment/messaging providers, shared multi-worker abuse controls, queues/outbox delivery, production deployment, and billing.
+Persistence, lead intake, public conversations, the website widget, deterministic booking/quoting, staff authentication and UI, Lemon Squeezy subscription billing, CRM webhooks, and optional Twilio delivery are implemented. Future milestones defer real calendar synchronization, collection of a customer's payment, shared multi-worker abuse controls, queues/outbox delivery, and broader third-party integrations.
 
 ## Acceptance criteria
 
