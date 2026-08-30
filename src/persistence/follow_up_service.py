@@ -146,9 +146,8 @@ class PersistentFollowUpRunner:
            ever called. The unique key on that row is what makes this safe
            to re-enter: a retried sweep for the same attempt gets back the
            same row instead of creating a second one.
-        2. Call Twilio (only if the claimed row isn't already SENT -- see
-           below), then record the outcome (SID or failure) on that same
-           row, in its own transaction.
+        2. Re-check deterministic policy under a case-row lock, then call
+           Twilio and record the outcome (SID or failure) on that same row.
         3. Only then update the case (FOLLOW_UP_SENT event, attempt count).
 
         Twilio's Messages API has no client-supplied idempotency key, so
@@ -207,21 +206,89 @@ class PersistentFollowUpRunner:
                 # owner finish; this case is picked up again next sweep.
                 return "already_claimed"
         else:
+            dispatched = self._authorize_and_dispatch(
+                business_id,
+                case_id,
+                decision.attempt_number,
+                now,
+                attempt.message_text,
+            )
+            if dispatched is None:
+                # The claim remains durable, but is deliberately not marked
+                # sent/failed: no provider call occurred and no follow-up was
+                # authorized. A future sweep must re-evaluate policy first.
+                return "no_longer_due"
+            delivered, twilio_sid = dispatched
+
+        return self._record_outcome_if_still_due(
+            business_id,
+            case_id,
+            decision.attempt_number,
+            now,
+            attempt.message_text,
+            delivered,
+            twilio_sid,
+        )
+
+    def _authorize_and_dispatch(
+        self,
+        business_id: str,
+        case_id: str,
+        attempt_number: int,
+        now: datetime,
+        message_text: str,
+    ) -> tuple[bool, str | None] | None:
+        """Re-check policy while holding the case row lock through dispatch.
+
+        A customer response, escalation, takeover, or state transition that
+        committed before this lock is acquired makes the pending delivery a
+        no-op. A competing case writer that arrives later waits until the
+        SMS outcome has been durably recorded, so the message was authorized
+        at the actual send point rather than only when the sweep scanned it.
+        """
+        with self.unit_of_work_factory() as uow:
+            case = uow.cases.get(business_id, case_id, for_update=True)
+            if case is None:
+                return None
+            dna_version = uow.business_dna.get_active(business_id)
+            if dna_version is None:
+                return None
+            decision = decide_follow_up(case, dna_version.configuration, now)
+            if not decision.due or decision.attempt_number != attempt_number or not case.lead.phone:
+                return None
             twilio_sid = self.sms_service.send_outbound(
-                business_id, to_number=phone, body=attempt.message_text
+                business_id, to_number=case.lead.phone, body=message_text
             )
             delivered = twilio_sid is not None
-            with self.unit_of_work_factory() as uow:
-                uow.follow_up_deliveries.mark_result(
-                    business_id, case_id, decision.attempt_number,
-                    sent=delivered, twilio_sid=twilio_sid, now=now,
-                )
-                uow.commit()
+            uow.follow_up_deliveries.mark_result(
+                business_id, case_id, attempt_number,
+                sent=delivered, twilio_sid=twilio_sid, now=now,
+            )
+            uow.commit()
+            return delivered, twilio_sid
 
+    def _record_outcome_if_still_due(
+        self,
+        business_id: str,
+        case_id: str,
+        attempt_number: int,
+        now: datetime,
+        message_text: str,
+        delivered: bool,
+        twilio_sid: str | None,
+    ) -> str:
         with self.unit_of_work_factory() as uow:
             case = uow.cases.get(business_id, case_id)
             if case is None:
                 return "gone"
+            dna_version = uow.business_dna.get_active(business_id)
+            if dna_version is None:
+                return "gone"
+            decision = decide_follow_up(case, dna_version.configuration, now)
+            if not decision.due or decision.attempt_number != attempt_number:
+                # The provider outcome is durable, but never fabricate a
+                # FOLLOW_UP_SENT audit event for a case whose policy changed.
+                return "no_longer_due"
             expected_version = case.version
             existing_event_count = len(case.event_history)
             # An attempt is consumed regardless of delivery outcome (same
@@ -236,7 +303,7 @@ class PersistentFollowUpRunner:
                 source="follow_up_runner",
                 payload={
                     "attempt_number": decision.attempt_number,
-                    "message_text": attempt.message_text,
+                    "message_text": message_text,
                     "delivered": delivered,
                     "twilio_sid": twilio_sid,
                 },

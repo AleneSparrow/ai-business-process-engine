@@ -162,12 +162,11 @@ class SQLAlchemyBusinessRepository:
         if row is None:
             raise KeyError(f"unknown business_id: {business_id}")
         stored_event_at = _aware(row.billing_event_at) if row.billing_event_at else None
-        if event_at is not None and stored_event_at is not None and event_at < stored_event_at:
+        if stored_event_at is not None and (event_at is None or event_at < stored_event_at):
             # Out-of-order delivery: a newer billing snapshot (by event_at)
-            # has already been applied -- e.g. a delayed subscription_created
-            # retry arriving after subscription_cancelled/expired. Leave
-            # billing state untouched rather than let a stale event
-            # resurrect access.
+            # has already been applied. An event without a comparable time is
+            # equally unsafe: it cannot prove it is newer, so it must not
+            # resurrect access after cancellation/expiry.
             return _business_from_row(row)
         if payment_customer_id is not None:
             row.payment_customer_id = payment_customer_id
@@ -702,11 +701,14 @@ class SQLAlchemyProcessCaseRepository:
             version=case.version,
         ))
 
-    def get(self, business_id: str, case_id: str) -> ProcessCase | None:
-        row = self.session.scalar(select(ProcessCaseRow).where(
+    def get(self, business_id: str, case_id: str, *, for_update: bool = False) -> ProcessCase | None:
+        statement = select(ProcessCaseRow).where(
             ProcessCaseRow.business_id == business_id,
             ProcessCaseRow.id == case_id,
-        ))
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        row = self.session.scalar(statement)
         return self._to_domain(row) if row else None
 
     def find_active_for_lead(self, business_id: str, lead_id: str) -> ProcessCase | None:

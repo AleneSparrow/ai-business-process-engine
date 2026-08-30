@@ -11,48 +11,70 @@ be allowed to break the actual lead-to-sale flow it's reporting on.
 from __future__ import annotations
 
 import json
-import urllib.error
-import urllib.request
+import http.client
+import socket
+import ssl
 from collections.abc import Callable
 from typing import Any
 
-from .webhook_url_security import validate_public_https_url
+from .webhook_url_security import ResolvedWebhookTarget, Resolver, resolve_public_https_url
 
 _TIMEOUT_SECONDS = 5
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
-        return None
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """HTTPS connection whose TCP peer is a validated DNS result.
+
+    The original hostname is still supplied to TLS for SNI and certificate
+    hostname validation. This prevents DNS rebinding between validation and
+    connect without weakening certificate verification.
+    """
+
+    def __init__(self, target: ResolvedWebhookTarget, *, timeout: float) -> None:
+        self._connect_address = target.addresses[0]
+        self._tls_hostname = target.hostname
+        super().__init__(self._connect_address, target.port, timeout=timeout, context=ssl.create_default_context())
+
+    def connect(self) -> None:
+        self.sock = socket.create_connection((self._connect_address, self.port), self.timeout)
+        self.sock = self._context.wrap_socket(self.sock, server_hostname=self._tls_hostname)
 
 
-UrlValidator = Callable[[str], None]
-OpenerFactory = Callable[[], Any]
+ConnectionFactory = Callable[[ResolvedWebhookTarget, float], Any]
 
 
 def post_json(
     url: str,
     payload: dict[str, Any],
     *,
-    url_validator: UrlValidator = validate_public_https_url,
-    opener_factory: OpenerFactory | None = None,
+    resolver: Resolver = socket.getaddrinfo,
+    connection_factory: ConnectionFactory = lambda target, timeout: _PinnedHTTPSConnection(
+        target, timeout=timeout
+    ),
 ) -> bool:
     """POST `payload` as JSON to `url`. Returns True on a 2xx response, False
     on any failure (bad URL, network error, non-2xx status, timeout) -- never
     raises."""
+    connection = None
     try:
-        # Re-resolve immediately before opening a socket. Configuration-time
-        # validation alone cannot protect against a hostname that rebinds.
-        url_validator(url)
+        # The exact vetted address below is the TCP peer. Do not pass the
+        # hostname to a client that might resolve it again after this check.
+        target = resolve_public_https_url(url, resolver=resolver)
         data = json.dumps(payload).encode("utf-8")
-        request = urllib.request.Request(url, data=data, method="POST")
-        request.add_header("Content-Type", "application/json")
-        opener = (
-            opener_factory()
-            if opener_factory is not None
-            else urllib.request.build_opener(_NoRedirect())
+        connection = connection_factory(target, _TIMEOUT_SECONDS)
+        # http.client never follows redirects. Host remains the configured
+        # hostname while TLS validates that hostname against the certificate.
+        connection.request(
+            "POST",
+            target.request_target,
+            body=data,
+            headers={"Content-Type": "application/json", "Host": target.host_header},
         )
-        with opener.open(request, timeout=_TIMEOUT_SECONDS) as response:
-            return 200 <= response.status < 300
-    except (urllib.error.URLError, urllib.error.HTTPError, ValueError, OSError):
+        response = connection.getresponse()
+        response.read()
+        return 200 <= response.status < 300
+    except (http.client.HTTPException, OSError, ValueError, ssl.SSLError):
         return False
+    finally:
+        if connection is not None:
+            connection.close()

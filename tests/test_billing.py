@@ -709,6 +709,9 @@ def test_webhook_missing_timestamp_fields_still_applies_conservatively(uow_facto
         custom_data={"business_id": "acme-co", "plan": "starter"},
     )
     service.handle_webhook(created, _sign(created))
+    first_business = service.get_status("acme-co")
+    assert first_business.subscription_status == "on_trial"
+    assert first_business.billing_event_at is None
     updated = _subscription_event(
         "subscription_updated",
         subscription_id="sub_new",
@@ -718,7 +721,40 @@ def test_webhook_missing_timestamp_fields_still_applies_conservatively(uow_facto
     )
     service.handle_webhook(updated, _sign(updated))
 
-    assert service.get_status("acme-co").subscription_status == "active"
+    business = service.get_status("acme-co")
+    assert business.subscription_status == "active"
+    assert business.billing_event_at is None
+
+
+def test_webhook_without_timestamp_cannot_override_existing_watermark(uow_factory, caplog) -> None:
+    _make_business(uow_factory)
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+    cancelled = _subscription_event(
+        "subscription_cancelled",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="cancelled",
+        ends_at="2024-03-01T00:00:00.000000Z",
+        updated_at="2024-02-01T00:00:00.000000Z",
+        custom_data={"business_id": "acme-co", "plan": "starter"},
+    )
+    service.handle_webhook(cancelled, _sign(cancelled))
+
+    timestamp_less_active = _subscription_event(
+        "subscription_updated",
+        subscription_id="sub_new",
+        customer_id="cus_new",
+        variant_id=_VARIANT_STARTER,
+        status="active",
+        nonce="late-without-time",
+    )
+    service.handle_webhook(timestamp_less_active, _sign(timestamp_less_active))
+
+    business = service.get_status("acme-co")
+    assert business.subscription_status == "cancelled"
+    assert business.billing_event_at is not None
+    assert "billing_webhook_missing_timestamp_ignored" in caplog.text
 
 
 # --- HTTP layer: gate + reachability -------------------------------------------------

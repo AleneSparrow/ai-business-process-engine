@@ -16,6 +16,7 @@ token to manage.
 """
 
 from typing import Annotated
+from urllib.parse import parse_qsl
 
 from fastapi import APIRouter, Depends, Header, Request
 from fastapi.responses import Response
@@ -66,8 +67,11 @@ async def receive_inbound_sms(
     if not x_twilio_signature or not container.settings.twilio_auth_token:
         raise WebhookSignatureError("Missing X-Twilio-Signature header, or SMS is not configured")
 
-    form = await request.form()
-    form_params = {key: str(value) for key, value in form.items()}
+    # Twilio sends application/x-www-form-urlencoded, so stdlib parsing is
+    # sufficient and avoids making inbound production delivery depend on the
+    # optional python-multipart package used for browser file uploads.
+    raw_body = await request.body()
+    form_params = dict(parse_qsl(raw_body.decode("utf-8"), keep_blank_values=True))
     validation_url = f"{container.settings.public_api_base_url}{INBOUND_SMS_WEBHOOK_PATH}"
     if not validate_inbound_signature(
         container.settings.twilio_auth_token,
@@ -100,7 +104,10 @@ async def receive_inbound_sms(
         phone=from_number,
     )
     result = intake_service.receive(message)
-    if result.response is not None:
+    # Intake replays the stored logical result for a duplicate MessageSid.
+    # That is correct for state/audit idempotency, but a customer-facing SMS
+    # is an external side effect and must not be repeated on a Twilio retry.
+    if result.response is not None and not result.duplicate:
         sms_service.send_outbound(
             business_id, to_number=from_number, body=result.response.message_text
         )

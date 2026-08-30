@@ -104,6 +104,16 @@ def _events(uow_factory, business_id: str, case_id: str):
         return uow.events.list_for_case(business_id, case_id)
 
 
+def _change_case_state(uow_factory, state: ProcessState) -> None:
+    with uow_factory() as uow:
+        case = uow.cases.get(_BUSINESS_ID, _CASE_ID)
+        assert case is not None
+        expected_version = case.version
+        case._apply_transition(state)
+        uow.cases.save(case, expected_version)
+        uow.commit()
+
+
 # --- Happy path -----------------------------------------------------------------------
 
 
@@ -145,6 +155,59 @@ def test_run_sends_follow_up_for_due_case_via_full_sweep(uow_factory) -> None:
     assert result.follow_ups_sent == 1
     assert result.follow_ups_skipped_stale == 0
     assert len(sms.send_calls) == 1
+
+
+@pytest.mark.parametrize("new_state", (ProcessState.QUALIFIED, ProcessState.NEEDS_HUMAN))
+def test_policy_change_after_delivery_claim_cancels_before_sms_send(
+    uow_factory, monkeypatch: pytest.MonkeyPatch, new_state: ProcessState
+) -> None:
+    """Models a customer reply or human escalation committing after the
+    durable claim but before the runner gets its dispatch lock."""
+    _make_stalled_case(uow_factory)
+    sms = FakeSmsService()
+    runner = PersistentFollowUpRunner(uow_factory, sms)
+    original = runner._authorize_and_dispatch
+
+    def update_then_authorize(*args, **kwargs):
+        _change_case_state(uow_factory, new_state)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(runner, "_authorize_and_dispatch", update_then_authorize)
+
+    outcome = runner._send_one(_BUSINESS_ID, _CASE_ID, NOW)
+
+    assert outcome == "no_longer_due"
+    assert sms.send_calls == []
+    with uow_factory() as uow:
+        case = uow.cases.get(_BUSINESS_ID, _CASE_ID)
+        assert case is not None
+        assert "follow_up_attempts_sent" not in case.metadata
+    assert [event for event in _events(uow_factory, _BUSINESS_ID, _CASE_ID) if event.event_type == EventType.FOLLOW_UP_SENT] == []
+
+
+def test_policy_change_after_provider_outcome_does_not_fabricate_follow_up_event(
+    uow_factory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _make_stalled_case(uow_factory)
+    sms = FakeSmsService()
+    runner = PersistentFollowUpRunner(uow_factory, sms)
+    original = runner._record_outcome_if_still_due
+
+    def update_then_record(*args, **kwargs):
+        _change_case_state(uow_factory, ProcessState.NEEDS_HUMAN)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(runner, "_record_outcome_if_still_due", update_then_record)
+
+    outcome = runner._send_one(_BUSINESS_ID, _CASE_ID, NOW)
+
+    assert outcome == "no_longer_due"
+    assert len(sms.send_calls) == 1
+    with uow_factory() as uow:
+        case = uow.cases.get(_BUSINESS_ID, _CASE_ID)
+        assert case is not None
+        assert "follow_up_attempts_sent" not in case.metadata
+    assert [event for event in _events(uow_factory, _BUSINESS_ID, _CASE_ID) if event.event_type == EventType.FOLLOW_UP_SENT] == []
 
 
 def test_sweep_skips_business_with_no_provisioned_number(uow_factory) -> None:

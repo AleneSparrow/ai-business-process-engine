@@ -48,6 +48,7 @@ override, which lazily builds a real `LemonSqueezyClient`.
 import hashlib
 import hmac
 import json
+import logging
 from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 from typing import Any
@@ -64,6 +65,8 @@ from .errors import (
 )
 from .lemonsqueezy_client import LemonSqueezyClient
 from .repositories import UnitOfWork
+
+LOGGER = logging.getLogger("uvicorn.error")
 
 # Events that carry a full subscription snapshot (data.type == "subscriptions")
 # in data.attributes -- status, trial_ends_at, renews_at, ends_at are all
@@ -286,6 +289,9 @@ class BillingService:
             # Nothing in this app to attribute the event to (e.g. a test-mode
             # event fired before any real business ever checked out).
             return
+        event_at = _event_timestamp(attributes)
+        if self._missing_timestamp_after_watermark(unit_of_work, business_id, event_at):
+            return
         ends_at = attributes.get("ends_at")
         renews_at = attributes.get("renews_at")
         unit_of_work.businesses.update_billing(
@@ -299,7 +305,7 @@ class BillingService:
             # charge" date while on_trial/active -- either way this is "the
             # date through which access is paid for".
             current_period_end=_parse_timestamp(ends_at) or _parse_timestamp(renews_at),
-            event_at=_event_timestamp(attributes),
+            event_at=event_at,
         )
 
     def _apply_payment_failed(self, unit_of_work: UnitOfWork, event: Mapping[str, Any]) -> None:
@@ -313,6 +319,9 @@ class BillingService:
         business = unit_of_work.businesses.get(business_id)
         if business is None:
             return
+        event_at = _event_timestamp(attributes)
+        if self._missing_timestamp_after_watermark(unit_of_work, business_id, event_at):
+            return
         unit_of_work.businesses.update_billing(
             business_id,
             payment_customer_id=business.payment_customer_id,
@@ -321,5 +330,17 @@ class BillingService:
             subscription_status="past_due",
             trial_ends_at=business.trial_ends_at,
             current_period_end=business.current_period_end,
-            event_at=_event_timestamp(attributes),
+            event_at=event_at,
         )
+
+    @staticmethod
+    def _missing_timestamp_after_watermark(
+        unit_of_work: UnitOfWork, business_id: str, event_at: datetime | None
+    ) -> bool:
+        if event_at is not None:
+            return False
+        business = unit_of_work.businesses.get(business_id)
+        if business is None or business.billing_event_at is None:
+            return False
+        LOGGER.warning("billing_webhook_missing_timestamp_ignored business_id=%s", business_id)
+        return True
