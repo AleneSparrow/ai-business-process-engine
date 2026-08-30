@@ -14,6 +14,7 @@ from src.persistence.business_provisioning_service import (
     InvalidBusinessDNAError,
 )
 from src.persistence.errors import (
+    BillingAlreadyActiveError,
     BillingAccountNotFoundError,
     BillingNotConfiguredError,
     CaseNotAwaitingApprovalError,
@@ -317,6 +318,14 @@ def install_error_handlers(app: FastAPI) -> None:
         code = "billing_account_not_found"
         _log_error(request, code, 409, type(exc).__name__)
         return _response(request, 409, code, "This business hasn't started a subscription yet")
+
+    @app.exception_handler(BillingAlreadyActiveError)
+    async def billing_already_active_handler(
+        request: Request, exc: BillingAlreadyActiveError
+    ) -> JSONResponse:
+        code = "billing_already_active"
+        _log_error(request, code, 409, type(exc).__name__)
+        return _response(request, 409, code, "This business already has an active subscription")
 
     @app.exception_handler(WebhookSignatureError)
     async def webhook_signature_handler(request: Request, exc: WebhookSignatureError) -> JSONResponse:

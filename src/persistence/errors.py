@@ -76,6 +76,10 @@ class BillingAccountNotFoundError(PersistenceError):
     checkout, so it has no Lemon Squeezy subscription to manage yet."""
 
 
+class BillingAlreadyActiveError(PersistenceError):
+    """A business with current billing access must use the provider portal."""
+
+
 class WebhookSignatureError(PersistenceError):
     """A request to the Lemon Squeezy webhook endpoint failed signature
     verification -- either not actually from Lemon Squeezy, or signed with a

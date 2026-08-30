@@ -482,3 +482,54 @@ def test_concurrent_conversations_cannot_claim_same_contact_identity(pg_factory)
         ))
         assert len(leads) == 2
         assert sum(lead.normalized_phone == phone for lead in leads) == 1
+
+
+def test_rehydrated_process_case_rejects_duplicate_event_against_postgresql(pg_factory) -> None:
+    """PostgreSQL counterpart of
+    tests/test_persistence.py::test_rehydrated_case_rejects_duplicate_event_id_and_keeps_one_effect
+    -- same rehydration-idempotency regression, against the real
+    persistence backend production actually runs on."""
+    business_id = seed(pg_factory)
+    case_id = f"rehydrate-case-{uuid4()}"
+    lead = Lead(f"rehydrate-lead-{uuid4()}", "Ada")
+    case = ProcessCase(case_id, business_id, lead)
+    with pg_factory() as uow:
+        uow.leads.add(business_id, lead, case.created_at)
+        uow.cases.add(case)
+        uow.commit()
+
+    with pg_factory() as uow:
+        loaded = uow.cases.get(business_id, case_id)
+        assert loaded is not None
+        ProcessEngine().receive(
+            loaded,
+            ProcessEvent("first_contact", event_id="contact-event"),
+            DecisionRequest(DecisionType.RULE, ProcessState.CONTACTED),
+        )
+        uow.cases.save(loaded, expected_version=0)
+        uow.events.add_many(loaded.business_id, loaded.case_id, loaded.event_history)
+        uow.commit()
+
+    with pg_factory() as uow:
+        rehydrated = uow.cases.get(business_id, case_id)
+        assert rehydrated is not None
+        assert rehydrated.has_processed("contact-event")
+
+        decision = ProcessEngine().receive(
+            rehydrated,
+            ProcessEvent("first_contact", event_id="contact-event"),
+            DecisionRequest(DecisionType.RULE, ProcessState.QUALIFYING),
+        )
+        assert not decision.approved
+        assert rehydrated.current_state is ProcessState.CONTACTED
+
+        uow.cases.save(rehydrated, expected_version=rehydrated.version)
+        uow.events.add_many(rehydrated.business_id, rehydrated.case_id, (rehydrated.event_history[-1],))
+        uow.commit()
+
+    with pg_factory() as uow:
+        final = uow.cases.get(business_id, case_id)
+        assert final is not None
+        assert final.current_state is ProcessState.CONTACTED
+        assert sum(event.event_type == EventType.STATE_CHANGED for event in final.event_history) == 1
+        assert sum(event.event_type == EventType.DUPLICATE_IGNORED for event in final.event_history) == 1

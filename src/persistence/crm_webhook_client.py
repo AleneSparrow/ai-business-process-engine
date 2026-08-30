@@ -13,20 +13,46 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from typing import Any
+
+from .webhook_url_security import validate_public_https_url
 
 _TIMEOUT_SECONDS = 5
 
 
-def post_json(url: str, payload: dict[str, Any]) -> bool:
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[no-untyped-def]
+        return None
+
+
+UrlValidator = Callable[[str], None]
+OpenerFactory = Callable[[], Any]
+
+
+def post_json(
+    url: str,
+    payload: dict[str, Any],
+    *,
+    url_validator: UrlValidator = validate_public_https_url,
+    opener_factory: OpenerFactory | None = None,
+) -> bool:
     """POST `payload` as JSON to `url`. Returns True on a 2xx response, False
     on any failure (bad URL, network error, non-2xx status, timeout) -- never
     raises."""
     try:
+        # Re-resolve immediately before opening a socket. Configuration-time
+        # validation alone cannot protect against a hostname that rebinds.
+        url_validator(url)
         data = json.dumps(payload).encode("utf-8")
         request = urllib.request.Request(url, data=data, method="POST")
         request.add_header("Content-Type", "application/json")
-        with urllib.request.urlopen(request, timeout=_TIMEOUT_SECONDS) as response:
+        opener = (
+            opener_factory()
+            if opener_factory is not None
+            else urllib.request.build_opener(_NoRedirect())
+        )
+        with opener.open(request, timeout=_TIMEOUT_SECONDS) as response:
             return 200 <= response.status < 300
     except (urllib.error.URLError, urllib.error.HTTPError, ValueError, OSError):
         return False

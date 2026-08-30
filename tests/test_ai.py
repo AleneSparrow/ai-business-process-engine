@@ -33,6 +33,7 @@ from src.domain.states import ProcessState
 from src.domain.tenancy import Business
 from src.engine.lead_intake import LeadIntakeService
 from src.persistence.lead_intake import PersistentLeadIntakeService
+from src.persistence.auth_service import AuthService
 from src.persistence.sqlalchemy_models import (
     Base,
     LeadRow,
@@ -1109,6 +1110,16 @@ def persisted_ai(tmp_path: Path):
     engine.dispose()
 
 
+def intake_auth_headers(factory) -> dict[str, str]:
+    session = AuthService(factory).signup("ai-http-owner@example.com", "correct horse battery")
+    with factory() as uow:
+        owner = uow.staff_users.get(session.user.user_id)
+        assert owner is not None
+        uow.staff_users.save(owner.with_business("acme-home-services"))
+        uow.commit()
+    return {"Authorization": f"Bearer {session.token}"}
+
+
 def test_timeout_rolls_back_all_business_effects_and_allows_retry(persisted_ai) -> None:
     _, _, factory = persisted_ai
     timed_out = FakeAIProvider([AITimeoutError("timed out")])
@@ -1183,8 +1194,11 @@ def test_http_uses_ai_adapter_and_maps_timeout_without_partial_effect(persisted_
         "phone": "+1 312 555 0100",
     }
 
+    headers = intake_auth_headers(factory)
     with TestClient(application, raise_server_exceptions=False) as client:
-        response = client.post("/api/v1/businesses/acme-home-services/messages", json=payload)
+        response = client.post(
+            "/api/v1/businesses/acme-home-services/messages", json=payload, headers=headers
+        )
 
     assert response.status_code == 503
     assert response.json()["error"]["code"] == "ai_temporarily_unavailable"
@@ -1211,9 +1225,14 @@ def test_duplicate_http_message_replays_without_second_ai_call_or_audit_effect(p
         "phone": "+1 312 555 0100",
     }
 
+    headers = intake_auth_headers(factory)
     with TestClient(application, raise_server_exceptions=False) as client:
-        first = client.post("/api/v1/businesses/acme-home-services/messages", json=payload)
-        duplicate = client.post("/api/v1/businesses/acme-home-services/messages", json=payload)
+        first = client.post(
+            "/api/v1/businesses/acme-home-services/messages", json=payload, headers=headers
+        )
+        duplicate = client.post(
+            "/api/v1/businesses/acme-home-services/messages", json=payload, headers=headers
+        )
 
     assert first.status_code == duplicate.status_code == 200
     assert not first.json()["duplicate"] and duplicate.json()["duplicate"]
@@ -1230,7 +1249,7 @@ def test_duplicate_http_message_replays_without_second_ai_call_or_audit_effect(p
 
 
 def test_live_zip_phrase_is_qualified_by_deterministic_service_area_rules(persisted_ai) -> None:
-    database_url, _, _ = persisted_ai
+    database_url, _, factory = persisted_ai
     provider = FakeAIProvider([intent_output(
         customer_location="ZIP code 60601",
         preferred_time="tomorrow afternoon",
@@ -1255,10 +1274,12 @@ def test_live_zip_phrase_is_qualified_by_deterministic_service_area_rules(persis
         "phone": "+1 312 555 0198",
     }
 
+    headers = intake_auth_headers(factory)
     with TestClient(application, raise_server_exceptions=False) as client:
         response = client.post(
             "/api/v1/businesses/acme-home-services/messages",
             json=payload,
+            headers=headers,
         )
 
     assert response.status_code == 200

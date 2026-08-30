@@ -15,6 +15,7 @@ from src.domain.tenancy import Business
 from src.engine.intent_extractor import DeterministicIntentExtractor
 from src.persistence.sqlalchemy_models import Base, ProcessedMessageRow, ProcessEventRow
 from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork, create_database_engine
+from src.persistence.auth_service import AuthService
 
 
 ROOT = Path(__file__).parents[1]
@@ -67,6 +68,13 @@ def api_environment(tmp_path: Path):
         intent_extractor=DeterministicIntentExtractor(scripted),
     )
     with TestClient(application, raise_server_exceptions=False) as client:
+        session = AuthService(factory).signup("api-owner@example.com", "correct horse battery")
+        with factory() as unit_of_work:
+            owner = unit_of_work.staff_users.get(session.user.user_id)
+            assert owner is not None
+            unit_of_work.staff_users.save(owner.with_business("tenant-a").with_business("tenant-b"))
+            unit_of_work.commit()
+        client.headers.update({"Authorization": f"Bearer {session.token}"})
         yield client, factory
     engine.dispose()
 
@@ -125,6 +133,36 @@ def test_business_endpoint_returns_safe_metadata_only(api_environment) -> None:
     assert response.status_code == 200
     assert response.json()["business_id"] == "tenant-a"
     assert set(response.json()) == {"business_id", "name", "created_at", "updated_at"}
+
+
+def test_direct_lead_intake_requires_staff_authentication(api_environment) -> None:
+    client, _ = api_environment
+    response = client.post(
+        "/api/v1/businesses/tenant-a/messages",
+        json=message_payload("unauthenticated-intake"),
+        headers={"Authorization": ""},
+    )
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "unauthorized"
+
+
+def test_direct_lead_intake_rejects_staff_user_from_another_tenant(api_environment) -> None:
+    client, factory = api_environment
+    other_session = AuthService(factory).signup("other-owner@example.com", "correct horse battery")
+    with factory() as unit_of_work:
+        other_owner = unit_of_work.staff_users.get(other_session.user.user_id)
+        assert other_owner is not None
+        unit_of_work.staff_users.save(other_owner.with_business("tenant-b"))
+        unit_of_work.commit()
+
+    response = client.post(
+        "/api/v1/businesses/tenant-a/messages",
+        json=message_payload("foreign-tenant-intake"),
+        headers={"Authorization": f"Bearer {other_session.token}"},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "forbidden"
 
 
 @pytest.mark.parametrize(
@@ -260,6 +298,9 @@ def test_openapi_documents_versioned_message_endpoint(api_environment) -> None:
     document = response.json()
     assert document["info"]["title"] == "AI Business Process Engine API"
     assert "/api/v1/businesses/{business_id}/messages" in document["paths"]
+    operation = document["paths"]["/api/v1/businesses/{business_id}/messages"]["post"]
+    assert "Staff-authenticated" in operation["description"]
+    assert {"401", "403"}.issubset(operation["responses"])
 
 
 def test_request_body_limit_rejects_oversized_message(api_environment) -> None:
@@ -308,6 +349,7 @@ def test_unexpected_error_is_safe_and_logs_no_payload(
         response = client.post(
             "/api/v1/businesses/tenant-a/messages",
             json=message_payload("unexpected-error", message=secret_message),
+            headers={"Authorization": existing_client.headers["Authorization"]},
         )
 
     assert response.status_code == 500

@@ -38,6 +38,35 @@ def test_human_escalation_has_no_unrestricted_static_exit() -> None:
     assert machine.transitions[ProcessState.NEEDS_HUMAN] == frozenset()
 
 
+def test_validate_human_resume_accepts_exact_pending_target() -> None:
+    StateMachine().validate_human_resume(ProcessState.NEEDS_HUMAN, ProcessState.CONTACTED, ProcessState.CONTACTED)
+
+
+def test_validate_human_resume_rejects_when_current_state_is_not_needs_human() -> None:
+    with pytest.raises(InvalidTransition, match="NEEDS_HUMAN"):
+        StateMachine().validate_human_resume(ProcessState.QUALIFYING, ProcessState.CONTACTED, ProcessState.CONTACTED)
+
+
+def test_validate_human_resume_rejects_without_a_pending_transition() -> None:
+    with pytest.raises(InvalidTransition, match="no pending transition"):
+        StateMachine().validate_human_resume(ProcessState.NEEDS_HUMAN, None, ProcessState.CONTACTED)
+
+
+def test_validate_human_resume_rejects_target_that_does_not_match_pending() -> None:
+    with pytest.raises(InvalidTransition, match="does not match"):
+        StateMachine().validate_human_resume(ProcessState.NEEDS_HUMAN, ProcessState.CONTACTED, ProcessState.PAID)
+
+
+def test_validate_human_resume_does_not_widen_the_static_transition_table() -> None:
+    """validate_human_resume authorizes a resume independently of
+    `transitions` -- it must never be mistaken for (or implemented by)
+    adding real NEEDS_HUMAN entries to the static table."""
+    machine = StateMachine()
+    machine.validate_human_resume(ProcessState.NEEDS_HUMAN, ProcessState.PAID, ProcessState.PAID)
+    assert machine.transitions[ProcessState.NEEDS_HUMAN] == frozenset()
+    assert not machine.can_transition(ProcessState.NEEDS_HUMAN, ProcessState.PAID)
+
+
 def test_transition_policy_is_immutable_and_must_cover_every_state() -> None:
     machine = StateMachine()
     with pytest.raises(TypeError):

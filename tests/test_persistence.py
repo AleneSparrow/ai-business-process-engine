@@ -188,6 +188,63 @@ def test_optimistic_conflict_rolls_back_losing_state_and_events(uow_factory) -> 
         assert "first-transition" in {event.event_id for event in persisted.event_history}
 
 
+def test_rehydrated_case_rejects_duplicate_event_id_and_keeps_one_effect(uow_factory) -> None:
+    """Regression test for the rehydration idempotency gap: a ProcessCase
+    reloaded fresh from SQLite (a brand-new process, e.g. after a restart
+    or a retried webhook -- not the same in-memory instance that originally
+    processed the event) must recognize a previously-processed event_id as
+    a duplicate and refuse to reapply its business effect (the state
+    change), exactly as it would for a same-process replay."""
+    seed_business(uow_factory)
+    lead = Lead("rehydrate-lead", "Ada")
+    case = ProcessCase("rehydrate-case", "acme-home-services", lead)
+    with uow_factory() as uow:
+        uow.leads.add(case.business_id, lead, case.created_at)
+        uow.cases.add(case)
+        uow.commit()
+
+    with uow_factory() as uow:
+        loaded = uow.cases.get(case.business_id, case.case_id)
+        assert loaded is not None
+        ProcessEngine().receive(
+            loaded,
+            ProcessEvent("first_contact", event_id="contact-event"),
+            DecisionRequest(DecisionType.RULE, ProcessState.CONTACTED),
+        )
+        uow.cases.save(loaded, expected_version=0)
+        uow.events.add_many(loaded.business_id, loaded.case_id, loaded.event_history)
+        uow.commit()
+
+    # A genuinely fresh load -- nothing here is the same Python object that
+    # originally processed "contact-event"; only the persisted row and its
+    # event_history are.
+    with uow_factory() as uow:
+        rehydrated = uow.cases.get(case.business_id, case.case_id)
+        assert rehydrated is not None
+        assert rehydrated.has_processed("contact-event")
+
+        decision = ProcessEngine().receive(
+            rehydrated,
+            ProcessEvent("first_contact", event_id="contact-event"),
+            DecisionRequest(DecisionType.RULE, ProcessState.QUALIFYING),
+        )
+        assert not decision.approved
+        assert rehydrated.current_state is ProcessState.CONTACTED
+
+        uow.cases.save(rehydrated, expected_version=rehydrated.version)
+        uow.events.add_many(
+            rehydrated.business_id, rehydrated.case_id, (rehydrated.event_history[-1],)
+        )
+        uow.commit()
+
+    with uow_factory() as uow:
+        final = uow.cases.get(case.business_id, case.case_id)
+        assert final is not None
+        assert final.current_state is ProcessState.CONTACTED  # never moved to QUALIFYING
+        assert sum(event.event_type == EventType.STATE_CHANGED for event in final.event_history) == 1
+        assert sum(event.event_type == EventType.DUPLICATE_IGNORED for event in final.event_history) == 1
+
+
 def make_intake(factory, results: dict[str, IntentResult]) -> PersistentLeadIntakeService:
     return PersistentLeadIntakeService(
         factory,

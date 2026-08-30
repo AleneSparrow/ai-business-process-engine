@@ -13,11 +13,13 @@ engine/persistence layer itself.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from src.domain.models import utc_now
 
 from .crm_webhook_client import post_json
+from .webhook_url_security import validate_public_https_url
 
 if TYPE_CHECKING:
     from .repositories import UnitOfWorkFactory
@@ -32,15 +34,20 @@ NOTIFIABLE_STATES = frozenset({"QUALIFIED", "WON"})
 
 
 class CrmWebhookService:
-    def __init__(self, unit_of_work_factory: "UnitOfWorkFactory") -> None:
+    def __init__(
+        self,
+        unit_of_work_factory: "UnitOfWorkFactory",
+        *,
+        url_validator: Callable[[str], None] = validate_public_https_url,
+        webhook_poster: Callable[[str, dict[str, object]], bool] = post_json,
+    ) -> None:
         self.unit_of_work_factory = unit_of_work_factory
+        self._url_validator = url_validator
+        self._webhook_poster = webhook_poster
 
     def configure(self, business_id: str, webhook_url: str) -> None:
         webhook_url = webhook_url.strip()
-        if not webhook_url:
-            raise ValueError("webhook_url must not be empty")
-        if not webhook_url.startswith(("https://", "http://")):
-            raise ValueError("webhook_url must be an http(s) URL")
+        self._url_validator(webhook_url)
         with self.unit_of_work_factory() as uow:
             uow.crm_webhook_connections.upsert(business_id, webhook_url, now=utc_now())
             uow.commit()
@@ -69,7 +76,11 @@ class CrmWebhookService:
                 url = uow.crm_webhook_connections.get_url(business_id)
             if url is None:
                 return
-            delivered = post_json(url, {
+            # Validate again at delivery time before the client opens a
+            # connection. This blocks a hostname that became private after it
+            # was configured; post_json repeats the check as defence in depth.
+            self._url_validator(url)
+            delivered = self._webhook_poster(url, {
                 "business_id": business_id,
                 "conversation_id": conversation_id,
                 "state": state,

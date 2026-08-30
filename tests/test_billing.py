@@ -260,6 +260,29 @@ def test_checkout_session_rejects_second_active_subscription(uow_factory) -> Non
     assert fake.checkout_calls == []
 
 
+@pytest.mark.parametrize("status", ("incomplete", "expired"))
+def test_checkout_session_allows_incomplete_or_lapsed_business(uow_factory, status: str) -> None:
+    _make_business(uow_factory)
+    fake = FakeLemonSqueezyClient()
+    service = BillingService(uow_factory, _billing_settings(), client=fake)
+    with uow_factory() as unit_of_work:
+        unit_of_work.businesses.update_billing(
+            "acme-co",
+            payment_customer_id="cus_lapsed",
+            payment_subscription_id="sub_lapsed",
+            plan="starter",
+            subscription_status=status,
+            trial_ends_at=None,
+            current_period_end=None,
+        )
+        unit_of_work.commit()
+
+    url = service.create_checkout_session("acme-co", "pro", "owner@example.com")
+
+    assert url == "https://checkout.lemonsqueezy.test/session"
+    assert len(fake.checkout_calls) == 1
+
+
 def test_portal_session_requires_existing_subscription(uow_factory) -> None:
     _make_business(uow_factory)
     service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
@@ -797,6 +820,14 @@ def test_dashboard_unblocked_after_checkout_webhook(billing_app) -> None:
     )
     assert status_response.json()["subscription_status"] == "on_trial"
     assert status_response.json()["has_billing_access"] is True
+
+    duplicate_checkout = client.post(
+        f"/api/v1/businesses/{business_id}/billing/checkout-session",
+        json={"plan": "starter"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert duplicate_checkout.status_code == 409
+    assert duplicate_checkout.json()["error"]["code"] == "billing_already_active"
 
 
 def test_webhook_rejects_bad_signature_over_http(billing_app) -> None:

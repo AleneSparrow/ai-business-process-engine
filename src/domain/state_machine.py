@@ -56,3 +56,36 @@ class StateMachine:
     def validate(self, current: ProcessState, target: ProcessState) -> None:
         if not self.can_transition(current, target):
             raise InvalidTransition(f"Cannot transition from {current.value} to {target.value}")
+
+    def validate_human_resume(
+        self,
+        current: ProcessState,
+        pending_transition: ProcessState | None,
+        target: ProcessState,
+    ) -> None:
+        """The state-machine-owned check for leaving NEEDS_HUMAN.
+
+        NEEDS_HUMAN deliberately has no ordinary transitions (see
+        `TRANSITIONS[ProcessState.NEEDS_HUMAN] == frozenset()`) -- it is not
+        an ordinary transitional state, and this method does not make it
+        one: it never consults `self.transitions`, and a resume can *only*
+        ever reach exactly the state that was pending when the case
+        escalated, never any other reachable-looking target. It validates
+        the shape of a resume -- case is actually NEEDS_HUMAN, a pending
+        transition was actually recorded, and the requested target is
+        exactly that pending transition -- nothing about *who* is allowed
+        to resume it. Confirming the decision came from an identified human
+        (decision type + `approved_by`) is ProcessEngine/DecisionRouter's
+        responsibility and must happen before this is ever called; this
+        method does not and cannot authorize an automatic exit from
+        NEEDS_HUMAN on its own.
+        """
+        if current is not ProcessState.NEEDS_HUMAN:
+            raise InvalidTransition("validate_human_resume only applies to NEEDS_HUMAN cases")
+        if pending_transition is None:
+            raise InvalidTransition("NEEDS_HUMAN case has no pending transition to resume")
+        if target is not pending_transition:
+            raise InvalidTransition(
+                f"Human approval target {target.value} does not match "
+                f"pending transition {pending_transition.value}"
+            )

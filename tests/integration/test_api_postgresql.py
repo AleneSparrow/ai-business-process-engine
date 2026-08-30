@@ -25,6 +25,7 @@ from src.persistence.sqlalchemy_models import (
     ProcessedMessageRow,
     ProcessEventRow,
 )
+from src.persistence.auth_service import AuthService
 from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork, create_database_engine
 
 
@@ -52,6 +53,14 @@ def test_concurrent_identical_http_requests_have_one_logical_effect(postgresql_u
     with factory() as unit_of_work:
         unit_of_work.businesses.add(Business(business_id, business_id, now, now))
         unit_of_work.business_dna.add_version(business_id, configuration)
+        unit_of_work.commit()
+    staff_session = AuthService(factory).signup(
+        f"api-concurrency-owner-{uuid4()}@example.com", "correct horse battery"
+    )
+    with factory() as unit_of_work:
+        owner = unit_of_work.staff_users.get(staff_session.user.user_id)
+        assert owner is not None
+        unit_of_work.staff_users.save(owner.with_business(business_id))
         unit_of_work.commit()
 
     provider = FakeAIProvider([{
@@ -93,7 +102,11 @@ def test_concurrent_identical_http_requests_have_one_logical_effect(postgresql_u
     with TestClient(application, raise_server_exceptions=False) as client:
         def post_concurrently() -> Response:
             start.wait(timeout=10)
-            return client.post(f"/api/v1/businesses/{business_id}/messages", json=payload)
+            return client.post(
+                f"/api/v1/businesses/{business_id}/messages",
+                json=payload,
+                headers={"Authorization": f"Bearer {staff_session.token}"},
+            )
 
         with ThreadPoolExecutor(max_workers=2) as executor:
             responses = list(executor.map(lambda _: post_concurrently(), range(2)))

@@ -116,6 +116,119 @@ def test_only_identified_human_can_approve_exact_pending_target() -> None:
     assert case.event_history[-2].payload["metadata"]["approved_by"] == "operator-1"
 
 
+def test_human_approval_without_approved_by_is_rejected_even_with_human_decision_type() -> None:
+    """Isolates the `not request.approved_by` half of the guard: a HUMAN
+    decision_type alone is not enough without an identified approver."""
+    case = make_case()
+    engine = ProcessEngine()
+    engine.receive(
+        case,
+        ProcessEvent("ambiguous"),
+        DecisionRequest(DecisionType.AI, ProcessState.CONTACTED, confidence=0.1),
+    )
+
+    with pytest.raises(InvalidTransition, match="identified human"):
+        engine.receive(
+            case,
+            ProcessEvent("resolution_without_approver"),
+            DecisionRequest(DecisionType.HUMAN, ProcessState.CONTACTED, approved_by=None),
+        )
+    assert case.current_state is ProcessState.NEEDS_HUMAN
+
+
+def test_human_approval_rejected_when_no_pending_transition_recorded() -> None:
+    """A NEEDS_HUMAN case with no pending_transition (hand-built or from
+    data that predates recording one) must reject any resume, distinctly
+    from a resume that merely targets the wrong state."""
+    case = ProcessCase("case-no-pending", "business-1", Lead("lead-1", "Ada"), current_state=ProcessState.NEEDS_HUMAN)
+    engine = ProcessEngine()
+
+    with pytest.raises(InvalidTransition, match="no pending transition"):
+        engine.receive(
+            case,
+            ProcessEvent("resolution_attempt"),
+            DecisionRequest(DecisionType.HUMAN, ProcessState.CONTACTED, approved_by="operator-1"),
+        )
+    assert case.current_state is ProcessState.NEEDS_HUMAN
+
+
+def test_duplicate_event_is_rejected_after_rehydration_from_history() -> None:
+    """The rehydration bug this fix closes: a ProcessCase reconstructed with
+    a pre-existing event_history -- exactly what
+    SQLAlchemyProcessCaseRepository._to_domain does on every load -- must
+    recognize an event_id from that history as already processed, not just
+    a case that never left memory."""
+    engine = ProcessEngine()
+    live_case = make_case()
+    trigger = ProcessEvent("lead_contacted", event_id="rehydrated-event")
+    engine.receive(live_case, trigger, DecisionRequest(DecisionType.RULE, ProcessState.CONTACTED))
+
+    rehydrated = ProcessCase(
+        live_case.case_id,
+        live_case.business_id,
+        live_case.lead,
+        current_state=live_case.current_state,
+        created_at=live_case.created_at,
+        updated_at=live_case.updated_at,
+        version=live_case.version,
+        event_history=live_case.event_history,
+    )
+    assert rehydrated.has_processed("rehydrated-event")
+
+    decision = engine.receive(
+        rehydrated,
+        ProcessEvent("lead_contacted", event_id="rehydrated-event"),
+        DecisionRequest(DecisionType.RULE, ProcessState.QUALIFYING),
+    )
+
+    assert not decision.approved
+    assert rehydrated.current_state is ProcessState.CONTACTED  # unchanged, not QUALIFYING
+    assert rehydrated.event_history[-1].event_type is EventType.DUPLICATE_IGNORED
+    assert sum(event.event_type is EventType.STATE_CHANGED for event in rehydrated.event_history) == 1
+
+
+def test_rehydrated_case_still_accepts_a_genuinely_new_event() -> None:
+    """The rehydration fix must not over-block: an event_id that was never
+    actually processed is still handled normally after reconstruction."""
+    live_case = make_case()
+    ProcessEngine().receive(
+        live_case, ProcessEvent("lead_contacted", event_id="first-event"),
+        DecisionRequest(DecisionType.RULE, ProcessState.CONTACTED),
+    )
+    rehydrated = ProcessCase(
+        live_case.case_id, live_case.business_id, live_case.lead,
+        current_state=live_case.current_state, event_history=live_case.event_history,
+    )
+
+    decision = ProcessEngine().receive(
+        rehydrated,
+        ProcessEvent("lead_qualifying", event_id="second-event"),
+        DecisionRequest(DecisionType.RULE, ProcessState.QUALIFYING),
+    )
+
+    assert decision.approved
+    assert rehydrated.current_state is ProcessState.QUALIFYING
+
+
+def test_constructing_a_case_with_duplicate_event_ids_in_history_is_rejected() -> None:
+    """Guards event history integrity directly: a corrupted/inconsistent
+    event_history handed to the constructor (two events sharing an id) must
+    never be accepted silently."""
+    duplicated = (
+        ProcessEvent("first", event_id="dup"),
+        ProcessEvent("second", event_id="dup"),
+    )
+    with pytest.raises(ValueError, match="duplicate event_id"):
+        ProcessCase("case-x", "business-1", Lead("lead-1", "Ada"), event_history=duplicated)
+
+
+def test_recording_an_event_id_already_in_history_is_rejected() -> None:
+    case = make_case()
+    case.record(ProcessEvent("first", event_id="dup"))
+    with pytest.raises(ValueError, match="duplicate event_id"):
+        case.record(ProcessEvent("second", event_id="dup"))
+
+
 class MismatchedAIProvider:
     def decide(self, case: ProcessCase, event: ProcessEvent, request: DecisionRequest) -> Decision:
         return Decision(DecisionType.RULE, True, "spoofed", ProcessState.PAID, 1.0)

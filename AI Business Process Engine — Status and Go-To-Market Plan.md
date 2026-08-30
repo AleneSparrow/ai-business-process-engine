@@ -2,6 +2,8 @@
 
 *Prepared August 12, 2026, based on a direct inspection of the `ai-business-process-engine` repository (commit `daefb7c`, plus uncommitted Milestone 7 work) and the goal of first revenue within one month and $50,000/month profit within six months.*
 
+> **Historical snapshot — superseded.** This document describes the repository as it existed in August 2026 and is retained for planning history. Authentication, self-serve onboarding, the staff dashboard, Lemon Squeezy billing, production deployment, and optional Twilio SMS delivery have since been implemented. Statements below that say those capabilities are absent must not be used as current product status.
+
 ## 1\. What's actually built
 
 Seven milestones of backend engineering are genuinely solid. The codebase has a deterministic state machine covering the full lead\-to\-cash lifecycle, an event\-driven process engine with append\-only audit history and idempotency, tenant\-scoped PostgreSQL persistence with optimistic concurrency and advisory\-lock coordination for cross\-worker races, an OpenAI\-backed intent extraction layer that is treated as untrusted advisory input rather than a decision\-maker, a durable multi\-turn conversation layer with a framework\-free embeddable website widget, and a deterministic booking/quoting/payment\-preparation workflow with timezone\- and Decimal\-safe pricing. 144 tests pass, including real PostgreSQL concurrency tests. This is materially more rigor than most early\-stage SaaS backends have at this stage — rollback safety, tenant isolation, and audit trails are already production\-grade concerns that most startups bolt on only after an incident.

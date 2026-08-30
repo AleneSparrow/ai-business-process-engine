@@ -135,6 +135,7 @@ class ProcessCase:
     metadata: dict[str, Any]
     version: int
     _event_history: list[ProcessEvent] = field(default_factory=list, init=False, repr=False)
+    _event_ids_in_history: set[str] = field(default_factory=set, init=False, repr=False)
     _processed_event_ids: set[str] = field(default_factory=set, init=False, repr=False)
     _pending_transition: ProcessState | None = field(default=None, init=False, repr=False)
 
@@ -160,7 +161,27 @@ class ProcessCase:
         self.metadata = dict(metadata or {})
         self.version = version
         self._event_history = list(event_history)
-        self._processed_event_ids = set()
+        self._event_ids_in_history = set()
+        for historical_event in self._event_history:
+            if historical_event.event_id in self._event_ids_in_history:
+                raise ValueError(f"duplicate event_id in event_history: {historical_event.event_id!r}")
+            self._event_ids_in_history.add(historical_event.event_id)
+        # Rehydration bug fix: a case reconstructed from persisted
+        # event_history (see SQLAlchemyProcessCaseRepository._to_domain)
+        # used to start with an empty _processed_event_ids regardless of
+        # how much history it carried, so has_processed() could never
+        # recognize a re-delivered event_id as a duplicate once the case
+        # had been loaded from the database -- only a still-in-memory,
+        # never-persisted-and-reloaded case actually got idempotency
+        # protection. ProcessEngine.receive() only ever persists a trigger
+        # event after fully handling it -- either applying its transition
+        # (STATE_CHANGED) or rejecting it (TRANSITION_REJECTED), both paths
+        # ending in mark_processed -- so every event_id that made it into a
+        # persisted event_history was, by construction, already processed.
+        # Replaying that fact here makes a freshly rehydrated case's
+        # idempotency state identical to what it would be had the instance
+        # simply stayed in memory the whole time.
+        self._processed_event_ids = set(self._event_ids_in_history)
         self._pending_transition = pending_transition
         _require_text(self.case_id, "case_id")
         _require_text(self.business_id, "business_id")
@@ -186,7 +207,10 @@ class ProcessCase:
         return self._pending_transition
 
     def record(self, event: ProcessEvent) -> None:
+        if event.event_id in self._event_ids_in_history:
+            raise ValueError(f"duplicate event_id in event_history: {event.event_id!r}")
         self._event_history.append(event)
+        self._event_ids_in_history.add(event.event_id)
         self.updated_at = max(self.updated_at, utc_now())
 
     def has_processed(self, event_id: str) -> bool:

@@ -104,11 +104,12 @@ Submit a message after seeding:
 ```bash
 curl -X POST http://localhost:8000/api/v1/businesses/acme-home-services/messages \
   -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer <staff-bearer-token>' \
   -H 'X-Request-ID: manual-check-1' \
   -d '{"channel":"sms","external_message_id":"manual-1","message":"I need a diagnostic visit in 60601","timestamp":"2026-08-11T08:00:00Z","customer_name":"Ada","phone":"+13125550100"}'
 ```
 
-The response includes `business_id`, stable case and lead IDs, `current_state`, a replay indicator, any customer question, `requires_human`, and a qualification summary. Reusing the same message identity and content returns the stored result; changing its fingerprint returns HTTP 409.
+This is the staff-authenticated direct intake endpoint: the bearer-token user must belong to `acme-home-services`. Create a staff account through `/api/v1/auth/signup` or log in through `/api/v1/auth/login` to obtain the token. Anonymous website chat uses the separate opaque conversation-token routes below, and inbound SMS uses its signature-verified Twilio webhook; neither uses this direct endpoint. The response includes `business_id`, stable case and lead IDs, `current_state`, a replay indicator, any customer question, `requires_human`, and a qualification summary. Reusing the same message identity and content returns the stored result; changing its fingerprint returns HTTP 409.
 
 ## Deploying to production
 
@@ -198,7 +199,7 @@ Both adapters share the exact same prompts, Pydantic output schemas, and post-ho
 
 Only the current raw customer message, bounded/redacted conversation context, and a task-specific Business DNA subset leave the application: service IDs, names, intake aliases, relevant qualification prompts, and—when drafting wording—configured language, tone, channel, and the already approved response meaning. Explicit phone/email fields, tenant/database IDs, pricing, integration configuration, and secrets are not added to prompts. Customer text is delimited as untrusted content and cannot change rules. Structured output is validated again against current or already validated customer evidence, the supplied service catalog, question set, response type, and unsafe-commitment checks before use.
 
-The audit trail records safe per-call metadata: provider, model, prompt ID/version, decision type, confidence, latency, outcome category, attempt count, and token usage when supplied. It does not store API keys, provider response bodies, hidden reasoning, or a second copy of the customer message in AI metadata. Invalid intent output escalates to `NEEDS_HUMAN`; provider availability failures abort and roll back the entire intake transaction so the original message can be retried safely.
+The audit trail records safe per-call metadata: provider, model, prompt ID/version, decision type, confidence, latency, outcome category, attempt count, and token usage when supplied. It does not store API keys, provider response bodies, hidden reasoning, or a second copy of the customer message in AI metadata. At runtime, provider failures and invalid provider output use the logged deterministic fallback; non-provider application failures still roll back the intake transaction.
 
 An optional live check is the normal curl example above with OpenAI mode enabled. It is never part of automated tests; use a disposable message ID and development database.
 
@@ -220,3 +221,5 @@ Every tenant-owned repository lookup requires `business_id`, and composite forei
 ## Next milestone
 
 Replace the process-local public rate limiter for multi-worker deployments and introduce an outbox-backed integration boundary. Real calendar synchronization, customer payment collection, and broader outbound/integration delivery remain deferred.
+
+SMS, CRM webhook, and follow-up delivery are currently best-effort side effects after the database transaction. They are not physically exactly-once: an outage or process failure can lose or duplicate an external delivery. The next integration sprint needs a transactional outbox plus provider idempotency keys and retry observability.
