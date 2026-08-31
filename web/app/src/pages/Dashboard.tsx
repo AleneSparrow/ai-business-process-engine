@@ -502,7 +502,7 @@ export default function Dashboard() {
                 313px sidebar has already narrowed -- on a real 901px window
                 the split never engaged and everything stacked. 880 is where
                 260 + a two-up metrics grid still has room to breathe. */}
-            <div className="grid gap-3 min-[880px]:grid-cols-[minmax(0,260px)_minmax(0,1fr)]">
+            <div className="grid gap-3 min-[880px]:grid-cols-[minmax(0,240px)_minmax(0,1fr)]">
               <div className="grid gap-3 sm:grid-cols-2 min-[880px]:grid-cols-1 min-[880px]:content-start">
                 <StatCard
                   label="Needs your attention"
@@ -521,7 +521,7 @@ export default function Dashboard() {
                 />
               </div>
 
-              <div className="grid gap-2 grid-cols-2 min-[1200px]:grid-cols-3">
+              <div className="grid gap-2 grid-cols-2 min-[1024px]:grid-cols-3">
                 <StatCard compact label="Qualifying now" value={counts.qualifying} sub="active leads" tone="#B87333" onClick={() => { setFilter("QUALIFYING"); setReasonFilter(null); setFollowUpOnly(false); }} />
                 <StatCard compact label="Booked" value={counts.booked} sub="active cases" tone="#1E7B52" onClick={() => { setFilter("BOOKED"); setReasonFilter(null); setFollowUpOnly(false); }} />
                 {/* Deliberately not clickable, unlike "Booked" above: this
@@ -553,51 +553,6 @@ export default function Dashboard() {
             )}
           </div>
 
-          {analytics && Object.keys(analytics.escalation_reasons).length > 0 && (
-            <div className="bg-white rounded-2xl border border-[#E7E5DE] px-5 py-4">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <h2 className="text-sm font-semibold text-[#151515]">Review queue — why the engine stopped</h2>
-                  <p className="text-xs text-[#6B6459] mt-1">Each group is a current reason for human review. Select one to see those leads and the next action.</p>
-                </div>
-                <button type="button" onClick={() => showAttention()} className="text-xs font-medium px-3 py-2 rounded-lg border border-[#E7E5DE] hover:border-[#B87333]">View all {counts.needsHuman} leads</button>
-              </div>
-              <div className="grid md:grid-cols-2 gap-2 mt-4">
-                {Object.entries(analytics.escalation_reasons)
-                  .sort(([, left], [, right]) => right - left)
-                  .map(([reason, count]) => (
-                    <button key={reason} type="button" onClick={() => showAttention(reason)} className="rounded-xl border border-[#E7E5DE] bg-[#F7F5F0] px-3 py-3 text-left hover:border-[#B87333] transition-colors">
-                      <span className="flex items-start justify-between gap-3 text-xs font-medium text-[#151515]">
-                        <span>{ESCALATION_LABELS[reason] ?? "Human review requested"}</span>
-                        <span className="rounded-full bg-white px-2 py-0.5 shrink-0">{count}</span>
-                      </span>
-                      <span className="block text-xs text-[#6B6459] mt-1">Next safe action: {ESCALATION_ACTIONS[reason] ?? "Open the lead and choose the next safe step."}</span>
-                      {ESCALATION_OUTCOMES[reason] && (
-                        <span className="block text-xs text-[#6B6459] mt-1">{ESCALATION_OUTCOMES[reason]}</span>
-                      )}
-                    </button>
-                  ))}
-              </div>
-              {(() => {
-                const feedback = analytics.escalation_feedback;
-                const reviewed = Object.values(feedback).reduce((sum, value) => sum + value, 0);
-                const avoidable = feedback.unnecessary + feedback.wrong_service;
-                const avoidableRate = reviewed ? Math.round((avoidable / reviewed) * 100) : 0;
-                // Nothing reviewed yet means five zeros in a row, which read
-                // as data rather than as "no data". Show nothing instead.
-                if (reviewed === 0) return null;
-                return (
-                  <div className="mt-4 border-t border-[#E7E5DE] pt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-[#6B6459]">
-                    <span><strong className="text-[#151515]">{reviewed}</strong> decisions reviewed</span>
-                    <span><strong className="text-[#151515]">{avoidable}</strong> avoidable ({avoidableRate}%)</span>
-                    <span><strong className="text-[#151515]">{feedback.missed}</strong> missed handoffs</span>
-                    <span><strong className="text-[#151515]">{feedback.identity_same_customer}</strong> same-customer conflicts</span>
-                    <span><strong className="text-[#151515]">{feedback.identity_different_customer}</strong> confirmed different</span>
-                  </div>
-                );
-              })()}
-            </div>
-          )}
 
           {cases === null && !error ? (
             <div className="flex items-center gap-2 text-sm text-[#6B6459] py-12 justify-center">
@@ -632,6 +587,34 @@ export default function Dashboard() {
                   ))}
                   <span className="ml-auto text-[11px] text-[#9C9488] whitespace-nowrap">Most urgent first</span>
                 </div>
+                {/* What the "Review queue" card used to be, in one line.
+                    That card was a third copy of this list's own filters: it
+                    repeated the 77, repeated "view all", and its six reason
+                    cards did what these chips do -- while taking most of a
+                    screen and pushing the leads below the fold. The per-lead
+                    guidance it carried now sits on the selected lead, where
+                    you act on it. */}
+                {filter === "NEEDS_HUMAN" && analytics && Object.keys(analytics.escalation_reasons).length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 px-5 py-2 border-b border-[#E7E5DE] bg-[#FDFCF9]">
+                    <span className="text-[11px] text-[#9C9488] mr-1">Why:</span>
+                    {Object.entries(analytics.escalation_reasons)
+                      .sort(([, left], [, right]) => right - left)
+                      .map(([reason, count]) => (
+                        <button
+                          key={reason}
+                          type="button"
+                          onClick={() => setReasonFilter(reasonFilter === reason ? null : reason)}
+                          className="px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors"
+                          style={{
+                            backgroundColor: reasonFilter === reason ? "#F5E7D6" : "#fff",
+                            borderColor: reasonFilter === reason ? "#B87333" : "#E7E5DE",
+                          }}
+                        >
+                          {ESCALATION_LABELS[reason] ?? "Human review"} {count}
+                        </button>
+                      ))}
+                  </div>
+                )}
                 {(filter !== "ALL" || reasonFilter !== null || followUpOnly) && (
                   <div className="px-5 py-2 text-xs text-[#6B6459] bg-[#FFF9F2] border-b border-[#E7E5DE] flex items-center justify-between gap-3">
                     <span>Showing {filtered.length} {reasonFilter ? `leads: ${ESCALATION_LABELS[reasonFilter] ?? "human review"}` : followUpOnly ? "follow-ups due" : "filtered leads"}.</span>
@@ -690,6 +673,12 @@ export default function Dashboard() {
                       <p className="text-sm text-[#6B6459]">
                         {ESCALATION_LABELS[selected.escalation_reason] ?? "Human review requested"}
                       </p>
+                      <p className="text-sm text-[#6B6459] mt-1.5">
+                        Next safe action: {ESCALATION_ACTIONS[selected.escalation_reason] ?? "Open the lead and choose the next safe step."}
+                      </p>
+                      {ESCALATION_OUTCOMES[selected.escalation_reason] && (
+                        <p className="text-xs text-[#6B6459] mt-1.5">{ESCALATION_OUTCOMES[selected.escalation_reason]}</p>
+                      )}
                     </div>
                   )}
                   <div className="mb-5">
