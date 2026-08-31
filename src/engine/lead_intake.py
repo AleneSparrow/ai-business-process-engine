@@ -628,14 +628,37 @@ class LeadIntakeService:
         if urgency is Urgency.UNKNOWN and isinstance(previous_urgency, str):
             urgency = Urgency(previous_urgency)
 
-        def preserve_strong_fact(current_value: str | None, key: str) -> str | None:
-            nonlocal conflict
-            existing = previous.get(key)
-            if not isinstance(existing, str) or not existing.strip():
+        def corrected_fact(current_value: str | None, key: str) -> str | None:
+            """The newest thing the customer actually said wins; silence keeps
+            what we already knew.
+
+            This replaced a version where the FIRST value won forever, and any
+            later different value additionally set `conflict`, which forces
+            requires_human. That made an ordinary self-correction impossible to
+            express. Live on production 2026-08-30: told "that ZIP is outside
+            our service area, send another one if you have one nearby", the
+            customer replied "sorry, typo, it's actually 90210" -- a ZIP the
+            business does serve -- and the engine (a) kept 99999, (b) escalated
+            because the two differed, and (c) on the next requalification told
+            them again that their address was outside the area. We asked them
+            to correct it and then refused the correction.
+
+            Identity is a different matter and is NOT handled here: phone,
+            email and name conflicts are checked separately below and still
+            raise `conflict`, because a changed phone number can mean a
+            different person on the same conversation. A changed ZIP or
+            preferred time cannot -- that is the customer restating their own
+            request, which is exactly what we invite them to do.
+
+            Silence still preserves: a bare "yes" carries no location, so
+            `current_value` is None and the known value survives.
+            """
+            if current_value is not None and current_value.strip():
                 return current_value
-            if current_value is not None and existing.strip().casefold() != current_value.strip().casefold():
-                conflict = True
-            return existing
+            existing = previous.get(key)
+            if isinstance(existing, str) and existing.strip():
+                return existing
+            return None
 
         for current_value, existing_value, normalizer in (
             (current.phone, lead.phone, LeadIntakeService._normalize_phone),
@@ -646,7 +669,7 @@ class LeadIntakeService:
         if current.customer_name and lead.name and current.customer_name.strip().casefold() != lead.name.strip().casefold():
             conflict = True
         return IntentResult(
-            service_requested=preserve_strong_fact(current.service_requested, "service_requested"),
+            service_requested=corrected_fact(current.service_requested, "service_requested"),
             # One-turn-only, like objection_phrase/customer_tone below -- the
             # customer's own words for THIS turn's unsupported request, not a
             # fact to preserve silently across turns. Missing from this
@@ -657,8 +680,8 @@ class LeadIntakeService:
             # intent (only on a first-turn intent that bypassed merging).
             unsupported_service_name=current.unsupported_service_name,
             urgency=urgency,
-            customer_location=preserve_strong_fact(current.customer_location, "customer_location"),
-            preferred_time=preserve_strong_fact(current.preferred_time, "preferred_time"),
+            customer_location=corrected_fact(current.customer_location, "customer_location"),
+            preferred_time=corrected_fact(current.preferred_time, "preferred_time"),
             notes=current.notes or previous.get("notes"),
             confidence=current.confidence,
             requires_human=current.requires_human or conflict,

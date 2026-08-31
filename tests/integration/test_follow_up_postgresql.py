@@ -9,6 +9,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from threading import Barrier, Lock
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import func, select
@@ -89,7 +90,8 @@ def _make_stalled_case(pg_factory, business_id: str, case_id: str, now: datetime
 
 
 def test_concurrent_sweeps_on_same_case_send_exactly_once(pg_factory) -> None:
-    business_id, case_id = "pg-follow-up-conflict", "case-conflict"
+    suffix = uuid4().hex
+    business_id, case_id = f"pg-follow-up-conflict-{suffix}", f"case-conflict-{suffix}"
     now = datetime.now(timezone.utc)
     _make_stalled_case(pg_factory, business_id, case_id, now)
     sms = ThreadSafeFakeSmsService()
@@ -127,7 +129,8 @@ def test_concurrent_sweeps_on_same_case_send_exactly_once(pg_factory) -> None:
 def test_claim_attempt_takeover_is_exclusive_under_concurrency(pg_factory) -> None:
     """Two callers racing to take over the same abandoned (long-PENDING)
     attempt must not both win the takeover."""
-    business_id, case_id = "pg-follow-up-takeover", "case-takeover"
+    suffix = uuid4().hex
+    business_id, case_id = f"pg-follow-up-takeover-{suffix}", f"case-takeover-{suffix}"
     now = datetime.now(timezone.utc)
     _make_stalled_case(pg_factory, business_id, case_id, now)
 

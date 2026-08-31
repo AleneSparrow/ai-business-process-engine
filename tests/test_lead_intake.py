@@ -462,3 +462,70 @@ def test_extraction_failure_does_not_leave_an_orphan_case() -> None:
     with pytest.raises(RuntimeError, match="provider failed"):
         intake.receive(message("failed"))
     assert intake.cases == ()
+
+def test_a_corrected_fact_replaces_the_earlier_one() -> None:
+    """The newest thing the customer said must win.
+
+    Until 2026-08-30 the FIRST value won forever, and any later different value
+    additionally set a conflict flag, which forces requires_human. So a
+    self-correction was impossible to express: the engine kept the old value
+    AND fetched a person because the two differed.
+
+    Found on production: told "that ZIP is outside our service area, send
+    another one if you have one nearby", the customer answered "sorry, typo,
+    it's actually 90210" -- a ZIP the business does serve -- and was told again
+    that their address was outside the area. We invite the correction and then
+    refuse it.
+
+    Both ZIPs here are inside the service area, and both turns deliberately
+    leave name and phone missing so the case stays QUALIFYING: this test is
+    about the merge. The real out-of-area -> correction -> cycle-continues path
+    crosses LOST, which this layer cannot re-enter (see ACTIVE_STATES), so it
+    belongs in a conversation-level test where reactivation lives.
+    """
+    intake = service_with({
+        "first": valid_intent(customer_location="60601"),
+        "corrected": valid_intent(customer_location="60602"),
+    })
+
+    first = intake.receive(message("first", name=None, phone=None))
+    intake.receive(message("corrected", name=None, phone=None, case_id=first.case_id))
+
+    assert first.current_state is ProcessState.QUALIFYING
+    assert intake.get_case(first.case_id).metadata["customer_location"] == "60602"
+
+
+def test_a_correction_alone_does_not_escalate() -> None:
+    """Changing your own mind is not a reason to fetch a person.
+
+    Location and preferred time are the customer restating their own request.
+    Identity is different and still escalates -- the phone/email/name checks in
+    _merge_intent are untouched, because a changed phone number can mean a
+    different person on the same conversation.
+    """
+    intake = service_with({
+        "first": valid_intent(customer_location="60601", preferred_time="Monday"),
+        "second": valid_intent(customer_location="60602", preferred_time="Tuesday"),
+    })
+
+    first = intake.receive(message("first", name=None, phone=None))
+    second = intake.receive(message("second", name=None, phone=None, case_id=first.case_id))
+
+    assert not second.qualification.requires_human
+
+
+def test_silence_still_preserves_a_known_fact() -> None:
+    """The reason the old behaviour existed at all -- keep it.
+
+    A message carrying no location must not wipe the location already on the
+    case, otherwise a bare "yes" would restart qualification.
+    """
+    intake = service_with({
+        "with-zip": valid_intent(customer_location="60601"),
+        "no-zip": valid_intent(customer_location=None),
+    })
+
+    first = intake.receive(message("with-zip", name=None, phone=None))
+    intake.receive(message("no-zip", name=None, phone=None, case_id=first.case_id))
+
+    assert intake.get_case(first.case_id).metadata["customer_location"] == "60601"

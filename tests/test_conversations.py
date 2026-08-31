@@ -637,7 +637,18 @@ def test_lost_case_reactivates_and_reevaluates_next_message(conversation_environ
     qualification.lost_message forever, even an honest correction. This
     business enforces its service area to only 60601/60602 (see
     load_dna/business_dna.example.json), so a message naming the service and
-    an out-of-area zip resolves straight to LOST on the very first turn."""
+    an out-of-area zip resolves straight to LOST on the very first turn.
+
+    The corrected zip used to conflict with the already-recorded strong fact
+    (90210) and force NEEDS_HUMAN -- LeadIntakeService._merge_intent's
+    preserve_strong_fact treated any changed fact as suspicious. That was
+    itself a live bug (2026-08-30, see corrected_fact/test_lead_intake.py):
+    an honest self-correction should update the fact and be re-qualified for
+    real, not be automatically fenced off to a human. Combined with
+    reactivation, the customer's typo fix now goes all the way through:
+    LOST -> reactivated -> corrected zip accepted -> genuinely in-area ->
+    QUALIFYING, with no human needed at all.
+    """
     client, factory, extractor = conversation_environment
     first = create_conversation(client, "I need AC help, my zip is 90210", "lost-1")
     token = first.json()["conversation_token"]
@@ -653,14 +664,8 @@ def test_lost_case_reactivates_and_reevaluates_next_message(conversation_environ
     # actually re-evaluated (a second real intent-extraction call happened)
     # rather than silently replaying the same static lost_message.
     assert extractor.calls == 2
-    # The corrected zip conflicts with the already-recorded strong fact
-    # (90210) -- LeadIntakeService._merge_intent's existing conflict
-    # detection correctly declines to blindly trust a changed fact and
-    # routes it to a human instead of auto-qualifying. That's a feature, not
-    # a bug in this fix: the customer is no longer stuck on a dead end, and
-    # a human now sees the case instead of it vanishing forever.
-    assert follow_up.json()["current_state"] == "NEEDS_HUMAN"
-    assert follow_up.json()["status"] == "human_takeover_requested"
+    assert follow_up.json()["current_state"] == "QUALIFYING"
+    assert follow_up.json()["status"] == "ai_active"
 
 
 def test_lost_reactivation_is_capped(conversation_environment) -> None:
@@ -713,7 +718,15 @@ def test_prompt_injection_cannot_override_deterministic_rules(conversation_envir
     assert attack.json()["current_state"] != "QUALIFIED"
 
 
-def test_conflicting_strong_fact_escalates_without_overwrite(conversation_environment) -> None:
+def test_corrected_zip_updates_the_fact_and_requalifies_instead_of_escalating(conversation_environment) -> None:
+    """A changed ZIP is the customer restating their own request, not a
+    reason to distrust the case -- see LeadIntakeService._merge_intent's
+    corrected_fact (live production bug, 2026-08-30: this exact shape used
+    to overwrite nothing and escalate instead, refusing the correction).
+    The new ZIP (99999) is genuinely outside this business's configured
+    service area (60601/60602), so the correct outcome is a real
+    re-qualification that lands on LOST for that reason -- not NEEDS_HUMAN,
+    and not silently keeping the stale 60601 fact."""
     client, factory, _ = conversation_environment
     first = create_conversation(
         client,
@@ -721,10 +734,10 @@ def test_conflicting_strong_fact_escalates_without_overwrite(conversation_enviro
         "strong-1",
     )
     token = first.json()["conversation_token"]
-    conflict = send(client, token, "Actually my ZIP is 99999", "strong-2")
+    corrected = send(client, token, "Actually my ZIP is 99999", "strong-2")
 
-    assert conflict.status_code == 200
-    assert conflict.json()["current_state"] == "NEEDS_HUMAN"
+    assert corrected.status_code == 200
+    assert corrected.json()["current_state"] == "LOST"
     with factory() as uow:
         conversation = uow.session.scalar(select(ConversationRow).where(
             ConversationRow.business_id == "tenant-a"
@@ -732,7 +745,7 @@ def test_conflicting_strong_fact_escalates_without_overwrite(conversation_enviro
         assert conversation is not None and conversation.case_id is not None
         case = uow.cases.get("tenant-a", conversation.case_id)
         assert case is not None
-        assert case.lead.attributes["customer_location"] == "60601"
+        assert case.lead.attributes["customer_location"] == "99999"
 
 
 def test_public_config_is_allowlisted_and_xss_is_plain_json(conversation_environment) -> None:

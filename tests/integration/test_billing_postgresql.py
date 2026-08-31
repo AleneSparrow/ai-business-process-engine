@@ -12,6 +12,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from threading import Barrier
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import func, select
@@ -103,13 +104,14 @@ def test_concurrent_identical_webhook_deliveries_apply_exactly_once(pg_factory) 
     bytes, as Lemon Squeezy resends them) must not both apply it -- the
     unique constraint on event_fingerprint is the real guard being proven
     here, not application-level locking."""
-    business_id = "pg-billing-dup"
+    suffix = uuid4().hex
+    business_id = f"pg-billing-dup-{suffix}"
     _make_business(pg_factory, business_id)
     service = BillingService(pg_factory, _billing_settings(), client=FakeLemonSqueezyClient())
     payload = _subscription_event(
         "subscription_created",
-        subscription_id="sub_pg_dup",
-        customer_id="cus_pg_dup",
+        subscription_id=f"sub-pg-dup-{suffix}",
+        customer_id=f"cus-pg-dup-{suffix}",
         status="on_trial",
         custom_data={"business_id": business_id, "plan": "starter"},
     )
@@ -125,7 +127,9 @@ def test_concurrent_identical_webhook_deliveries_apply_exactly_once(pg_factory) 
 
     with pg_factory() as uow:
         fingerprint_count = uow.session.scalar(
-            select(func.count()).select_from(BillingWebhookEventRow)
+            select(func.count()).select_from(BillingWebhookEventRow).where(
+                BillingWebhookEventRow.event_fingerprint == hashlib.sha256(payload).hexdigest()
+            )
         )
     business = service.get_status(business_id)
     assert business.subscription_status == "on_trial"
@@ -135,14 +139,15 @@ def test_concurrent_identical_webhook_deliveries_apply_exactly_once(pg_factory) 
 
 
 def test_stale_out_of_order_update_does_not_resurrect_access_after_cancelled(pg_factory) -> None:
-    business_id = "pg-billing-stale"
+    suffix = uuid4().hex
+    business_id = f"pg-billing-stale-{suffix}"
     _make_business(pg_factory, business_id)
     service = BillingService(pg_factory, _billing_settings(), client=FakeLemonSqueezyClient())
 
     created = _subscription_event(
         "subscription_created",
-        subscription_id="sub_pg_stale",
-        customer_id="cus_pg_stale",
+        subscription_id=f"sub-pg-stale-{suffix}",
+        customer_id=f"cus-pg-stale-{suffix}",
         status="on_trial",
         updated_at="2024-01-01T00:00:00.000000Z",
         custom_data={"business_id": business_id, "plan": "starter"},
@@ -151,8 +156,8 @@ def test_stale_out_of_order_update_does_not_resurrect_access_after_cancelled(pg_
 
     cancelled = _subscription_event(
         "subscription_cancelled",
-        subscription_id="sub_pg_stale",
-        customer_id="cus_pg_stale",
+        subscription_id=f"sub-pg-stale-{suffix}",
+        customer_id=f"cus-pg-stale-{suffix}",
         status="cancelled",
         ends_at="2024-03-01T00:00:00.000000Z",
         updated_at="2024-01-03T00:00:00.000000Z",
@@ -162,8 +167,8 @@ def test_stale_out_of_order_update_does_not_resurrect_access_after_cancelled(pg_
 
     stale_update = _subscription_event(
         "subscription_updated",
-        subscription_id="sub_pg_stale",
-        customer_id="cus_pg_stale",
+        subscription_id=f"sub-pg-stale-{suffix}",
+        customer_id=f"cus-pg-stale-{suffix}",
         status="active",
         updated_at="2024-01-02T00:00:00.000000Z",
     )

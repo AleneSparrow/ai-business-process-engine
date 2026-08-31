@@ -311,11 +311,13 @@ export default function Dashboard() {
                   value={analytics ? `${Math.round(analytics.booking_conversion_rate * 100)}%` : "—"}
                   sub={analytics ? `${analytics.booked_cases}/${analytics.total_cases} leads` : undefined}
                   tone="#1E7B52"
+                  onClick={() => { setFilter("BOOKED"); setReasonFilter(null); setFollowUpOnly(false); }}
                 />
                 <StatCard
                   label="Lost rate"
                   value={analytics ? `${Math.round(analytics.lost_rate * 100)}%` : "—"}
                   sub={analytics ? `${analytics.lost_cases}/${analytics.total_cases} leads` : undefined}
+                  onClick={() => { setFilter("LOST"); setReasonFilter(null); setFollowUpOnly(false); }}
                 />
               </div>
             </div>
@@ -327,11 +329,6 @@ export default function Dashboard() {
               value={analytics ? `${Math.round(analytics.escalation_rate * 100)}%` : "—"}
               sub={analytics ? `${analytics.escalated_cases}/${analytics.total_cases} leads` : undefined}
               tone="#C97A1F"
-            />
-            <StatCard
-              label="Lost rate"
-              value={analytics ? `${Math.round(analytics.lost_rate * 100)}%` : "—"}
-              sub={analytics ? `${analytics.lost_cases}/${analytics.total_cases}` : undefined}
             />
             <StatCard
               label="Median first response"

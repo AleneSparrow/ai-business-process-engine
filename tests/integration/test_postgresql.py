@@ -501,9 +501,9 @@ def test_rehydrated_process_case_rejects_duplicate_event_against_postgresql(pg_f
     with pg_factory() as uow:
         loaded = uow.cases.get(business_id, case_id)
         assert loaded is not None
+        event_id = f"contact-event-{uuid4()}"
         ProcessEngine().receive(
-            loaded,
-            ProcessEvent("first_contact", event_id="contact-event"),
+            loaded, ProcessEvent("first_contact", event_id=event_id),
             DecisionRequest(DecisionType.RULE, ProcessState.CONTACTED),
         )
         uow.cases.save(loaded, expected_version=0)
@@ -513,11 +513,10 @@ def test_rehydrated_process_case_rejects_duplicate_event_against_postgresql(pg_f
     with pg_factory() as uow:
         rehydrated = uow.cases.get(business_id, case_id)
         assert rehydrated is not None
-        assert rehydrated.has_processed("contact-event")
+        assert rehydrated.has_processed(event_id)
 
         decision = ProcessEngine().receive(
-            rehydrated,
-            ProcessEvent("first_contact", event_id="contact-event"),
+            rehydrated, ProcessEvent("first_contact", event_id=event_id),
             DecisionRequest(DecisionType.RULE, ProcessState.QUALIFYING),
         )
         assert not decision.approved

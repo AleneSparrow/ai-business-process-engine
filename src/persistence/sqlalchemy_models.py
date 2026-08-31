@@ -115,10 +115,17 @@ class SmsConnectionRow(Base):
     business_id: Mapped[str] = mapped_column(
         String(128), ForeignKey("businesses.id", ondelete="CASCADE"), primary_key=True
     )
-    phone_number: Mapped[str] = mapped_column(String(32), nullable=False, unique=True)
+    phone_number: Mapped[str] = mapped_column(String(32), nullable=False)
     twilio_phone_sid: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        # Matches migration 0008.  This is deliberately an index rather than
+        # Column(unique=True), which PostgreSQL reflects as a constraint and
+        # would make Alembic report a false schema drift.
+        Index("uq_sms_connections_phone_number", "phone_number", unique=True),
+    )
 
 
 class BillingWebhookEventRow(Base):
@@ -191,6 +198,7 @@ class StaffSessionRow(Base):
     __table_args__ = (
         UniqueConstraint("token_hash", name="uq_staff_sessions_token_hash"),
         Index("ix_staff_sessions_user", "user_id"),
+        CheckConstraint("expires_at > created_at", name="ck_staff_sessions_expiry_after_creation"),
     )
 
 
@@ -339,9 +347,10 @@ class FollowUpDeliveryAttemptRow(Base):
 
     __tablename__ = "follow_up_delivery_attempts"
 
-    business_id: Mapped[str] = mapped_column(
-        String(128), ForeignKey("businesses.id", ondelete="CASCADE"), primary_key=True
-    )
+    # The composite tenant/case foreign key below is the one created by
+    # migration 0015.  A second business-only FK would be redundant and
+    # makes Alembic incorrectly report drift on every clean database.
+    business_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     case_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     attempt_number: Mapped[int] = mapped_column(Integer, primary_key=True)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
