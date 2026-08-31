@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Bell, ArrowUpRight, Clock, Phone, Mail, Loader2 } from "lucide-react";
+import { Search, Bell, ArrowUpRight, Clock, Phone, Mail, Loader2, ArrowDown, ArrowUp } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { useAuth, describeError } from "../auth/AuthContext";
 import { api, type DashboardAnalytics, type DashboardCaseSummary } from "../api/client";
@@ -16,38 +16,8 @@ import {
 
 const FILTERS: (CaseState | "ALL")[] = ["ALL", "NEEDS_HUMAN", "QUALIFYING", "BOOKED", "LOST", "COMPLETED"];
 
-/**
- * Sorting, back after being cut. What was wrong before was the CONTROL, not
- * the capability: a select plus a direction button plus a text label, three
- * widgets for one choice, and its default (date) buried safety messages
- * under whatever arrived later. One select now, urgency as the default.
- */
-type SortKey = "urgency" | "newest" | "oldest" | "name";
-
-const SORT_LABELS: Record<SortKey, string> = {
-  urgency: "Most urgent first",
-  newest: "Newest first",
-  oldest: "Oldest first",
-  name: "Name A–Z",
-};
-
-/**
- * How loudly a lead is asking for a person, lowest first. This replaced a
- * date/name sort control: sorting by name is not a thing anyone needs from a
- * work queue, and plain recency buried a safety message under whatever
- * arrived after it. Ties fall back to newest.
- */
-const ESCALATION_URGENCY: Record<string, number> = {
-  safety_emergency: 0,
-  urgent_request: 1,
-  identity_conflict: 2,
-  policy_review: 2,
-  service_area_uncertain: 2,
-  service_unclear: 2,
-  low_confidence: 3,
-  ai_review: 3,
-  already_pending: 4,
-};
+type SortKey = "date" | "name";
+type SortDirection = "asc" | "desc";
 
 /** ISO (what the API speaks) -> MM/DD/YYYY (what a US owner reads). */
 function isoToUs(iso: string): string {
@@ -232,7 +202,8 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<CaseState | "ALL">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<SortKey>("urgency");
+  const [sortBy, setSortBy] = useState<SortKey>("date");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [resettingStats, setResettingStats] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
@@ -303,31 +274,26 @@ export default function Dashboard() {
       return [c.lead.name, c.lead.phone, c.lead.email, c.category, c.case_id, c.lead.lead_id]
         .some((value) => value?.toLowerCase().includes(query));
     });
-    const priority = (lead: typeof visible[number]) => {
-      if (lead.caseState === "NEEDS_HUMAN") {
-        return ESCALATION_URGENCY[lead.escalation_reason ?? ""] ?? 5;
-      }
-      if (lead.followUpDue) return 6;
-      return 10;
-    };
-    const newestFirst = (left: typeof visible[number], right: typeof visible[number]) =>
-      new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
     return visible.sort((left, right) => {
-      if (sortBy === "newest") return newestFirst(left, right);
-      if (sortBy === "oldest") return -newestFirst(left, right);
-      if (sortBy === "name") {
-        const leftName = left.lead.name;
-        const rightName = right.lead.name;
-        if (!leftName && !rightName) return 0;
-        if (!leftName) return 1;
-        if (!rightName) return -1;
-        return leftName.localeCompare(rightName, "en", { sensitivity: "base" });
+      if (sortBy === "date") {
+        const comparison = new Date(left.created_at).getTime() - new Date(right.created_at).getTime();
+        return sortDirection === "asc" ? comparison : -comparison;
       }
-      const byUrgency = priority(left) - priority(right);
-      if (byUrgency !== 0) return byUrgency;
-      return newestFirst(left, right);
+      const leftValue = left.lead.name;
+      const rightValue = right.lead.name;
+      if (!leftValue && !rightValue) return 0;
+      if (!leftValue) return 1;
+      if (!rightValue) return -1;
+      const comparison = leftValue.localeCompare(rightValue, undefined, { sensitivity: "base" });
+      return sortDirection === "asc" ? comparison : -comparison;
     });
-  }, [decorated, filter, followUpOnly, reasonFilter, searchQuery, sortBy]);
+  }, [decorated, filter, followUpOnly, reasonFilter, searchQuery, sortBy, sortDirection]);
+
+  const changeSort = (nextSort: SortKey) => {
+    setSortBy(nextSort);
+    setSortDirection(nextSort === "date" ? "desc" : "asc");
+  };
+
 
   const selected = useMemo(
     () => decorated.find((c) => c.case_id === selectedId) ?? decorated[0] ?? null,
@@ -346,6 +312,10 @@ export default function Dashboard() {
     });
     return c;
   }, [decorated]);
+
+  const sortDirectionLabel = sortBy === "date"
+    ? sortDirection === "desc" ? "Newest first" : "Oldest first"
+    : sortDirection === "asc" ? "A to Z" : "Z to A";
 
   /**
    * Starts the metrics from now. Lives here, next to the numbers it resets,
@@ -621,19 +591,30 @@ export default function Dashboard() {
                       {s === "ALL" ? `All (${filterCount(s)})` : `${STATE_META[s].label} (${filterCount(s)})`}
                     </button>
                   ))}
-                  <label className="ml-auto flex items-center gap-1.5 text-[11px] text-[#9C9488] whitespace-nowrap">
-                    Sort
+                  <div className="ml-auto flex items-center gap-1.5 shrink-0 text-xs text-[#6B6459]">
+                    <label>
+                    <span className="sr-only">Sort leads</span>
                     <select
                       aria-label="Sort leads"
                       value={sortBy}
-                      onChange={(event) => setSortBy(event.target.value as SortKey)}
-                      className="bg-white border border-[#E7E5DE] rounded-lg px-2 py-1 text-[11px] text-[#151515] outline-none focus:border-[#B87333]"
+                      onChange={(event) => changeSort(event.target.value as SortKey)}
+                      className="bg-white border border-[#E7E5DE] rounded-lg px-2.5 py-1.5 outline-none"
                     >
-                      {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
-                        <option key={key} value={key}>{SORT_LABELS[key]}</option>
-                      ))}
+                      <option value="date">Date added</option>
+                      <option value="name">Name</option>
                     </select>
-                  </label>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setSortDirection((current) => current === "asc" ? "desc" : "asc")}
+                      aria-label={`Sort direction: ${sortDirectionLabel}. Click to reverse.`}
+                      title={`${sortDirectionLabel} — click to reverse`}
+                      className="w-8 h-8 rounded-lg bg-white border border-[#E7E5DE] flex items-center justify-center hover:border-[#B87333] transition-colors"
+                    >
+                      {sortDirection === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                    </button>
+                    <span className="hidden xl:inline min-w-[68px]">{sortDirectionLabel}</span>
+                  </div>
                 </div>
                 {/* What the "Review queue" card used to be, in one line.
                     That card was a third copy of this list's own filters: it
