@@ -11,6 +11,29 @@ import {
   type DashboardCaseDetail,
 } from "../api/client";
 
+/**
+ * How loudly a conversation is asking for a person, lowest number first.
+ * Safety outranks everything; a case a teammate has already claimed sinks
+ * below the ones nobody has touched.
+ */
+const ESCALATION_URGENCY: Record<string, number> = {
+  safety_emergency: 0,
+  urgent_request: 1,
+  identity_conflict: 2,
+  policy_review: 2,
+  service_area_uncertain: 2,
+  service_unclear: 2,
+  low_confidence: 3,
+  ai_review: 3,
+  already_pending: 4,
+};
+
+function conversationPriority(conversation: DashboardConversationSummary): number {
+  if (conversation.status === "human_takeover_requested") return -1;
+  if (conversation.case_state !== "NEEDS_HUMAN") return 10;
+  return ESCALATION_URGENCY[conversation.escalation_reason ?? ""] ?? 5;
+}
+
 export default function Conversation() {
   const navigate = useNavigate();
   const { token, businessId } = useAuth();
@@ -20,7 +43,10 @@ export default function Conversation() {
   const [conversations, setConversations] = useState<DashboardConversationSummary[] | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [attentionOnly, setAttentionOnly] = useState(false);
+  // Opened from the dashboard bell as ?attention=1, which is the whole point
+  // of that control: it must LAND you on a list of only what needs you, not
+  // quietly set a filter somewhere you cannot see.
+  const [attentionOnly, setAttentionOnly] = useState(searchParams.get("attention") === "1");
   const [requestedCaseMissing, setRequestedCaseMissing] = useState(false);
   const [detail, setDetail] = useState<DashboardConversationDetail | null>(null);
   const [caseDetail, setCaseDetail] = useState<DashboardCaseDetail | null>(null);
@@ -86,8 +112,8 @@ export default function Conversation() {
   }, [token, businessId, requestedCaseId]);
 
   const filteredConversations = useMemo(() => {
-    const query = searchQuery.trim().toLocaleLowerCase();
-    return (conversations ?? []).filter((conversation) => {
+    const query = searchQuery.trim().toLowerCase();
+    const matching = (conversations ?? []).filter((conversation) => {
       if (attentionOnly && conversation.case_state !== "NEEDS_HUMAN") return false;
       if (!query) return true;
       return [
@@ -98,7 +124,15 @@ export default function Conversation() {
         conversation.conversation_id,
         conversation.channel,
         conversation.status.replace(/_/g, " "),
-      ].some((value) => value?.toLocaleLowerCase().includes(query));
+      ].some((value) => value?.toLowerCase().includes(query));
+    });
+    // Most urgent first, newest first inside a tier. Plain recency put a
+    // safety message below a routine one that happened to arrive later,
+    // which is the opposite of what this list is for.
+    return matching.sort((left, right) => {
+      const byUrgency = conversationPriority(left) - conversationPriority(right);
+      if (byUrgency !== 0) return byUrgency;
+      return new Date(right.last_activity_at).getTime() - new Date(left.last_activity_at).getTime();
     });
   }, [attentionOnly, conversations, searchQuery]);
 

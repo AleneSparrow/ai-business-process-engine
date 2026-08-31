@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Bell, ArrowUpRight, Clock, Phone, Mail, Loader2, ArrowDown, ArrowUp } from "lucide-react";
+import { Search, Bell, ArrowUpRight, Clock, Phone, Mail, Loader2 } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { useAuth, describeError } from "../auth/AuthContext";
 import { api, type DashboardAnalytics, type DashboardCaseSummary } from "../api/client";
@@ -16,8 +16,107 @@ import {
 } from "../components/Shared";
 
 const FILTERS: (CaseState | "ALL")[] = ["ALL", "NEEDS_HUMAN", "QUALIFYING", "BOOKED", "LOST", "COMPLETED"];
-type SortKey = "date" | "name";
-type SortDirection = "asc" | "desc";
+
+/**
+ * How loudly a lead is asking for a person, lowest first. This replaced a
+ * date/name sort control: sorting by name is not a thing anyone needs from a
+ * work queue, and plain recency buried a safety message under whatever
+ * arrived after it. Ties fall back to newest.
+ */
+const ESCALATION_URGENCY: Record<string, number> = {
+  safety_emergency: 0,
+  urgent_request: 1,
+  identity_conflict: 2,
+  policy_review: 2,
+  service_area_uncertain: 2,
+  service_unclear: 2,
+  low_confidence: 3,
+  ai_review: 3,
+  already_pending: 4,
+};
+
+/** ISO (what the API speaks) -> MM/DD/YYYY (what a US owner reads). */
+function isoToUs(iso: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  return match ? `${match[2]}/${match[3]}/${match[1]}` : "";
+}
+
+/** MM/DD/YYYY -> ISO, or null when it is not a real date. */
+function usToIso(text: string): string | null {
+  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(text.trim());
+  if (!match) return null;
+  const month = Number(match[1]);
+  const day = Number(match[2]);
+  const year = Number(match[3]);
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const iso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  const parsed = new Date(`${iso}T00:00:00Z`);
+  // Rejects 02/31 rather than letting Date roll it forward into March.
+  if (Number.isNaN(parsed.getTime())) return null;
+  if (parsed.getUTCDate() !== day || parsed.getUTCMonth() + 1 !== month) return null;
+  return iso;
+}
+
+/**
+ * A month/day/year field in English, always.
+ *
+ * This is deliberately NOT <input type="date">. Chrome renders that control
+ * in the BROWSER's locale, not the document's: on a Russian-language Chrome
+ * the reporting period read "дд.мм.гггг" even though the app is English and
+ * US-only. Verified on the live page that lang="en-US" on the input does not
+ * change it -- the format is not the page's to choose. So the field is ours.
+ */
+function UsDateField({ label, value, min, onChange }: {
+  label: string;
+  value: string;
+  min?: string;
+  onChange: (iso: string) => void;
+}) {
+  const [text, setText] = useState(() => isoToUs(value));
+  const [invalid, setInvalid] = useState(false);
+
+  useEffect(() => {
+    setText(isoToUs(value));
+    setInvalid(false);
+  }, [value]);
+
+  const commit = (raw: string) => {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      setInvalid(false);
+      onChange("");
+      return;
+    }
+    const iso = usToIso(trimmed);
+    if (!iso || (min && iso < min)) {
+      setInvalid(true);
+      return;
+    }
+    setInvalid(false);
+    onChange(iso);
+  };
+
+  return (
+    <label className="text-xs text-[#6B6459] flex flex-col gap-1">
+      {label}
+      <input
+        type="text"
+        inputMode="numeric"
+        lang="en-US"
+        autoComplete="off"
+        placeholder="MM/DD/YYYY"
+        aria-label={`${label} date, month slash day slash year`}
+        aria-invalid={invalid}
+        value={text}
+        onChange={(event) => { setText(event.target.value); setInvalid(false); }}
+        onBlur={(event) => commit(event.target.value)}
+        onKeyDown={(event) => { if (event.key === "Enter") commit((event.target as HTMLInputElement).value); }}
+        className="w-[118px] px-2.5 py-2 rounded-lg border text-sm text-[#151515] outline-none"
+        style={{ borderColor: invalid ? "#B4483A" : "#E7E5DE" }}
+      />
+    </label>
+  );
+}
 
 const ESCALATION_LABELS: Record<string, string> = {
   safety_emergency: "Safety or emergency language",
@@ -43,11 +142,16 @@ const ESCALATION_ACTIONS: Record<string, string> = {
   already_pending: "A teammate has already been asked to review this case.",
 };
 
+/**
+ * Only where the outcome is NOT the ordinary one. Every card used to carry
+ * "After a staff decision, the permitted workflow can continue from the
+ * verified next step" as a second line -- the same sentence, word for word,
+ * on five of six cards -- which buried the one line that differs and
+ * actually tells you what to do.
+ */
 const ESCALATION_OUTCOMES: Record<string, string> = {
   already_pending: "No automatic next step will happen until a teammate resolves it.",
 };
-
-const SAFE_REVIEW_OUTCOME = "After a staff decision, the permitted workflow can continue from the verified next step.";
 
 function nextStep(state: CaseState): string {
   if (state === "NEEDS_HUMAN") return "Review the conversation and reply";
@@ -58,22 +162,49 @@ function nextStep(state: CaseState): string {
   return "Open the conversation to review the next action";
 }
 
-function StatCard({ label, value, sub, tone, onClick, emphasis = false }: {
+/**
+ * `compact` is the metrics variant: smaller type, and the sub-line moves
+ * BELOW the value instead of sitting beside it. Side by side, "7%" next to
+ * "8/113 leads" was the pair that overflowed and clipped as soon as the tile
+ * narrowed; stacked, it wraps instead of disappearing.
+ *
+ * A tile that is not a button gets no hover treatment, so "this opens the
+ * list" and "this is just a number" stop looking identical.
+ */
+function StatCard({ label, value, sub, tone, onClick, emphasis = false, compact = false }: {
   label: string;
   value: string | number;
   sub?: string;
   tone?: string;
   onClick?: () => void;
   emphasis?: boolean;
+  compact?: boolean;
 }) {
   const content = <>
-      <div className="text-xs font-medium text-[#6B6459] mb-1.5">{label}</div>
-      <div className="flex items-baseline gap-2">
-        <span className="text-[26px] leading-none" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>{value}</span>
-        {sub && <span className="text-xs font-medium" style={{ color: tone || "#6B6459" }}>{sub}</span>}
+      <div className={`font-medium text-[#6B6459] ${compact ? "text-[11px] leading-tight mb-1" : "text-xs mb-1.5"}`}>{label}</div>
+      <div className={compact ? "" : "flex items-baseline gap-2 flex-wrap"}>
+        <span
+          className={compact ? "text-[20px] leading-none block" : "text-[26px] leading-none"}
+          style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}
+        >
+          {value}
+        </span>
+        {sub && (
+          <span
+            className={`font-medium ${compact ? "text-[11px] leading-tight block mt-1 break-words" : "text-xs"}`}
+            style={{ color: tone || "#6B6459" }}
+          >
+            {sub}
+          </span>
+        )}
       </div>
     </>;
-  const className = `rounded-2xl border px-5 py-4 text-left ${emphasis ? "border-[#C97A1F] bg-[#FFF9F2]" : "border-[#E7E5DE] bg-white"} ${onClick ? "hover:border-[#B87333] transition-colors cursor-pointer" : ""}`;
+  const className = [
+    "rounded-2xl border text-left min-w-0",
+    compact ? "px-3 py-2.5" : "px-5 py-4",
+    emphasis ? "border-[#C97A1F] bg-[#FFF9F2]" : "border-[#E7E5DE] bg-white",
+    onClick ? "hover:border-[#B87333] transition-colors cursor-pointer" : "",
+  ].join(" ");
   return onClick ? (
     <button type="button" onClick={onClick} className={className}>{content}</button>
   ) : <div className={className}>{content}</div>;
@@ -86,9 +217,13 @@ export default function Dashboard() {
   const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<CaseState | "ALL">("ALL");
-  const [sortBy, setSortBy] = useState<SortKey>("date");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [searchQuery, setSearchQuery] = useState("");
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [resettingStats, setResettingStats] = useState(false);
+  const [resetError, setResetError] = useState<string | null>(null);
+  // Bumped after a statistics reset so the two fetches below re-run against
+  // the new baseline without a page reload.
+  const [statsVersion, setStatsVersion] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -130,7 +265,7 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [token, businessId, startDate, endDate, includeTestData]);
+  }, [token, businessId, startDate, endDate, includeTestData, statsVersion]);
 
   const decorated = useMemo(
     () =>
@@ -145,37 +280,27 @@ export default function Dashboard() {
   );
 
   const filtered = useMemo(() => {
-    const query = searchQuery.trim().toLocaleLowerCase();
+    const query = searchQuery.trim().toLowerCase();
     const visible = (filter === "ALL" ? [...decorated] : decorated.filter((c) => c.caseState === filter)).filter((c) => {
       if (followUpOnly && !c.followUpDue) return false;
       if (reasonFilter !== null && c.escalation_reason !== reasonFilter) return false;
       if (!query) return true;
       return [c.lead.name, c.lead.phone, c.lead.email, c.category, c.case_id, c.lead.lead_id]
-        .some((value) => value?.toLocaleLowerCase().includes(query));
+        .some((value) => value?.toLowerCase().includes(query));
     });
-    return visible.sort((left, right) => {
-      if (sortBy === "date") {
-        const comparison = new Date(left.created_at).getTime() - new Date(right.created_at).getTime();
-        return sortDirection === "asc" ? comparison : -comparison;
+    const priority = (lead: typeof visible[number]) => {
+      if (lead.caseState === "NEEDS_HUMAN") {
+        return ESCALATION_URGENCY[lead.escalation_reason ?? ""] ?? 5;
       }
-      const leftValue = left.lead.name;
-      const rightValue = right.lead.name;
-      if (!leftValue && !rightValue) return 0;
-      if (!leftValue) return 1;
-      if (!rightValue) return -1;
-      const comparison = leftValue.localeCompare(rightValue, undefined, { sensitivity: "base" });
-      return sortDirection === "asc" ? comparison : -comparison;
+      if (lead.followUpDue) return 6;
+      return 10;
+    };
+    return visible.sort((left, right) => {
+      const byUrgency = priority(left) - priority(right);
+      if (byUrgency !== 0) return byUrgency;
+      return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
     });
-  }, [decorated, filter, followUpOnly, reasonFilter, searchQuery, sortBy, sortDirection]);
-
-  const changeSort = (nextSort: SortKey) => {
-    setSortBy(nextSort);
-    setSortDirection(nextSort === "date" ? "desc" : "asc");
-  };
-
-  const sortDirectionLabel = sortBy === "date"
-    ? sortDirection === "desc" ? "Newest first" : "Oldest first"
-    : sortDirection === "asc" ? "A to Z" : "Z to A";
+  }, [decorated, filter, followUpOnly, reasonFilter, searchQuery]);
 
   const selected = useMemo(
     () => decorated.find((c) => c.case_id === selectedId) ?? decorated[0] ?? null,
@@ -195,18 +320,42 @@ export default function Dashboard() {
     return c;
   }, [decorated]);
 
+  /**
+   * Starts the metrics from now. Lives here, next to the numbers it resets,
+   * rather than only in Settings -> Reporting: the owner looking at a figure
+   * they want cleared is looking at this screen.
+   */
+  const resetStatistics = async () => {
+    if (!token || !businessId) return;
+    setResettingStats(true);
+    setResetError(null);
+    try {
+      await api.updateReportingSettings(token, businessId, { reset_statistics: true });
+      setConfirmingReset(false);
+      setStatsVersion((current) => current + 1);
+    } catch (err) {
+      setResetError(describeError(err));
+    } finally {
+      setResettingStats(false);
+    }
+  };
+
   const showAttention = (reason: string | null = null) => {
     setFilter("NEEDS_HUMAN");
     setFollowUpOnly(false);
     setReasonFilter(reason);
   };
 
-  const toggleAttention = () => {
-    if (filter === "NEEDS_HUMAN" && reasonFilter === null && !followUpOnly) {
-      setFilter("ALL");
-      return;
-    }
-    showAttention();
+  /**
+   * The bell opens the conversations that need a person.
+   *
+   * It used to toggle a filter on the lead list 1173px further down the
+   * page -- the click worked and absolutely nothing changed within sight, so
+   * it read as a dead control. A notification badge has to take you to the
+   * notifications.
+   */
+  const openAttentionQueue = () => {
+    navigate("/app/conversations?attention=1");
   };
 
   const filterCount = (state: CaseState | "ALL") => {
@@ -271,14 +420,16 @@ export default function Dashboard() {
               />
             </div>
             <button
-              onClick={toggleAttention}
-              aria-label={`Show ${counts.needsHuman} leads that need attention`}
-              aria-pressed={filter === "NEEDS_HUMAN" && reasonFilter === null}
-              className="relative w-9 h-9 rounded-lg border flex items-center justify-center transition-colors"
-              style={{ backgroundColor: filter === "NEEDS_HUMAN" && reasonFilter === null ? "#F5E7D6" : "#fff", borderColor: filter === "NEEDS_HUMAN" && reasonFilter === null ? "#B87333" : "#E7E5DE" }}
+              type="button"
+              onClick={openAttentionQueue}
+              aria-label={`Open the ${counts.needsHuman} conversations that need you`}
+              title={`Open the ${counts.needsHuman} conversations that need you`}
+              className="relative w-9 h-9 rounded-lg border border-[#E7E5DE] bg-white flex items-center justify-center transition-colors hover:border-[#B87333]"
             >
               <Bell size={16} strokeWidth={2} />
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[10px] flex items-center justify-center text-white font-medium" style={{ backgroundColor: "#C97A1F" }}>{counts.needsHuman}</span>
+              {counts.needsHuman > 0 && (
+                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full text-[10px] flex items-center justify-center text-white font-medium" style={{ backgroundColor: "#C97A1F" }}>{counts.needsHuman}</span>
+              )}
             </button>
           </div>
         </header>
@@ -290,94 +441,111 @@ export default function Dashboard() {
             </div>
           )}
 
-          <div className="flex flex-col gap-5">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <h2 className="text-sm font-semibold">Act now</h2>
-                <span className="text-xs text-[#6B6459]">Open a card to focus the lead list</span>
+          {/* One band instead of three stacked sections plus a separate
+              reporting card. Before this, Overview put 1173px of statistics
+              above the lead list -- 1.68 screens of scrolling before the
+              owner could touch a single lead, on nine tiles of which only
+              four were clickable and nothing said which. Action is now on
+              the left, numbers on the right, and the period + reset controls
+              sit top-right where you look for them rather than three clicks
+              deep in Settings. */}
+          <div className="bg-white rounded-2xl border border-[#E7E5DE] p-4 md:p-5">
+            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 mb-4">
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold">Today</h2>
+                <p className="text-xs text-[#6B6459] mt-0.5">What needs you, and how the engine is doing.</p>
               </div>
-              <div className="grid sm:grid-cols-2 gap-3">
-                <StatCard label="Needs your attention" value={counts.needsHuman} sub="review queue" tone="#C97A1F" onClick={() => showAttention()} emphasis />
-                <StatCard label="Follow-up due" value={counts.followUpDue} sub="waiting 24h+" tone="#C97A1F" onClick={() => { setFilter("ALL"); setReasonFilter(null); setFollowUpOnly(true); }} />
-              </div>
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold mb-2">Pipeline</h2>
-              <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
-                <StatCard label="Qualifying now" value={counts.qualifying} sub="active leads" tone="#B87333" onClick={() => { setFilter("QUALIFYING"); setReasonFilter(null); setFollowUpOnly(false); }} />
-                <StatCard label="Booked" value={counts.booked} sub="active cases" tone="#1E7B52" onClick={() => { setFilter("BOOKED"); setReasonFilter(null); setFollowUpOnly(false); }} />
-                {/* Deliberately NOT clickable, unlike "Booked" beside it.
-                    The two tiles count different things: `counts.booked` is
-                    cases whose CURRENT state is BOOKED, while
-                    `analytics.booked_cases` is cases that EVER emitted
-                    BOOKING_CREATED (see the docstring on the analytics route
-                    -- "Booked/escalated are historical ever-events"). A lead
-                    that booked and then completed is in the second and not
-                    the first. Wiring this tile to setFilter("BOOKED") made it
-                    open a list filtered by current state, so clicking "40% --
-                    4/10 leads" could show two rows, or none. The number was
-                    right; the link under it was not. If this should become
-                    clickable, it needs an "ever booked" filter mode backed by
-                    a flag on the case summary -- not this one. */}
-                <StatCard
-                  label="Booking rate"
-                  value={analytics ? `${Math.round(analytics.booking_conversion_rate * 100)}%` : "—"}
-                  sub={analytics ? `${analytics.booked_cases}/${analytics.total_cases} leads` : undefined}
-                  tone="#1E7B52"
-                />
-                <StatCard
-                  label="Lost rate"
-                  value={analytics ? `${Math.round(analytics.lost_rate * 100)}%` : "—"}
-                  sub={analytics ? `${analytics.lost_cases}/${analytics.total_cases} leads` : undefined}
-                  onClick={() => { setFilter("LOST"); setReasonFilter(null); setFollowUpOnly(false); }}
-                />
-              </div>
-            </div>
-            <div>
-              <h2 className="text-sm font-semibold mb-2">Automation health</h2>
-              <div className="grid sm:grid-cols-2 gap-3">
-            <StatCard
-              label="Escalation rate"
-              value={analytics ? `${Math.round(analytics.escalation_rate * 100)}%` : "—"}
-              sub={analytics ? `${analytics.escalated_cases}/${analytics.total_cases} leads` : undefined}
-              tone="#C97A1F"
-            />
-            <StatCard
-              label="Median first response"
-              value={analytics?.median_first_response_seconds != null ? `${Math.round(analytics.median_first_response_seconds)}s` : "—"}
-              sub={analytics ? `${analytics.response_samples} samples` : undefined}
-              tone="#1E7B52"
-            />
+              <div className="flex flex-wrap items-end gap-2">
+                <UsDateField label="From" value={startDate} onChange={setStartDate} />
+                <UsDateField label="To" value={endDate} min={startDate} onChange={setEndDate} />
+                {(startDate || endDate) && (
+                  <button
+                    type="button"
+                    onClick={() => { setStartDate(""); setEndDate(""); }}
+                    className="text-xs font-medium px-3 py-2 rounded-lg border border-[#E7E5DE] hover:border-[#B87333] transition-colors"
+                  >
+                    All time
+                  </button>
+                )}
+                {confirmingReset ? (
+                  <span className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={resetStatistics}
+                      disabled={resettingStats}
+                      className="text-xs font-medium px-3 py-2 rounded-lg border border-[#C97A1F] text-[#8A561B] bg-[#FFF9F2] disabled:opacity-50"
+                    >
+                      {resettingStats ? "Resetting…" : "Confirm reset"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingReset(false)}
+                      className="text-xs font-medium px-3 py-2 rounded-lg border border-[#E7E5DE]"
+                    >
+                      Cancel
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingReset(true)}
+                    title="Start the metrics from now. Conversations, cases and audit history are never deleted."
+                    className="text-xs font-medium px-3 py-2 rounded-lg border border-[#E7E5DE] hover:border-[#B87333] transition-colors"
+                  >
+                    Reset statistics
+                  </button>
+                )}
               </div>
             </div>
-          </div>
 
-          <div className="bg-white rounded-2xl border border-[#E7E5DE] px-5 py-4 flex flex-wrap items-end gap-3">
-            <div className="mr-auto">
-              <h2 className="text-sm font-semibold">Reporting period</h2>
-              <p className="text-xs text-[#6B6459] mt-1">Filter metrics by a UTC date range. Conversations and audit history always remain visible below.</p>
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 lg:content-start">
+                <StatCard
+                  label="Needs your attention"
+                  value={counts.needsHuman}
+                  sub="review queue"
+                  tone="#C97A1F"
+                  onClick={() => showAttention()}
+                  emphasis
+                />
+                <StatCard
+                  label="Follow-up due"
+                  value={counts.followUpDue}
+                  sub="waiting 24h+"
+                  tone="#C97A1F"
+                  onClick={() => { setFilter("ALL"); setReasonFilter(null); setFollowUpOnly(true); }}
+                />
+              </div>
+
+              <div className="grid gap-2 grid-cols-2 xl:grid-cols-3">
+                <StatCard compact label="Qualifying now" value={counts.qualifying} sub="active leads" tone="#B87333" onClick={() => { setFilter("QUALIFYING"); setReasonFilter(null); setFollowUpOnly(false); }} />
+                <StatCard compact label="Booked" value={counts.booked} sub="active cases" tone="#1E7B52" onClick={() => { setFilter("BOOKED"); setReasonFilter(null); setFollowUpOnly(false); }} />
+                {/* Deliberately not clickable, unlike "Booked" above: this
+                    counts cases that EVER booked, while the list filters on
+                    the state a case is in NOW. Linking it opened a list that
+                    disagreed with the number printed on it. */}
+                <StatCard compact label="Booking rate" value={analytics ? `${Math.round(analytics.booking_conversion_rate * 100)}%` : "—"} sub={analytics ? `${analytics.booked_cases}/${analytics.total_cases} leads` : undefined} tone="#1E7B52" />
+                <StatCard compact label="Lost rate" value={analytics ? `${Math.round(analytics.lost_rate * 100)}%` : "—"} sub={analytics ? `${analytics.lost_cases}/${analytics.total_cases} leads` : undefined} onClick={() => { setFilter("LOST"); setReasonFilter(null); setFollowUpOnly(false); }} />
+                <StatCard compact label="Escalation rate" value={analytics ? `${Math.round(analytics.escalation_rate * 100)}%` : "—"} sub={analytics ? `${analytics.escalated_cases}/${analytics.total_cases} leads` : undefined} tone="#C97A1F" />
+                <StatCard compact label="Median first response" value={analytics?.median_first_response_seconds != null ? `${Math.round(analytics.median_first_response_seconds)}s` : "—"} sub={analytics ? `${analytics.response_samples} samples` : undefined} tone="#1E7B52" />
+              </div>
             </div>
-            <label className="text-xs text-[#6B6459] flex flex-col gap-1">
-              From
-              <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="px-2.5 py-2 rounded-lg border border-[#E7E5DE] text-sm text-[#151515]" />
-            </label>
-            <label className="text-xs text-[#6B6459] flex flex-col gap-1">
-              To
-              <input type="date" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} className="px-2.5 py-2 rounded-lg border border-[#E7E5DE] text-sm text-[#151515]" />
-            </label>
-            {(startDate || endDate) && (
-              <button onClick={() => { setStartDate(""); setEndDate(""); }} className="text-xs font-medium px-3 py-2 rounded-lg border border-[#E7E5DE]">All time</button>
-            )}
-            {analytics && analytics.hidden_test_cases > 0 && (
-              <label className="text-xs text-[#6B6459] flex items-center gap-2 w-full sm:w-auto">
-                <input type="checkbox" checked={includeTestData} onChange={(event) => setIncludeTestData(event.target.checked)} className="accent-[#B87333]" />
-                {includeTestData
-                  ? "Including test data"
-                  : `Test data hidden · ${analytics.hidden_test_conversations} conversations / ${analytics.hidden_test_cases} cases`}
-              </label>
-            )}
-            {analytics?.stats_since && !startDate && !endDate && (
-              <p className="text-xs text-[#6B6459] w-full">Metrics start from your statistics baseline. Change it in Settings → Reporting.</p>
+
+            {(resetError || (analytics && analytics.hidden_test_cases > 0) || (analytics?.stats_since && !startDate && !endDate)) && (
+              <div className="mt-3 pt-3 border-t border-[#E7E5DE] flex flex-wrap items-center gap-x-4 gap-y-2">
+                {resetError && <span className="text-xs text-[#8A3225]">{resetError}</span>}
+                {analytics && analytics.hidden_test_cases > 0 && (
+                  <label className="text-xs text-[#6B6459] flex items-center gap-2">
+                    <input type="checkbox" checked={includeTestData} onChange={(event) => setIncludeTestData(event.target.checked)} className="accent-[#B87333]" />
+                    {includeTestData
+                      ? "Including test data"
+                      : `Test data hidden · ${analytics.hidden_test_conversations} conversations / ${analytics.hidden_test_cases} cases`}
+                  </label>
+                )}
+                {analytics?.stats_since && !startDate && !endDate && (
+                  <span className="text-xs text-[#6B6459]">Metrics count from your statistics baseline.</span>
+                )}
+              </div>
             )}
           </div>
 
@@ -400,7 +568,9 @@ export default function Dashboard() {
                         <span className="rounded-full bg-white px-2 py-0.5 shrink-0">{count}</span>
                       </span>
                       <span className="block text-xs text-[#6B6459] mt-1">Next safe action: {ESCALATION_ACTIONS[reason] ?? "Open the lead and choose the next safe step."}</span>
-                      <span className="block text-xs text-[#6B6459] mt-1">{ESCALATION_OUTCOMES[reason] ?? SAFE_REVIEW_OUTCOME}</span>
+                      {ESCALATION_OUTCOMES[reason] && (
+                        <span className="block text-xs text-[#6B6459] mt-1">{ESCALATION_OUTCOMES[reason]}</span>
+                      )}
                     </button>
                   ))}
               </div>
@@ -409,6 +579,9 @@ export default function Dashboard() {
                 const reviewed = Object.values(feedback).reduce((sum, value) => sum + value, 0);
                 const avoidable = feedback.unnecessary + feedback.wrong_service;
                 const avoidableRate = reviewed ? Math.round((avoidable / reviewed) * 100) : 0;
+                // Nothing reviewed yet means five zeros in a row, which read
+                // as data rather than as "no data". Show nothing instead.
+                if (reviewed === 0) return null;
                 return (
                   <div className="mt-4 border-t border-[#E7E5DE] pt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs text-[#6B6459]">
                     <span><strong className="text-[#151515]">{reviewed}</strong> decisions reviewed</span>
@@ -433,43 +606,27 @@ export default function Dashboard() {
           ) : (
             <div className="flex flex-col lg:flex-row gap-6">
               <div className="flex-1 min-w-0 bg-white rounded-2xl border border-[#E7E5DE] overflow-hidden">
-                <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-[#E7E5DE]">
-                  <div className="flex items-center gap-2 overflow-x-auto">
-                    {FILTERS.map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => { setFilter(s); setReasonFilter(null); setFollowUpOnly(false); }}
-                        className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors"
-                        style={{ backgroundColor: filter === s ? "#151515" : "transparent", color: filter === s ? "#fff" : "#6B6459" }}
-                      >
-                        {s === "ALL" ? `All (${filterCount(s)})` : `${STATE_META[s].label} (${filterCount(s)})`}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0 text-xs text-[#6B6459]">
-                    <label>
-                    <span className="sr-only">Sort leads</span>
-                    <select
-                      aria-label="Sort leads"
-                      value={sortBy}
-                      onChange={(event) => changeSort(event.target.value as SortKey)}
-                      className="bg-white border border-[#E7E5DE] rounded-lg px-2.5 py-1.5 outline-none"
-                    >
-                      <option value="date">Date added</option>
-                      <option value="name">Name</option>
-                    </select>
-                    </label>
+                {/* flex-wrap, not overflow-x-auto. The chips used to sit on
+                    one scrolling line with the sort control pinned beside
+                    them, so at 1440px "Completed" was cut in half and at
+                    laptop widths "Booked" was too -- a filter you cannot see
+                    is a filter that does not exist. They now wrap onto as
+                    many rows as they need and every chip stays whole. The
+                    sort control is gone: the list orders itself by urgency
+                    (see `filtered`), which is the only order a work queue
+                    wants. */}
+                <div className="flex flex-wrap items-center gap-2 px-5 py-3 border-b border-[#E7E5DE]">
+                  {FILTERS.map((s) => (
                     <button
-                      type="button"
-                      onClick={() => setSortDirection((current) => current === "asc" ? "desc" : "asc")}
-                      aria-label={`Sort direction: ${sortDirectionLabel}. Click to reverse.`}
-                      title={`${sortDirectionLabel} — click to reverse`}
-                      className="w-8 h-8 rounded-lg bg-white border border-[#E7E5DE] flex items-center justify-center hover:border-[#B87333] transition-colors"
+                      key={s}
+                      onClick={() => { setFilter(s); setReasonFilter(null); setFollowUpOnly(false); }}
+                      className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors"
+                      style={{ backgroundColor: filter === s ? "#151515" : "transparent", color: filter === s ? "#fff" : "#6B6459" }}
                     >
-                      {sortDirection === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+                      {s === "ALL" ? `All (${filterCount(s)})` : `${STATE_META[s].label} (${filterCount(s)})`}
                     </button>
-                    <span className="hidden xl:inline min-w-[68px]">{sortDirectionLabel}</span>
-                  </div>
+                  ))}
+                  <span className="ml-auto text-[11px] text-[#9C9488] whitespace-nowrap">Most urgent first</span>
                 </div>
                 {(filter !== "ALL" || reasonFilter !== null || followUpOnly) && (
                   <div className="px-5 py-2 text-xs text-[#6B6459] bg-[#FFF9F2] border-b border-[#E7E5DE] flex items-center justify-between gap-3">

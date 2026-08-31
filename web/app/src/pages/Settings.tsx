@@ -980,7 +980,7 @@ export default function Settings() {
                       Resetting starts dashboard metrics from now. It never deletes conversations, cases, or audit events, and you can restore the full history at any time.
                     </p>
                     <p className="text-xs text-[#6B6459] mt-3" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-                      {reporting?.stats_since ? `Counting cases created since ${new Date(reporting.stats_since).toLocaleString()}` : "Counting all retained history"}
+                      {reporting?.stats_since ? `Counting cases created since ${new Date(reporting.stats_since).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}` : "Counting all retained history"}
                     </p>
                     <div className="flex flex-wrap gap-2 mt-4">
                       <button
