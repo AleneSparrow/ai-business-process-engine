@@ -306,12 +306,24 @@ export default function Dashboard() {
               <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
                 <StatCard label="Qualifying now" value={counts.qualifying} sub="active leads" tone="#B87333" onClick={() => { setFilter("QUALIFYING"); setReasonFilter(null); setFollowUpOnly(false); }} />
                 <StatCard label="Booked" value={counts.booked} sub="active cases" tone="#1E7B52" onClick={() => { setFilter("BOOKED"); setReasonFilter(null); setFollowUpOnly(false); }} />
+                {/* Deliberately NOT clickable, unlike "Booked" beside it.
+                    The two tiles count different things: `counts.booked` is
+                    cases whose CURRENT state is BOOKED, while
+                    `analytics.booked_cases` is cases that EVER emitted
+                    BOOKING_CREATED (see the docstring on the analytics route
+                    -- "Booked/escalated are historical ever-events"). A lead
+                    that booked and then completed is in the second and not
+                    the first. Wiring this tile to setFilter("BOOKED") made it
+                    open a list filtered by current state, so clicking "40% --
+                    4/10 leads" could show two rows, or none. The number was
+                    right; the link under it was not. If this should become
+                    clickable, it needs an "ever booked" filter mode backed by
+                    a flag on the case summary -- not this one. */}
                 <StatCard
                   label="Booking rate"
                   value={analytics ? `${Math.round(analytics.booking_conversion_rate * 100)}%` : "—"}
                   sub={analytics ? `${analytics.booked_cases}/${analytics.total_cases} leads` : undefined}
                   tone="#1E7B52"
-                  onClick={() => { setFilter("BOOKED"); setReasonFilter(null); setFollowUpOnly(false); }}
                 />
                 <StatCard
                   label="Lost rate"

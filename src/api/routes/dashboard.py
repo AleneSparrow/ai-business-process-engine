@@ -128,8 +128,10 @@ def get_dashboard_analytics(
         if business is None:
             raise ResourceNotFoundError("business_not_found", "Business was not found")
         period_start, period_end = _analytics_period(business.stats_since, start_date, end_date)
-        # The staff list remains capped for a responsive UI, but an aggregate
-        # must never silently become "the most recent 200 cases".
+        # limit=None on purpose: an aggregate must never silently become
+        # "the most recent 200 cases". `list_cases` above passes limit=None
+        # too, so the tiles and the list they filter are computed over the
+        # same population -- keep the two in step if either ever gains a cap.
         all_cases = unit_of_work.cases.list_for_business(business_id, limit=None)
         period_cases = tuple(
             case for case in all_cases
