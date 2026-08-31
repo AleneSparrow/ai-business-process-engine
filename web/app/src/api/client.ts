@@ -172,6 +172,7 @@ export interface DashboardCaseSummary {
   latest_event_type: string | null;
   category: string | null;
   escalation_reason: string | null;
+  is_test: boolean;
 }
 
 export interface DashboardCaseListResponse {
@@ -193,6 +194,29 @@ export interface DashboardAnalytics {
     "unnecessary" | "missed" | "wrong_service" | "identity_same_customer" | "identity_different_customer",
     number
   >;
+  hidden_test_cases: number;
+  hidden_test_conversations: number;
+  includes_test_data: boolean;
+  stats_since: string | null;
+  period_start: string | null;
+  period_end: string | null;
+}
+
+export interface ReportingSettings {
+  test_mode_enabled: boolean;
+  stats_since: string | null;
+}
+
+export interface ReportingSettingsUpdate {
+  test_mode_enabled?: boolean;
+  reset_statistics?: boolean;
+  clear_statistics_baseline?: boolean;
+}
+
+export interface ReportingScope {
+  startDate?: string;
+  endDate?: string;
+  includeTest?: boolean;
 }
 
 export interface DashboardEvent {
@@ -381,11 +405,40 @@ export const api = {
   listMyBusinesses: (token: string) =>
     request<OwnedBusiness[]>("/api/v1/businesses", { method: "GET" }, token),
 
-  listCases: (token: string, businessId: string) =>
-    request<DashboardCaseListResponse>(`/api/v1/businesses/${businessId}/cases`, { method: "GET" }, token),
+  listCases: (token: string, businessId: string, options?: ReportingScope) => {
+    const params = new URLSearchParams();
+    if (options?.startDate && options.endDate) {
+      params.set("start_date", options.startDate);
+      params.set("end_date", options.endDate);
+    }
+    if (options?.includeTest) params.set("include_test", "true");
+    const query = params.size ? `?${params}` : "";
+    return request<DashboardCaseListResponse>(`/api/v1/businesses/${businessId}/cases${query}`, { method: "GET" }, token);
+  },
 
-  getDashboardAnalytics: (token: string, businessId: string) =>
-    request<DashboardAnalytics>(`/api/v1/businesses/${businessId}/analytics`, { method: "GET" }, token),
+  getDashboardAnalytics: (
+    token: string,
+    businessId: string,
+    options?: ReportingScope,
+  ) => {
+    const params = new URLSearchParams();
+    if (options?.startDate && options.endDate) {
+      params.set("start_date", options.startDate);
+      params.set("end_date", options.endDate);
+    }
+    if (options?.includeTest) params.set("include_test", "true");
+    const query = params.size ? `?${params}` : "";
+    return request<DashboardAnalytics>(`/api/v1/businesses/${businessId}/analytics${query}`, { method: "GET" }, token);
+  },
+
+  getReportingSettings: (token: string, businessId: string) =>
+    request<ReportingSettings>(`/api/v1/businesses/${businessId}/analytics/settings`, { method: "GET" }, token),
+
+  updateReportingSettings: (token: string, businessId: string, update: ReportingSettingsUpdate) =>
+    request<ReportingSettings>(`/api/v1/businesses/${businessId}/analytics/settings`, {
+      method: "PATCH",
+      body: JSON.stringify(update),
+    }, token),
 
   getCase: (token: string, businessId: string, caseId: string) =>
     request<DashboardCaseDetail>(`/api/v1/businesses/${businessId}/cases/${caseId}`, { method: "GET" }, token),

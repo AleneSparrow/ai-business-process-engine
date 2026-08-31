@@ -4,7 +4,7 @@ import { ArrowLeft, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Globe,
 import { Sidebar } from "../components/Sidebar";
 import { AreaOption, Field, formatRelativeTime, inputCls, ToneOption } from "../components/Shared";
 import { useAuth, describeError } from "../auth/AuthContext";
-import { API_BASE, api, type BusinessDNASettings, type CommercialPath, type SmsStatus } from "../api/client";
+import { API_BASE, api, type BusinessDNASettings, type CommercialPath, type ReportingSettings, type SmsStatus } from "../api/client";
 
 // Grouped by the task a business owner actually has, not by which Business
 // DNA schema section a field happens to live in -- "Services" and "Booking"
@@ -18,6 +18,7 @@ const SETTINGS_TABS = [
   { key: "basics", label: "Basics" },
   { key: "services", label: "Services & booking" },
   { key: "conversation", label: "Conversation" },
+  { key: "reporting", label: "Reporting" },
   { key: "sms", label: "SMS" },
 ] as const;
 
@@ -250,6 +251,9 @@ export default function Settings() {
   const [smsLoading, setSmsLoading] = useState(true);
   const [smsError, setSmsError] = useState<string | null>(null);
   const [smsProvisioning, setSmsProvisioning] = useState(false);
+  const [reporting, setReporting] = useState<ReportingSettings | null>(null);
+  const [reportingSaving, setReportingSaving] = useState(false);
+  const [reportingError, setReportingError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -276,6 +280,15 @@ export default function Settings() {
     return () => {
       cancelled = true;
     };
+  }, [token, businessId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!token || !businessId) return;
+    api.getReportingSettings(token, businessId)
+      .then((value) => { if (!cancelled) setReporting(value); })
+      .catch((err) => { if (!cancelled) setReportingError(describeError(err)); });
+    return () => { cancelled = true; };
   }, [token, businessId]);
 
   useEffect(() => {
@@ -310,6 +323,19 @@ export default function Settings() {
       setSmsError(describeError(err));
     } finally {
       setSmsProvisioning(false);
+    }
+  };
+
+  const updateReporting = async (update: Parameters<typeof api.updateReportingSettings>[2]) => {
+    if (!token || !businessId) return;
+    setReportingSaving(true);
+    setReportingError(null);
+    try {
+      setReporting(await api.updateReportingSettings(token, businessId, update));
+    } catch (err) {
+      setReportingError(describeError(err));
+    } finally {
+      setReportingSaving(false);
     }
   };
 
@@ -913,6 +939,73 @@ export default function Settings() {
                       </label>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {tab === "reporting" && (
+                <div>
+                  <div className="rounded-2xl border p-5" style={{ borderColor: "#E7E5DE" }}>
+                    <h2 className="text-base font-semibold">Test mode</h2>
+                    <p className="text-sm text-[#6B6459] mt-1 leading-relaxed">
+                      Keep this on while you test your widget. New conversations stay fully visible in your audit trail, but do not affect reporting until you go live.
+                    </p>
+                    <label className="flex items-start gap-3 mt-5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={reporting?.test_mode_enabled ?? false}
+                        disabled={!reporting || reportingSaving}
+                        onChange={(event) => updateReporting({ test_mode_enabled: event.target.checked })}
+                        className="mt-0.5 accent-[#B87333]"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium">Test mode is on</span>
+                        <span className="block text-xs text-[#6B6459] mt-0.5">Turn it off when you are ready for new customer conversations to count.</span>
+                      </span>
+                    </label>
+                    {reporting?.test_mode_enabled && (
+                      <button
+                        onClick={() => updateReporting({ test_mode_enabled: false })}
+                        disabled={reportingSaving}
+                        className="mt-4 text-sm font-medium text-white px-4 py-2.5 rounded-lg disabled:opacity-50"
+                        style={{ backgroundColor: "#151515" }}
+                      >
+                        Go live
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="rounded-2xl border p-5 mt-5" style={{ borderColor: "#E7E5DE" }}>
+                    <h2 className="text-base font-semibold">Statistics baseline</h2>
+                    <p className="text-sm text-[#6B6459] mt-1 leading-relaxed">
+                      Resetting starts dashboard metrics from now. It never deletes conversations, cases, or audit events, and you can restore the full history at any time.
+                    </p>
+                    <p className="text-xs text-[#6B6459] mt-3" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                      {reporting?.stats_since ? `Counting cases created since ${new Date(reporting.stats_since).toLocaleString()}` : "Counting all retained history"}
+                    </p>
+                    <div className="flex flex-wrap gap-2 mt-4">
+                      <button
+                        onClick={() => updateReporting({ reset_statistics: true })}
+                        disabled={!reporting || reportingSaving}
+                        className="text-sm font-medium px-4 py-2.5 rounded-lg border border-[#E7E5DE] disabled:opacity-50"
+                      >
+                        Reset statistics
+                      </button>
+                      {reporting?.stats_since && (
+                        <button
+                          onClick={() => updateReporting({ clear_statistics_baseline: true })}
+                          disabled={reportingSaving}
+                          className="text-sm font-medium px-4 py-2.5 rounded-lg border border-[#E7E5DE] disabled:opacity-50"
+                        >
+                          Restore full history
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {reportingError && (
+                    <div className="mt-4 px-4 py-3 rounded-lg text-sm" style={{ backgroundColor: "#FBEBE9", color: "#8A3225" }}>
+                      {reportingError}
+                    </div>
+                  )}
                 </div>
               )}
 

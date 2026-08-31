@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import update
 
 from src.api.app import create_app
 from src.api.schemas import DashboardCaseSummarySchema
@@ -14,7 +15,7 @@ from src.domain.conversations import Conversation, ConversationMessage, Conversa
 from src.domain.models import Lead, ProcessCase, ProcessEvent
 from src.domain.states import ProcessState
 from src.domain.tenancy import Business
-from src.persistence.sqlalchemy_models import Base
+from src.persistence.sqlalchemy_models import Base, ProcessCaseRow
 from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork, create_database_engine
 
 
@@ -339,7 +340,142 @@ def test_dashboard_analytics_uses_audit_events_and_median_first_response(dashboa
             "identity_same_customer": 0,
             "identity_different_customer": 0,
         },
+        "hidden_test_cases": 0,
+        "hidden_test_conversations": 0,
+        "includes_test_data": False,
+        "stats_since": None,
+        "period_start": None,
+        "period_end": None,
     }
+
+
+def test_dashboard_excludes_test_cases_but_keeps_them_visible_and_can_include_them(dashboard_environment) -> None:
+    client, factory = dashboard_environment
+    token = signup_and_login(client, "test-data-owner@example.com")
+    me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}).json()
+    seed_case_with_conversation(factory, business_id="biz-test-data", case_id="test-case", lead_id="test-lead")
+    with factory() as unit_of_work:
+        case = unit_of_work.cases.get("biz-test-data", "test-case")
+        assert case is not None
+        # is_test is immutable after creation in normal operation; this test
+        # deliberately seeds a historic trial case through the repository.
+        unit_of_work.session.execute(
+            update(ProcessCaseRow).where(ProcessCaseRow.id == "test-case").values(is_test=True)
+        )
+        live_lead = Lead("live-lead", name="Grace")
+        live_case = ProcessCase("live-case", "biz-test-data", live_lead, ProcessState.BOOKED, NOW + timedelta(days=1), NOW + timedelta(days=1))
+        live_case.record(ProcessEvent("BOOKING_CREATED", occurred_at=NOW + timedelta(days=1)))
+        unit_of_work.leads.add("biz-test-data", live_lead, live_case.created_at)
+        unit_of_work.cases.add(live_case)
+        unit_of_work.events.add_many("biz-test-data", "live-case", live_case.event_history)
+        unit_of_work.commit()
+    link_business(factory, business_id="biz-test-data", user_id=me["user_id"])
+
+    default_metrics = client.get("/api/v1/businesses/biz-test-data/analytics", headers={"Authorization": f"Bearer {token}"})
+    assert default_metrics.status_code == 200
+    assert default_metrics.json()["total_cases"] == 1
+    assert default_metrics.json()["hidden_test_cases"] == 1
+    assert default_metrics.json()["hidden_test_conversations"] == 1
+    assert default_metrics.json()["booked_cases"] == 1
+    cases = client.get("/api/v1/businesses/biz-test-data/cases", headers={"Authorization": f"Bearer {token}"}).json()["cases"]
+    assert {case["case_id"] for case in cases} == {"live-case"}
+
+    including_test = client.get(
+        "/api/v1/businesses/biz-test-data/analytics?include_test=true",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert including_test.status_code == 200
+    assert including_test.json()["total_cases"] == 2
+    assert including_test.json()["includes_test_data"] is True
+    included_cases = client.get(
+        "/api/v1/businesses/biz-test-data/cases?include_test=true",
+        headers={"Authorization": f"Bearer {token}"},
+    ).json()["cases"]
+    assert {case["case_id"] for case in included_cases} == {"test-case", "live-case"}
+    assert next(case for case in included_cases if case["case_id"] == "test-case")["is_test"] is True
+
+
+def test_dashboard_statistics_baseline_filters_metrics_and_can_be_cleared(dashboard_environment) -> None:
+    client, factory = dashboard_environment
+    token = signup_and_login(client, "baseline-owner@example.com")
+    me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}).json()
+    seed_case_with_conversation(factory, business_id="biz-baseline", case_id="old-case", lead_id="old-lead")
+    link_business(factory, business_id="biz-baseline", user_id=me["user_id"])
+    with factory() as unit_of_work:
+        live_lead = Lead("new-lead", name="Grace")
+        live_case = ProcessCase("new-case", "biz-baseline", live_lead, ProcessState.BOOKED, NOW + timedelta(days=2), NOW + timedelta(days=2))
+        live_case.record(ProcessEvent("BOOKING_CREATED", occurred_at=NOW + timedelta(days=2)))
+        unit_of_work.leads.add("biz-baseline", live_lead, live_case.created_at)
+        unit_of_work.cases.add(live_case)
+        unit_of_work.events.add_many("biz-baseline", live_case.case_id, live_case.event_history)
+        unit_of_work.businesses.update_reporting_settings("biz-baseline", stats_since=NOW + timedelta(days=1))
+        unit_of_work.commit()
+
+    filtered = client.get("/api/v1/businesses/biz-baseline/analytics", headers={"Authorization": f"Bearer {token}"})
+    assert filtered.status_code == 200
+    assert filtered.json()["total_cases"] == 1
+    assert filtered.json()["booked_cases"] == 1
+    filtered_cases = client.get(
+        "/api/v1/businesses/biz-baseline/cases",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert {case["case_id"] for case in filtered_cases.json()["cases"]} == {"new-case"}
+    cleared = client.patch(
+        "/api/v1/businesses/biz-baseline/analytics/settings",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"clear_statistics_baseline": True},
+    )
+    assert cleared.status_code == 200 and cleared.json()["stats_since"] is None
+    restored = client.get("/api/v1/businesses/biz-baseline/analytics", headers={"Authorization": f"Bearer {token}"})
+    assert restored.status_code == 200
+    assert restored.json()["total_cases"] == 2
+    live_date = (NOW + timedelta(days=2)).date().isoformat()
+    date_filtered_cases = client.get(
+        f"/api/v1/businesses/biz-baseline/cases?start_date={live_date}&end_date={live_date}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert {case["case_id"] for case in date_filtered_cases.json()["cases"]} == {"new-case"}
+
+
+def test_dashboard_with_only_test_cases_has_zero_rates(dashboard_environment) -> None:
+    client, factory = dashboard_environment
+    token = signup_and_login(client, "zero-owner@example.com")
+    me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}).json()
+    seed_case_with_conversation(factory, business_id="biz-zero", case_id="only-test", lead_id="only-test-lead")
+    with factory() as unit_of_work:
+        unit_of_work.session.execute(update(ProcessCaseRow).where(ProcessCaseRow.id == "only-test").values(is_test=True))
+        unit_of_work.commit()
+    link_business(factory, business_id="biz-zero", user_id=me["user_id"])
+    metrics = client.get("/api/v1/businesses/biz-zero/analytics", headers={"Authorization": f"Bearer {token}"})
+    assert metrics.status_code == 200
+    assert metrics.json()["total_cases"] == 0
+    assert metrics.json()["booking_conversion_rate"] == 0.0
+    assert metrics.json()["escalation_rate"] == 0.0
+    assert metrics.json()["lost_rate"] == 0.0
+
+
+def test_dashboard_analytics_is_not_truncated_to_the_case_list_page_size(dashboard_environment) -> None:
+    client, factory = dashboard_environment
+    token = signup_and_login(client, "all-cases-owner@example.com")
+    me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}).json()
+    with factory() as unit_of_work:
+        unit_of_work.businesses.add(
+            Business("biz-all-cases", "All cases", NOW, NOW, plan="starter", subscription_status="active")
+        )
+        leads = [Lead(f"lead-{index}", name=f"Lead {index}") for index in range(201)]
+        for lead in leads:
+            unit_of_work.leads.add("biz-all-cases", lead, NOW)
+        unit_of_work.session.flush()
+        for index, lead in enumerate(leads):
+            unit_of_work.cases.add(
+                ProcessCase(f"case-{index}", "biz-all-cases", lead, created_at=NOW, updated_at=NOW)
+            )
+        unit_of_work.commit()
+    link_business(factory, business_id="biz-all-cases", user_id=me["user_id"])
+
+    metrics = client.get("/api/v1/businesses/biz-all-cases/analytics", headers={"Authorization": f"Bearer {token}"})
+    assert metrics.status_code == 200
+    assert metrics.json()["total_cases"] == 201
 
 
 def test_list_cases_returns_seeded_case(dashboard_environment) -> None:

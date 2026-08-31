@@ -44,6 +44,8 @@ class BusinessRow(Base):
     trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     billing_event_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    test_mode_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    stats_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         # Not unique -- see migration 0009. The same real person/email can run
@@ -245,6 +247,7 @@ class ProcessCaseRow(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_test: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
 
     __table_args__ = (
         ForeignKeyConstraint(

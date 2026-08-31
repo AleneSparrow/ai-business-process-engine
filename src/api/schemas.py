@@ -600,6 +600,7 @@ class DashboardCaseSummarySchema(ApiModel):
     latest_event_type: str | None
     category: str | None = None
     escalation_reason: str | None = None
+    is_test: bool = False
 
     @staticmethod
     def escalation_reason_from_domain(case: ProcessCase) -> str | None:
@@ -704,6 +705,7 @@ class DashboardCaseSummarySchema(ApiModel):
             latest_event_type=str(latest.event_type) if latest else None,
             category=category,
             escalation_reason=cls.escalation_reason_from_domain(case),
+            is_test=case.is_test,
         )
 
 
@@ -723,6 +725,38 @@ class DashboardAnalyticsSchema(ApiModel):
     response_samples: int
     escalation_reasons: dict[str, int]
     escalation_feedback: dict[str, int]
+    hidden_test_cases: int
+    hidden_test_conversations: int
+    includes_test_data: bool
+    stats_since: datetime | None
+    period_start: datetime | None
+    period_end: datetime | None
+
+
+class ReportingSettingsSchema(ApiModel):
+    test_mode_enabled: bool
+    stats_since: datetime | None
+
+    @classmethod
+    def from_domain(cls, business: Business) -> "ReportingSettingsSchema":
+        return cls(
+            test_mode_enabled=business.test_mode_enabled,
+            stats_since=business.stats_since,
+        )
+
+
+class ReportingSettingsUpdateRequest(ApiModel):
+    test_mode_enabled: bool | None = None
+    reset_statistics: bool = False
+    clear_statistics_baseline: bool = False
+
+    @model_validator(mode="after")
+    def validate_requested_change(self) -> "ReportingSettingsUpdateRequest":
+        if self.reset_statistics and self.clear_statistics_baseline:
+            raise ValueError("reset_statistics and clear_statistics_baseline cannot both be true")
+        if self.test_mode_enabled is None and not self.reset_statistics and not self.clear_statistics_baseline:
+            raise ValueError("at least one reporting setting must be changed")
+        return self
 
 
 def _jsonable(value: Any) -> Any:

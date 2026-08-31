@@ -90,6 +90,8 @@ def _business_from_row(row: BusinessRow) -> Business:
         trial_ends_at=_aware(row.trial_ends_at) if row.trial_ends_at else None,
         current_period_end=_aware(row.current_period_end) if row.current_period_end else None,
         billing_event_at=_aware(row.billing_event_at) if row.billing_event_at else None,
+        test_mode_enabled=row.test_mode_enabled,
+        stats_since=_aware(row.stats_since) if row.stats_since else None,
     )
 
 
@@ -109,6 +111,9 @@ class SQLAlchemyBusinessRepository:
             subscription_status=business.subscription_status,
             trial_ends_at=business.trial_ends_at,
             current_period_end=business.current_period_end,
+            billing_event_at=business.billing_event_at,
+            test_mode_enabled=business.test_mode_enabled,
+            stats_since=business.stats_since,
         ))
 
     def get(self, business_id: str) -> Business | None:
@@ -179,6 +184,31 @@ class SQLAlchemyBusinessRepository:
         row.current_period_end = current_period_end
         if event_at is not None:
             row.billing_event_at = event_at
+        row.updated_at = utc_now()
+        self.session.flush()
+        return _business_from_row(row)
+
+    def update_reporting_settings(
+        self,
+        business_id: str,
+        *,
+        test_mode_enabled: bool | None = None,
+        stats_since: datetime | None = None,
+        clear_stats_since: bool = False,
+    ) -> Business:
+        if clear_stats_since and stats_since is not None:
+            raise ValueError("stats_since and clear_stats_since are mutually exclusive")
+        row = self.session.scalar(
+            select(BusinessRow).where(BusinessRow.id == business_id).with_for_update()
+        )
+        if row is None:
+            raise KeyError(f"unknown business_id: {business_id}")
+        if test_mode_enabled is not None:
+            row.test_mode_enabled = test_mode_enabled
+        if clear_stats_since:
+            row.stats_since = None
+        elif stats_since is not None:
+            row.stats_since = stats_since
         row.updated_at = utc_now()
         self.session.flush()
         return _business_from_row(row)
@@ -699,6 +729,7 @@ class SQLAlchemyProcessCaseRepository:
             created_at=case.created_at,
             updated_at=case.updated_at,
             version=case.version,
+            is_test=case.is_test,
         ))
 
     def get(self, business_id: str, case_id: str, *, for_update: bool = False) -> ProcessCase | None:
@@ -746,13 +777,15 @@ class SQLAlchemyProcessCaseRepository:
             raise StaleCaseError(f"case version conflict: {case.case_id}")
         case.mark_persisted(new_version)
 
-    def list_for_business(self, business_id: str, *, limit: int = 200) -> tuple[ProcessCase, ...]:
-        rows = self.session.scalars(
+    def list_for_business(self, business_id: str, *, limit: int | None = 200) -> tuple[ProcessCase, ...]:
+        statement = (
             select(ProcessCaseRow)
             .where(ProcessCaseRow.business_id == business_id)
             .order_by(ProcessCaseRow.updated_at.desc())
-            .limit(limit)
         )
+        if limit is not None:
+            statement = statement.limit(limit)
+        rows = self.session.scalars(statement)
         return tuple(self._to_domain(row) for row in rows)
 
     def list_by_state(
@@ -792,6 +825,7 @@ class SQLAlchemyProcessCaseRepository:
             version=row.version,
             pending_transition=ProcessState(row.pending_human_target) if row.pending_human_target else None,
             event_history=self.events.list_for_case(row.business_id, row.id),
+            is_test=row.is_test,
         )
 
 

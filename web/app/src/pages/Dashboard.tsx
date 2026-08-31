@@ -31,6 +31,24 @@ const ESCALATION_LABELS: Record<string, string> = {
   already_pending: "Already waiting for review",
 };
 
+const ESCALATION_ACTIONS: Record<string, string> = {
+  safety_emergency: "Call or reply immediately — do not leave a safety issue in the queue.",
+  urgent_request: "Reply today and confirm the next available option.",
+  low_confidence: "Read the last message and clarify the customer’s request.",
+  service_unclear: "Confirm which service the customer needs before proceeding.",
+  ai_review: "Review the conversation and choose the next safe step.",
+  service_area_uncertain: "Confirm the customer’s location before offering service.",
+  policy_review: "Check this request against your business policy.",
+  identity_conflict: "Verify the contact details before merging or continuing.",
+  already_pending: "A teammate has already been asked to review this case.",
+};
+
+const ESCALATION_OUTCOMES: Record<string, string> = {
+  already_pending: "No automatic next step will happen until a teammate resolves it.",
+};
+
+const SAFE_REVIEW_OUTCOME = "After a staff decision, the permitted workflow can continue from the verified next step.";
+
 function nextStep(state: CaseState): string {
   if (state === "NEEDS_HUMAN") return "Review the conversation and reply";
   if (state === "QUALIFYING") return "Collect the remaining qualification details";
@@ -40,16 +58,25 @@ function nextStep(state: CaseState): string {
   return "Open the conversation to review the next action";
 }
 
-function StatCard({ label, value, sub, tone }: { label: string; value: string | number; sub?: string; tone?: string }) {
-  return (
-    <div className="bg-white rounded-2xl border border-[#E7E5DE] px-5 py-4 flex-1 min-w-[150px]">
+function StatCard({ label, value, sub, tone, onClick, emphasis = false }: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  tone?: string;
+  onClick?: () => void;
+  emphasis?: boolean;
+}) {
+  const content = <>
       <div className="text-xs font-medium text-[#6B6459] mb-1.5">{label}</div>
       <div className="flex items-baseline gap-2">
         <span className="text-[26px] leading-none" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>{value}</span>
         {sub && <span className="text-xs font-medium" style={{ color: tone || "#6B6459" }}>{sub}</span>}
       </div>
-    </div>
-  );
+    </>;
+  const className = `rounded-2xl border px-5 py-4 text-left ${emphasis ? "border-[#C97A1F] bg-[#FFF9F2]" : "border-[#E7E5DE] bg-white"} ${onClick ? "hover:border-[#B87333] transition-colors cursor-pointer" : ""}`;
+  return onClick ? (
+    <button type="button" onClick={onClick} className={className}>{content}</button>
+  ) : <div className={className}>{content}</div>;
 }
 
 export default function Dashboard() {
@@ -65,12 +92,21 @@ export default function Dashboard() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [includeTestData, setIncludeTestData] = useState(false);
+  const [reasonFilter, setReasonFilter] = useState<string | null>(null);
+  const [followUpOnly, setFollowUpOnly] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     if (!token || !businessId) return;
     api
-      .listCases(token, businessId)
+      .listCases(token, businessId, {
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        includeTest: includeTestData,
+      })
       .then((res) => {
         if (cancelled) return;
         setCases(res.cases);
@@ -80,7 +116,11 @@ export default function Dashboard() {
         if (!cancelled) setError(describeError(err));
       });
     api
-      .getDashboardAnalytics(token, businessId)
+      .getDashboardAnalytics(token, businessId, {
+        startDate: startDate || undefined,
+        endDate: endDate || undefined,
+        includeTest: includeTestData,
+      })
       .then((result) => {
         if (!cancelled) setAnalytics(result);
       })
@@ -90,7 +130,7 @@ export default function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [token, businessId]);
+  }, [token, businessId, startDate, endDate, includeTestData]);
 
   const decorated = useMemo(
     () =>
@@ -107,6 +147,8 @@ export default function Dashboard() {
   const filtered = useMemo(() => {
     const query = searchQuery.trim().toLocaleLowerCase();
     const visible = (filter === "ALL" ? [...decorated] : decorated.filter((c) => c.caseState === filter)).filter((c) => {
+      if (followUpOnly && !c.followUpDue) return false;
+      if (reasonFilter !== null && c.escalation_reason !== reasonFilter) return false;
       if (!query) return true;
       return [c.lead.name, c.lead.phone, c.lead.email, c.category, c.case_id, c.lead.lead_id]
         .some((value) => value?.toLocaleLowerCase().includes(query));
@@ -124,7 +166,7 @@ export default function Dashboard() {
       const comparison = leftValue.localeCompare(rightValue, undefined, { sensitivity: "base" });
       return sortDirection === "asc" ? comparison : -comparison;
     });
-  }, [decorated, filter, searchQuery, sortBy, sortDirection]);
+  }, [decorated, filter, followUpOnly, reasonFilter, searchQuery, sortBy, sortDirection]);
 
   const changeSort = (nextSort: SortKey) => {
     setSortBy(nextSort);
@@ -141,15 +183,40 @@ export default function Dashboard() {
   );
 
   const counts = useMemo(() => {
-    const c = { needsHuman: 0, booked: 0, qualifying: 0, followUpDue: 0 };
+    const c = { needsHuman: 0, booked: 0, qualifying: 0, lost: 0, completed: 0, followUpDue: 0 };
     decorated.forEach((x) => {
       if (x.caseState === "NEEDS_HUMAN") c.needsHuman++;
       if (x.caseState === "BOOKED") c.booked++;
       if (x.caseState === "QUALIFYING") c.qualifying++;
+      if (x.caseState === "LOST") c.lost++;
+      if (x.caseState === "COMPLETED") c.completed++;
       if (x.followUpDue) c.followUpDue++;
     });
     return c;
   }, [decorated]);
+
+  const showAttention = (reason: string | null = null) => {
+    setFilter("NEEDS_HUMAN");
+    setFollowUpOnly(false);
+    setReasonFilter(reason);
+  };
+
+  const toggleAttention = () => {
+    if (filter === "NEEDS_HUMAN" && reasonFilter === null && !followUpOnly) {
+      setFilter("ALL");
+      return;
+    }
+    showAttention();
+  };
+
+  const filterCount = (state: CaseState | "ALL") => {
+    if (state === "ALL") return decorated.length;
+    if (state === "NEEDS_HUMAN") return counts.needsHuman;
+    if (state === "QUALIFYING") return counts.qualifying;
+    if (state === "BOOKED") return counts.booked;
+    if (state === "LOST") return counts.lost;
+    return counts.completed;
+  };
 
   useEffect(() => {
     setActionError(null);
@@ -204,9 +271,11 @@ export default function Dashboard() {
               />
             </div>
             <button
-              onClick={() => setFilter("NEEDS_HUMAN")}
-              aria-label="Show leads that need attention"
-              className="relative w-9 h-9 rounded-lg bg-white border border-[#E7E5DE] flex items-center justify-center"
+              onClick={toggleAttention}
+              aria-label={`Show ${counts.needsHuman} leads that need attention`}
+              aria-pressed={filter === "NEEDS_HUMAN" && reasonFilter === null}
+              className="relative w-9 h-9 rounded-lg border flex items-center justify-center transition-colors"
+              style={{ backgroundColor: filter === "NEEDS_HUMAN" && reasonFilter === null ? "#F5E7D6" : "#fff", borderColor: filter === "NEEDS_HUMAN" && reasonFilter === null ? "#B87333" : "#E7E5DE" }}
             >
               <Bell size={16} strokeWidth={2} />
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full text-[10px] flex items-center justify-center text-white font-medium" style={{ backgroundColor: "#C97A1F" }}>{counts.needsHuman}</span>
@@ -221,21 +290,42 @@ export default function Dashboard() {
             </div>
           )}
 
-          <div className="flex flex-wrap gap-3">
-            <StatCard label="Needs your attention" value={counts.needsHuman} tone="#C97A1F" />
-            <StatCard label="Qualifying now" value={counts.qualifying} tone="#B87333" />
-            <StatCard label="Booked" value={counts.booked} tone="#1E7B52" />
-            <StatCard label="Follow-up due" value={counts.followUpDue} tone="#C97A1F" />
-            <StatCard
-              label="Booking rate"
-              value={analytics ? `${Math.round(analytics.booking_conversion_rate * 100)}%` : "—"}
-              sub={analytics ? `${analytics.booked_cases}/${analytics.total_cases}` : undefined}
-              tone="#1E7B52"
-            />
+          <div className="flex flex-col gap-5">
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-sm font-semibold">Act now</h2>
+                <span className="text-xs text-[#6B6459]">Open a card to focus the lead list</span>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <StatCard label="Needs your attention" value={counts.needsHuman} sub="review queue" tone="#C97A1F" onClick={() => showAttention()} emphasis />
+                <StatCard label="Follow-up due" value={counts.followUpDue} sub="waiting 24h+" tone="#C97A1F" onClick={() => { setFilter("ALL"); setReasonFilter(null); setFollowUpOnly(true); }} />
+              </div>
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold mb-2">Pipeline</h2>
+              <div className="grid sm:grid-cols-2 xl:grid-cols-4 gap-3">
+                <StatCard label="Qualifying now" value={counts.qualifying} sub="active leads" tone="#B87333" onClick={() => { setFilter("QUALIFYING"); setReasonFilter(null); setFollowUpOnly(false); }} />
+                <StatCard label="Booked" value={counts.booked} sub="active cases" tone="#1E7B52" onClick={() => { setFilter("BOOKED"); setReasonFilter(null); setFollowUpOnly(false); }} />
+                <StatCard
+                  label="Booking rate"
+                  value={analytics ? `${Math.round(analytics.booking_conversion_rate * 100)}%` : "—"}
+                  sub={analytics ? `${analytics.booked_cases}/${analytics.total_cases} leads` : undefined}
+                  tone="#1E7B52"
+                />
+                <StatCard
+                  label="Lost rate"
+                  value={analytics ? `${Math.round(analytics.lost_rate * 100)}%` : "—"}
+                  sub={analytics ? `${analytics.lost_cases}/${analytics.total_cases} leads` : undefined}
+                />
+              </div>
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold mb-2">Automation health</h2>
+              <div className="grid sm:grid-cols-2 gap-3">
             <StatCard
               label="Escalation rate"
               value={analytics ? `${Math.round(analytics.escalation_rate * 100)}%` : "—"}
-              sub={analytics ? `${analytics.escalated_cases}/${analytics.total_cases}` : undefined}
+              sub={analytics ? `${analytics.escalated_cases}/${analytics.total_cases} leads` : undefined}
               tone="#C97A1F"
             />
             <StatCard
@@ -249,25 +339,60 @@ export default function Dashboard() {
               sub={analytics ? `${analytics.response_samples} samples` : undefined}
               tone="#1E7B52"
             />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-[#E7E5DE] px-5 py-4 flex flex-wrap items-end gap-3">
+            <div className="mr-auto">
+              <h2 className="text-sm font-semibold">Reporting period</h2>
+              <p className="text-xs text-[#6B6459] mt-1">Filter metrics by a UTC date range. Conversations and audit history always remain visible below.</p>
+            </div>
+            <label className="text-xs text-[#6B6459] flex flex-col gap-1">
+              From
+              <input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} className="px-2.5 py-2 rounded-lg border border-[#E7E5DE] text-sm text-[#151515]" />
+            </label>
+            <label className="text-xs text-[#6B6459] flex flex-col gap-1">
+              To
+              <input type="date" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} className="px-2.5 py-2 rounded-lg border border-[#E7E5DE] text-sm text-[#151515]" />
+            </label>
+            {(startDate || endDate) && (
+              <button onClick={() => { setStartDate(""); setEndDate(""); }} className="text-xs font-medium px-3 py-2 rounded-lg border border-[#E7E5DE]">All time</button>
+            )}
+            {analytics && analytics.hidden_test_cases > 0 && (
+              <label className="text-xs text-[#6B6459] flex items-center gap-2 w-full sm:w-auto">
+                <input type="checkbox" checked={includeTestData} onChange={(event) => setIncludeTestData(event.target.checked)} className="accent-[#B87333]" />
+                {includeTestData
+                  ? "Including test data"
+                  : `Test data hidden · ${analytics.hidden_test_conversations} conversations / ${analytics.hidden_test_cases} cases`}
+              </label>
+            )}
+            {analytics?.stats_since && !startDate && !endDate && (
+              <p className="text-xs text-[#6B6459] w-full">Metrics start from your statistics baseline. Change it in Settings → Reporting.</p>
+            )}
           </div>
 
           {analytics && Object.keys(analytics.escalation_reasons).length > 0 && (
             <div className="bg-white rounded-2xl border border-[#E7E5DE] px-5 py-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-sm font-semibold text-[#151515]">Why leads need attention</h2>
-                  <p className="text-xs text-[#6B6459] mt-1">Based on current cases waiting for a human review.</p>
+                  <h2 className="text-sm font-semibold text-[#151515]">Review queue — why the engine stopped</h2>
+                  <p className="text-xs text-[#6B6459] mt-1">Each group is a current reason for human review. Select one to see those leads and the next action.</p>
                 </div>
-                <div className="text-xs text-[#6B6459]">Quality feedback</div>
+                <button type="button" onClick={() => showAttention()} className="text-xs font-medium px-3 py-2 rounded-lg border border-[#E7E5DE] hover:border-[#B87333]">View all {counts.needsHuman} leads</button>
               </div>
-              <div className="flex flex-wrap gap-2 mt-4">
+              <div className="grid md:grid-cols-2 gap-2 mt-4">
                 {Object.entries(analytics.escalation_reasons)
                   .sort(([, left], [, right]) => right - left)
                   .map(([reason, count]) => (
-                    <div key={reason} className="rounded-lg bg-[#F7F5F0] px-3 py-2 text-xs text-[#47423A]">
-                      <span>{ESCALATION_LABELS[reason] ?? "Human review requested"}</span>
-                      <span className="ml-2 font-semibold text-[#151515]">{count}</span>
-                    </div>
+                    <button key={reason} type="button" onClick={() => showAttention(reason)} className="rounded-xl border border-[#E7E5DE] bg-[#F7F5F0] px-3 py-3 text-left hover:border-[#B87333] transition-colors">
+                      <span className="flex items-start justify-between gap-3 text-xs font-medium text-[#151515]">
+                        <span>{ESCALATION_LABELS[reason] ?? "Human review requested"}</span>
+                        <span className="rounded-full bg-white px-2 py-0.5 shrink-0">{count}</span>
+                      </span>
+                      <span className="block text-xs text-[#6B6459] mt-1">Next safe action: {ESCALATION_ACTIONS[reason] ?? "Open the lead and choose the next safe step."}</span>
+                      <span className="block text-xs text-[#6B6459] mt-1">{ESCALATION_OUTCOMES[reason] ?? SAFE_REVIEW_OUTCOME}</span>
+                    </button>
                   ))}
               </div>
               {(() => {
@@ -304,11 +429,11 @@ export default function Dashboard() {
                     {FILTERS.map((s) => (
                       <button
                         key={s}
-                        onClick={() => setFilter(s)}
+                        onClick={() => { setFilter(s); setReasonFilter(null); setFollowUpOnly(false); }}
                         className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors"
                         style={{ backgroundColor: filter === s ? "#151515" : "transparent", color: filter === s ? "#fff" : "#6B6459" }}
                       >
-                        {s === "ALL" ? "All" : STATE_META[s].label}
+                        {s === "ALL" ? `All (${filterCount(s)})` : `${STATE_META[s].label} (${filterCount(s)})`}
                       </button>
                     ))}
                   </div>
@@ -337,6 +462,12 @@ export default function Dashboard() {
                     <span className="hidden xl:inline min-w-[68px]">{sortDirectionLabel}</span>
                   </div>
                 </div>
+                {(filter !== "ALL" || reasonFilter !== null || followUpOnly) && (
+                  <div className="px-5 py-2 text-xs text-[#6B6459] bg-[#FFF9F2] border-b border-[#E7E5DE] flex items-center justify-between gap-3">
+                    <span>Showing {filtered.length} {reasonFilter ? `leads: ${ESCALATION_LABELS[reasonFilter] ?? "human review"}` : followUpOnly ? "follow-ups due" : "filtered leads"}.</span>
+                    <button type="button" onClick={() => { setFilter("ALL"); setReasonFilter(null); setFollowUpOnly(false); }} className="font-medium text-[#151515] underline">Clear filter</button>
+                  </div>
+                )}
                 <ul>
                   {filtered.length === 0 && (
                     <li className="px-5 py-10 text-center text-sm text-[#6B6459]">No leads match your search and filters.</li>

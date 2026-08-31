@@ -202,6 +202,22 @@ class CommercialWorkflowService:
         commercial = self._commercial_metadata(conversation_metadata)
         text = customer_text.strip().casefold()
         if case.current_state is ProcessState.QUALIFIED:
+            if commercial.get("mode") == "direct_next_step":
+                # An external link is an instruction, not evidence that an
+                # upload, payment, or booking happened. A follow-up message
+                # can be a question, refusal, complaint, or an unverifiable
+                # "I did it"; none may silently advance the commercial case
+                # or cause the same link to be sent forever. Human review is
+                # the only safe generic continuation until an integration
+                # supplies a verifiable event.
+                return self._escalate(
+                    uow,
+                    case,
+                    business_dna,
+                    ProcessState.FOLLOW_UP,
+                    occurred_at,
+                    "Customer replied after an external next step; completion requires verification",
+                )
             if commercial.get("mode") == "awaiting_slot":
                 return self._select_slot(
                     uow,

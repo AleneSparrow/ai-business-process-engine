@@ -36,6 +36,13 @@ class Business:
     trial_ends_at: datetime | None = None
     current_period_end: datetime | None = None
     billing_event_at: datetime | None = None
+    # New tenants start in test mode, but this default stays False so a
+    # migration never retrospectively reclassifies an existing tenant's
+    # historical cases. BusinessProvisioningService opts new tenants in.
+    test_mode_enabled: bool = False
+    # A reporting baseline hides earlier cases from aggregate metrics without
+    # deleting cases, conversations, or their immutable event history.
+    stats_since: datetime | None = None
     """The Lemon Squeezy snapshot timestamp (subscription/invoice
     `updated_at`, falling back to `created_at`) of the most recent webhook
     event actually applied to the billing fields above. Used to reject an
@@ -60,6 +67,8 @@ class Business:
             _require_aware(self.current_period_end, "current_period_end")
         if self.billing_event_at is not None:
             _require_aware(self.billing_event_at, "billing_event_at")
+        if self.stats_since is not None:
+            _require_aware(self.stats_since, "stats_since")
 
     @property
     def has_billing_access(self) -> bool:

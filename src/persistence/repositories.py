@@ -81,6 +81,14 @@ class BusinessRepository(Protocol):
         returned unchanged. `None` applies only while no watermark exists;
         afterward it is rejected because it cannot prove its ordering."""
         ...
+    def update_reporting_settings(
+        self,
+        business_id: str,
+        *,
+        test_mode_enabled: bool | None = None,
+        stats_since: datetime | None = None,
+        clear_stats_since: bool = False,
+    ) -> Business: ...
 
 
 class BusinessDNARepository(Protocol):
@@ -114,7 +122,7 @@ class ProcessCaseRepository(Protocol):
     ) -> ProcessCase | None: ...
     def find_active_for_lead(self, business_id: str, lead_id: str) -> ProcessCase | None: ...
     def save(self, case: ProcessCase, expected_version: int) -> None: ...
-    def list_for_business(self, business_id: str, *, limit: int = 200) -> tuple[ProcessCase, ...]: ...
+    def list_for_business(self, business_id: str, *, limit: int | None = 200) -> tuple[ProcessCase, ...]: ...
     def list_by_state(
         self,
         business_id: str,

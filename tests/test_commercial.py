@@ -357,6 +357,42 @@ def test_quote_rejection_is_persisted_and_moves_case_to_lost(tmp_path) -> None:
     engine.dispose()
 
 
+@pytest.mark.parametrize("customer_reply", ["I did it", "Where do I upload it?", "No, I won't do that", "This is ridiculous"])
+def test_direct_next_step_follow_up_requires_human_verification(tmp_path, customer_reply: str) -> None:
+    """A customer message is never evidence that an external action happened.
+
+    The generic engine has no provider webhook for a direct step, so questions,
+    refusal, abuse, and claimed completion all take the same auditable safe
+    path. This specifically prevents replaying the configured external link.
+    """
+    engine, factory, dna, case_id = make_factory(tmp_path, "diagnostic-visit")
+    service_config = dna["services"][0]
+    service_config.update({
+        "fulfillment_type": "direct_sale",
+        "booking_allowed": False,
+        "direct_next_step_message": "Upload documents at https://example.test/upload.",
+    })
+    service = CommercialWorkflowService()
+    metadata: dict = {}
+    with factory() as uow:
+        case = uow.cases.get(dna["business"]["id"], case_id)
+        first = service.initialize(uow, case, dna, metadata, occurred_at=NOW)
+        assert first.reason == "direct_next_step"
+        assert "https://example.test/upload" in first.message_text
+        response = service.handle_message(
+            uow, case, dna, metadata, customer_reply, occurred_at=NOW + timedelta(minutes=1)
+        )
+        assert response.requires_human is True
+        assert response.reason == "Customer replied after an external next step; completion requires verification"
+        assert response.message_text != first.message_text
+        assert "https://example.test/upload" not in response.message_text
+        assert case.current_state is ProcessState.NEEDS_HUMAN
+        assert case.pending_transition is ProcessState.FOLLOW_UP
+        assert all(customer_reply not in str(event.payload) for event in case.event_history)
+        uow.commit()
+    engine.dispose()
+
+
 def test_ambiguous_quote_response_is_reasked_then_pauses_for_human(tmp_path) -> None:
     engine, factory, dna, case_id = make_factory(tmp_path, "equipment-replacement")
     service = CommercialWorkflowService()

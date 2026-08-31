@@ -64,7 +64,16 @@ class BusinessProvisioningService:
             raise InvalidBusinessDNAError(str(exc)) from exc
 
         now = utc_now()
-        business = Business(onboarding.business_id, onboarding.business_name, now, now)
+        # Trial owners naturally test their own widget first. Keep those
+        # exploratory conversations visible in the audit trail, but out of
+        # operational reporting until the owner deliberately goes live.
+        business = Business(
+            onboarding.business_id,
+            onboarding.business_name,
+            now,
+            now,
+            test_mode_enabled=True,
+        )
         with self._unit_of_work_factory() as unit_of_work:
             if unit_of_work.businesses.get(onboarding.business_id) is not None:
                 raise BusinessIdTakenError("A business with this identifier already exists")

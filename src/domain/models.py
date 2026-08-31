@@ -134,6 +134,7 @@ class ProcessCase:
     updated_at: datetime
     metadata: dict[str, Any]
     version: int
+    is_test: bool
     _event_history: list[ProcessEvent] = field(default_factory=list, init=False, repr=False)
     _event_ids_in_history: set[str] = field(default_factory=set, init=False, repr=False)
     _processed_event_ids: set[str] = field(default_factory=set, init=False, repr=False)
@@ -151,6 +152,7 @@ class ProcessCase:
         version: int = 0,
         pending_transition: ProcessState | None = None,
         event_history: tuple[ProcessEvent, ...] = (),
+        is_test: bool = False,
     ) -> None:
         self.case_id = case_id
         self.business_id = business_id
@@ -160,6 +162,7 @@ class ProcessCase:
         self.updated_at = updated_at or self.created_at
         self.metadata = dict(metadata or {})
         self.version = version
+        self.is_test = is_test
         self._event_history = list(event_history)
         self._event_ids_in_history = set()
         for historical_event in self._event_history:
@@ -191,6 +194,8 @@ class ProcessCase:
             raise ValueError("updated_at must not precede created_at")
         if self.version < 0:
             raise ValueError("version must not be negative")
+        if not isinstance(self.is_test, bool):
+            raise ValueError("is_test must be a boolean")
         if self._pending_transition is not None and self._current_state is not ProcessState.NEEDS_HUMAN:
             raise ValueError("pending_transition is only valid for NEEDS_HUMAN cases")
 

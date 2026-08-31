@@ -79,7 +79,8 @@ class PersistentLeadIntakeService:
         """Process intake in an already-active transaction without committing it."""
         fingerprint = self.fingerprint(message)
         channel = message.channel.casefold()
-        if uow.businesses.get(message.business_id) is None:
+        business = uow.businesses.get(message.business_id)
+        if business is None:
             raise KeyError(f"unknown business_id: {message.business_id}")
         claim_status, claim = uow.idempotency.claim(
             message.business_id, channel, message.external_message_id, fingerprint
@@ -110,7 +111,9 @@ class PersistentLeadIntakeService:
         except ValueError as exc:
             raise MessageScopeError("message violates tenant intake scope") from exc
 
-        case, case_created, lead_created = self._resolve_case(uow, workflow, message)
+        case, case_created, lead_created = self._resolve_case(
+            uow, workflow, message, is_test=business.test_mode_enabled
+        )
         if case.current_state not in workflow.ACTIVE_STATES:
             raise ValueError(f"case {case.case_id} is not active for lead qualification")
         workflow._assert_identity_consistency(case, message)
@@ -139,7 +142,9 @@ class PersistentLeadIntakeService:
                     matching_case = self._active_case_for_task(
                         uow, message.business_id, identity_owner.lead_id, intent.service_requested
                     )
-                    case = matching_case or ProcessCase(str(uuid4()), message.business_id, identity_owner)
+                    case = matching_case or ProcessCase(
+                        str(uuid4()), message.business_id, identity_owner, is_test=case.is_test
+                    )
                     case_created = matching_case is None
                 else:
                     # This case is already linked to a conversation. Keep its
@@ -267,6 +272,8 @@ class PersistentLeadIntakeService:
         uow: UnitOfWork,
         workflow: LeadIntakeService,
         message: IncomingMessage,
+        *,
+        is_test: bool,
     ) -> tuple[ProcessCase, bool, bool]:
         if message.case_id:
             case = uow.cases.get(message.business_id, message.case_id)
@@ -290,7 +297,10 @@ class PersistentLeadIntakeService:
         case = None if lead_created else uow.cases.find_active_for_lead(message.business_id, lead.lead_id)
         case_created = case is None
         if case is None:
-            case = ProcessCase(str(uuid4()), message.business_id, lead)
+            # Classification happens exactly once, when the case is created.
+            # Turning test mode off later never rewrites the historic trial
+            # conversation, preserving a truthful audit and clean metrics.
+            case = ProcessCase(str(uuid4()), message.business_id, lead, is_test=is_test)
         return case, case_created, lead_created
 
     @staticmethod

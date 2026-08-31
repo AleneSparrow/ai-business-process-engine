@@ -297,6 +297,62 @@ def test_postgresql_compatible_intake_persists_and_is_idempotent(uow_factory) ->
         assert qualification_event.payload["business_dna_version"] == 1
 
 
+def test_test_mode_classifies_only_new_cases_and_survives_rehydration(uow_factory) -> None:
+    now = utc_now()
+    with uow_factory() as uow:
+        uow.businesses.add(Business("acme-home-services", "Acme", now, now, test_mode_enabled=True))
+        configuration = dna()
+        uow.business_dna.add_version("acme-home-services", configuration)
+        uow.commit()
+
+    intake = make_intake(uow_factory, {
+        "test-mode": qualifying_intent(),
+        "after-go-live": qualifying_intent(),
+    })
+    result = intake.receive(intake_message("test-mode"))
+    with uow_factory() as uow:
+        persisted = uow.cases.get("acme-home-services", result.case_id)
+        assert persisted is not None
+        assert persisted.is_test is True
+        # Going live affects only cases created after this point.
+        uow.businesses.update_reporting_settings(
+            "acme-home-services", test_mode_enabled=False
+        )
+        uow.commit()
+    with uow_factory() as uow:
+        rehydrated = uow.cases.get("acme-home-services", result.case_id)
+        assert rehydrated is not None and rehydrated.is_test is True
+    live_result = intake.receive(intake_message("after-go-live", phone="+1 312 555 0199"))
+    with uow_factory() as uow:
+        live_case = uow.cases.get("acme-home-services", live_result.case_id)
+        assert live_case is not None and live_case.is_test is False
+
+
+def test_reporting_baseline_is_reversible_without_deleting_case_audit(uow_factory) -> None:
+    seed_business(uow_factory)
+    case = ProcessCase("baseline-case", "acme-home-services", Lead("baseline-lead", "Ada"), created_at=NOW)
+    audit_event = ProcessEvent("AUDIT_RETAINED", occurred_at=NOW)
+    case.record(audit_event)
+    with uow_factory() as uow:
+        uow.leads.add(case.business_id, case.lead, case.created_at)
+        uow.cases.add(case)
+        uow.events.add(case.business_id, case.case_id, audit_event)
+        changed = uow.businesses.update_reporting_settings(
+            case.business_id, stats_since=NOW.replace(day=NOW.day + 1)
+        )
+        uow.commit()
+        assert changed.stats_since is not None
+    with uow_factory() as uow:
+        retained = uow.cases.get(case.business_id, case.case_id)
+        assert retained is not None
+        assert [event.event_type for event in retained.event_history] == ["AUDIT_RETAINED"]
+        restored = uow.businesses.update_reporting_settings(
+            case.business_id, clear_stats_since=True
+        )
+        uow.commit()
+        assert restored.stats_since is None
+
+
 def test_persisted_idempotency_collision_is_explicit(uow_factory) -> None:
     seed_business(uow_factory)
     intake = make_intake(uow_factory, {"collision": qualifying_intent()})

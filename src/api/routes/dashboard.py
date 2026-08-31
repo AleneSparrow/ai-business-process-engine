@@ -7,12 +7,14 @@ business.
 """
 
 from collections.abc import Mapping
+from datetime import date, datetime, time, timedelta, timezone
 from statistics import median
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 
 from src.domain.auth import StaffUser
+from src.domain.models import utc_now
 from src.domain.states import ProcessState
 from src.persistence.staff_action_service import StaffActionService
 
@@ -24,7 +26,7 @@ from ..dependencies import (
     require_active_subscription,
     require_own_business,
 )
-from ..errors import ResourceNotFoundError
+from ..errors import RequestDataError, ResourceNotFoundError
 from ..schemas import (
     DashboardCaseDetailResponse,
     DashboardCaseListResponse,
@@ -35,6 +37,8 @@ from ..schemas import (
     DashboardConversationSchema,
     DashboardMessageSchema,
     EscalationFeedbackRequest,
+    ReportingSettingsSchema,
+    ReportingSettingsUpdateRequest,
     StaffActionResponse,
     StaffReplyRequest,
 )
@@ -56,9 +60,23 @@ def list_cases(
     business_id: BusinessIdPath,
     user: Annotated[StaffUser, Depends(require_own_business)],
     unit_of_work_factory: Annotated[UnitOfWorkFactory, Depends(get_unit_of_work_factory)],
+    start_date: Annotated[date | None, Query(description="Inclusive UTC start date")] = None,
+    end_date: Annotated[date | None, Query(description="Inclusive UTC end date")] = None,
+    include_test: bool = False,
 ) -> DashboardCaseListResponse:
+    _validate_reporting_range(start_date, end_date)
     with unit_of_work_factory() as unit_of_work:
-        cases = unit_of_work.cases.list_for_business(business_id)
+        business = unit_of_work.businesses.get(business_id)
+        if business is None:
+            raise ResourceNotFoundError("business_not_found", "Business was not found")
+        period_start, period_end = _analytics_period(business.stats_since, start_date, end_date)
+        cases = tuple(
+            case
+            for case in unit_of_work.cases.list_for_business(business_id, limit=None)
+            if (period_start is None or case.created_at >= period_start)
+            and (period_end is None or case.created_at < period_end)
+            and (include_test or not case.is_test)
+        )
         dna = unit_of_work.business_dna.get_active(business_id)
         service_names = {
             str(service["id"]): str(service["name"])
@@ -92,6 +110,9 @@ def get_dashboard_analytics(
     business_id: BusinessIdPath,
     user: Annotated[StaffUser, Depends(require_own_business)],
     unit_of_work_factory: Annotated[UnitOfWorkFactory, Depends(get_unit_of_work_factory)],
+    start_date: Annotated[date | None, Query(description="Inclusive UTC start date")] = None,
+    end_date: Annotated[date | None, Query(description="Inclusive UTC end date")] = None,
+    include_test: bool = False,
 ) -> DashboardAnalyticsSchema:
     """Compute transparent owner metrics from persisted audit data.
 
@@ -100,8 +121,24 @@ def get_dashboard_analytics(
     the median first outbound message after the first inbound message per
     conversation, which is robust to a few very slow conversations.
     """
+    _validate_reporting_range(start_date, end_date)
+
     with unit_of_work_factory() as unit_of_work:
-        cases = unit_of_work.cases.list_for_business(business_id)
+        business = unit_of_work.businesses.get(business_id)
+        if business is None:
+            raise ResourceNotFoundError("business_not_found", "Business was not found")
+        period_start, period_end = _analytics_period(business.stats_since, start_date, end_date)
+        # The staff list remains capped for a responsive UI, but an aggregate
+        # must never silently become "the most recent 200 cases".
+        all_cases = unit_of_work.cases.list_for_business(business_id, limit=None)
+        period_cases = tuple(
+            case for case in all_cases
+            if (period_start is None or case.created_at >= period_start)
+            and (period_end is None or case.created_at < period_end)
+        )
+        hidden_test_case_ids = {case.case_id for case in period_cases if case.is_test}
+        hidden_test_cases = len(hidden_test_case_ids)
+        cases = period_cases if include_test else tuple(case for case in period_cases if not case.is_test)
         total = len(cases)
         booked = sum(
             any(event.event_type == "BOOKING_CREATED" for event in case.event_history)
@@ -135,7 +172,14 @@ def get_dashboard_analytics(
                 if isinstance(outcome, str) and outcome in escalation_feedback:
                     escalation_feedback[outcome] += 1
         first_response_seconds: list[float] = []
-        for conversation in unit_of_work.conversations.list_for_business(business_id):
+        conversations = unit_of_work.conversations.list_for_business(business_id)
+        hidden_test_conversations = sum(
+            conversation.case_id in hidden_test_case_ids for conversation in conversations
+        )
+        included_case_ids = {case.case_id for case in cases}
+        for conversation in conversations:
+            if conversation.case_id not in included_case_ids:
+                continue
             messages = unit_of_work.conversation_messages.list_for_conversation(
                 business_id, conversation.conversation_id
             )
@@ -168,7 +212,73 @@ def get_dashboard_analytics(
         response_samples=len(first_response_seconds),
         escalation_reasons=escalation_reasons,
         escalation_feedback=escalation_feedback,
+        hidden_test_cases=hidden_test_cases,
+        hidden_test_conversations=hidden_test_conversations,
+        includes_test_data=include_test,
+        stats_since=business.stats_since,
+        period_start=period_start,
+        period_end=(period_end - timedelta(microseconds=1)) if period_end else None,
     )
+
+
+@router.get("/analytics/settings", response_model=ReportingSettingsSchema)
+def get_reporting_settings(
+    business_id: BusinessIdPath,
+    user: Annotated[StaffUser, Depends(require_own_business)],
+    unit_of_work_factory: Annotated[UnitOfWorkFactory, Depends(get_unit_of_work_factory)],
+) -> ReportingSettingsSchema:
+    with unit_of_work_factory() as unit_of_work:
+        business = unit_of_work.businesses.get(business_id)
+        if business is None:
+            raise ResourceNotFoundError("business_not_found", "Business was not found")
+        return ReportingSettingsSchema.from_domain(business)
+
+
+@router.patch("/analytics/settings", response_model=ReportingSettingsSchema)
+def update_reporting_settings(
+    business_id: BusinessIdPath,
+    request: ReportingSettingsUpdateRequest,
+    user: Annotated[StaffUser, Depends(require_own_business)],
+    unit_of_work_factory: Annotated[UnitOfWorkFactory, Depends(get_unit_of_work_factory)],
+) -> ReportingSettingsSchema:
+    """Change reporting boundaries only; cases, conversations and audit events remain intact."""
+    with unit_of_work_factory() as unit_of_work:
+        business = unit_of_work.businesses.update_reporting_settings(
+            business_id,
+            test_mode_enabled=request.test_mode_enabled,
+            stats_since=utc_now() if request.reset_statistics else None,
+            clear_stats_since=request.clear_statistics_baseline,
+        )
+        unit_of_work.commit()
+        return ReportingSettingsSchema.from_domain(business)
+
+
+def _analytics_period(
+    stats_since: datetime | None,
+    start_date: date | None,
+    end_date: date | None,
+) -> tuple[datetime | None, datetime | None]:
+    """Return an inclusive date UI range as [start, exclusive end) in UTC.
+
+    Business DNA does not currently own a reporting timezone. UTC gives the
+    same deterministic answer to every authenticated staff user; dates are
+    labelled accordingly in the UI rather than silently applying a browser's
+    local timezone.
+    """
+    if start_date is None:
+        return stats_since, None
+    assert end_date is not None
+    return (
+        datetime.combine(start_date, time.min, tzinfo=timezone.utc),
+        datetime.combine(end_date + timedelta(days=1), time.min, tzinfo=timezone.utc),
+    )
+
+
+def _validate_reporting_range(start_date: date | None, end_date: date | None) -> None:
+    if (start_date is None) != (end_date is None):
+        raise RequestDataError("start_date and end_date must be supplied together")
+    if start_date is not None and end_date is not None and end_date < start_date:
+        raise RequestDataError("end_date must not precede start_date")
 
 
 @router.get("/conversations", response_model=DashboardConversationListResponse)
