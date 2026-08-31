@@ -2,7 +2,8 @@
 
 This is a precise, minimal path to get the real app (not `localhost`) live on
 the internet. The backend already has everything it needs (`Dockerfile`,
-Alembic migrations run automatically on startup, a `/health` endpoint) — this
+Alembic migrations run automatically before each deploy, a `/health`
+endpoint) — this
 guide is mostly account setup and environment variables, most of which only
 you can do (creating accounts and entering secrets/payment isn't something
 Claude does on your behalf).
@@ -57,9 +58,13 @@ launch, only mentioned in case you already have a Render account.)
      with a wildcard (`*`) here, and refuses every browser request from an
      origin not explicitly listed — so this has to be exact.
    - `LOG_LEVEL` = `INFO` (optional, this is already the default)
-4. Deploy. Railway builds the Docker image, runs `alembic upgrade head`, then
-   starts the app (see the `Dockerfile` — this is automatic, nothing to run
-   by hand). Once it's live, Railway shows a public URL like
+4. Deploy. Railway builds the Docker image, runs `alembic upgrade head` once
+   as a pre-deploy step, then starts the app (see `railway.toml` — this is
+   automatic, nothing to run by hand). Migrations deliberately run there and
+   not inside the container's start command: as a pre-deploy step they run
+   exactly once per deployment, before anything serves traffic, so adding a
+   second replica later can't make several containers race to apply the same
+   migration. Once it's live, Railway shows a public URL like
    `https://your-service.up.railway.app` — note it, the frontend needs it.
 5. Generate a custom domain later from the service's **Settings → Networking**
    if you want `api.yourdomain.com` instead of the railway.app subdomain.
@@ -212,3 +217,12 @@ backend to more than one instance, it needs to be replaced with a shared
 limiter first (see the root `README.md`'s "What's still not wired" section).
 Not a blocker for launch, just don't turn on multiple replicas without
 revisiting this.
+
+This is now the **only** thing standing between here and a second replica.
+Migrations used to be the other one — they ran inside every container's start
+command, so N replicas raced to apply the same migration on boot. They now
+run once, as `preDeployCommand` in `railway.toml`. Two abuse-control notes
+about the limiter as it stands, both true today at one replica: its counters
+live in process memory, so every deploy resets them, and its budget is
+per-process, so with N replicas the effective limit on the public widget
+endpoint is N times what `PUBLIC_CHAT_RATE_LIMIT_REQUESTS` says.

@@ -39,6 +39,15 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -r requirements.txt
       - run: alembic upgrade head
+      # Catches schema drift: an ORM model that no longer matches what the
+      # migrations actually build. Nothing checked this before, and three
+      # such drifts (a unique index reflected as a constraint, a missing
+      # CheckConstraint, a redundant foreign key) reached main and had to be
+      # found by hand on 2026-08-31. `alembic check` compares Base.metadata
+      # against the freshly migrated database above and fails when they
+      # disagree -- migrations/env.py already wires target_metadata, so this
+      # needs no other setup.
+      - run: alembic check
       - run: python -m pytest -q
 
   frontend:

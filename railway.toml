@@ -1,12 +1,27 @@
-# Optional; Railway auto-detects the Dockerfile without this file. It exists
-# only to wire up the health check Railway uses to decide whether a deploy is
-# live before routing traffic to it, and a sane restart policy. See DEPLOY.md.
+# Railway auto-detects the Dockerfile without this file, but not the three
+# things below it cannot guess: when migrations run, the health check it uses
+# to decide whether a deploy is live before routing traffic to it, and a sane
+# restart policy. See DEPLOY.md.
 
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
+# Migrations run ONCE per deployment, after the build and before any
+# container starts serving. Previously the only place they ran was the
+# Dockerfile's start command, which meant every replica raced to apply the
+# same migration on boot; with restartPolicyMaxRetries = 3 below, a replica
+# that lost that race could fall out of the deploy. That made "never scale
+# past one replica" an unwritten rule holding the deploy together. It no
+# longer is. The start command still runs `alembic upgrade head` -- that is
+# the local-dev path (see the Dockerfile), and by the time a container starts
+# here there is nothing left to apply.
+#
+# Note for whoever reads this after 2026-12-01: Railway has deprecated Config
+# as Code. Existing railway.toml files keep working until that hard cutoff,
+# after which this belongs in .railway/railway.ts (Infrastructure as Code).
+preDeployCommand = ["alembic upgrade head"]
 healthcheckPath = "/health"
 healthcheckTimeout = 100
 restartPolicyType = "ON_FAILURE"
