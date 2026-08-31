@@ -151,24 +151,48 @@ export function formatRelativeTime(iso: string): string {
   return `${diffDays}d ago`;
 }
 
-export function Stepper({ stage, color = "#B87333" }: { stage: number; color?: string }) {
+/**
+ * Dots and their captions share ONE grid, so a caption always sits under its
+ * own dot. They used to be two independent rows -- fixed-width dots packed
+ * left, captions spread across the full width with justify-between -- which
+ * only looked aligned while the words were as short as "Trigger" and
+ * "Result". With the real deal stages ("Contacted", "Completed") the two rows
+ * visibly disagreed about which step was which.
+ *
+ * Pass `labels` on the detail panels; the list rows want the dots alone.
+ */
+export function Stepper({ stage, color = "#B87333", labels = false }: {
+  stage: number;
+  color?: string;
+  labels?: boolean;
+}) {
+  const columns = { gridTemplateColumns: `repeat(${STAGES.length}, minmax(0, 1fr))` };
   return (
-    <div className="flex items-center gap-1.5">
-      {STAGES.map((label, i) => (
-        <div key={label} className="flex items-center gap-1.5">
-          <div
-            className="w-2 h-2 rounded-full"
-            style={{
-              backgroundColor: i <= stage ? color : "#DEDBD2",
-              boxShadow: i === stage ? `0 0 0 3px ${color}22` : "none",
-            }}
-            title={label}
-          />
-          {i < STAGES.length - 1 && (
-            <div className="h-px w-4" style={{ backgroundColor: i < stage ? color : "#DEDBD2" }} />
-          )}
+    <div className="w-full">
+      <div className="grid items-center" style={columns}>
+        {STAGES.map((label, i) => (
+          <div key={label} className="flex items-center min-w-0">
+            <div
+              className="w-2 h-2 rounded-full shrink-0"
+              style={{
+                backgroundColor: i <= stage ? color : "#DEDBD2",
+                boxShadow: i === stage ? `0 0 0 3px ${color}22` : "none",
+              }}
+              title={label}
+            />
+            {i < STAGES.length - 1 && (
+              <div className="h-px flex-1 mx-1.5" style={{ backgroundColor: i < stage ? color : "#DEDBD2" }} />
+            )}
+          </div>
+        ))}
+      </div>
+      {labels && (
+        <div className="grid mt-1.5" style={columns}>
+          {STAGES.map((label) => (
+            <span key={label} className="text-[10px] leading-tight text-[#9C9488] break-words pr-1">{label}</span>
+          ))}
         </div>
-      ))}
+      )}
     </div>
   );
 }

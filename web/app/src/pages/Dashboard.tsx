@@ -5,7 +5,6 @@ import { Sidebar } from "../components/Sidebar";
 import { useAuth, describeError } from "../auth/AuthContext";
 import { api, type DashboardAnalytics, type DashboardCaseSummary } from "../api/client";
 import {
-  STAGES,
   STATE_META,
   Stepper,
   StatePill,
@@ -675,10 +674,7 @@ export default function Dashboard() {
                   <p className="text-sm text-[#6B6459] mb-4">{selected.event_count} event{selected.event_count === 1 ? "" : "s"} recorded</p>
                   <div className="mb-5">
                     <div className="text-xs font-medium text-[#9C9488] mb-2">Where this case is</div>
-                    <Stepper stage={selected.stage} color={STATE_META[selected.caseState].color} />
-                    <div className="flex justify-between mt-1.5">
-                      {STAGES.map((s) => <span key={s} className="text-[10px] text-[#9C9488]" style={{ width: 40 }}>{s}</span>)}
-                    </div>
+                    <Stepper stage={selected.stage} color={STATE_META[selected.caseState].color} labels />
                   </div>
                   <div className="rounded-xl p-3 mb-5" style={{ backgroundColor: "#FAFAF7" }}>
                     <p className="text-sm leading-relaxed">{selected.detail}</p>

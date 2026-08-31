@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Search, Send, Check, Phone, Mail, Loader2, AlertTriangle } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
-import { STAGES, StatePill, Stepper, mapProcessState, describeEvent, formatRelativeTime } from "../components/Shared";
+import { StatePill, Stepper, mapProcessState, describeEvent, formatRelativeTime } from "../components/Shared";
 import { useAuth, describeError } from "../auth/AuthContext";
 import {
   api,
@@ -421,10 +421,7 @@ export default function Conversation() {
             {stateInfo && (
               <div>
                 <div className="text-xs font-medium text-[#9C9488] mb-2">Where this case is</div>
-                <Stepper stage={stateInfo.stage} color="#B87333" />
-                <div className="flex justify-between mt-1.5">
-                  {STAGES.map((s) => <span key={s} className="text-[10px] text-[#9C9488]" style={{ width: 40 }}>{s}</span>)}
-                </div>
+                <Stepper stage={stateInfo.stage} color="#B87333" labels />
               </div>
             )}
             <div className="flex items-center gap-4 text-xs text-[#6B6459]">
