@@ -123,27 +123,33 @@ class SQLAlchemyBusinessRepository:
         return _business_from_row(row)
 
     def get_by_payment_customer_id(self, payment_customer_id: str) -> Business | None:
-        """Fallback lookup only (see BillingService._resolve_business_id --
-        webhook events resolve via custom_data.business_id first). Not
-        unique since migration 0009: the same Lemon Squeezy customer_id can
-        legitimately belong to more than one business (one email running
-        several businesses through this app) -- if more than one row
-        matches, this returns an arbitrary one of them, same as .scalar()
-        always has for a non-unique column."""
-        row = self.session.scalar(
-            select(BusinessRow).where(BusinessRow.payment_customer_id == payment_customer_id)
-        )
-        if row is None:
+        """Return an owner only when the fallback identity is unambiguous.
+
+        Lemon Squeezy reuses a customer ID when one person owns multiple
+        businesses.  Treating that non-unique value as an owner would let a
+        signed, but metadata-less, webhook update an arbitrary tenant.
+        """
+        rows = self.session.scalars(
+            select(BusinessRow)
+            .where(BusinessRow.payment_customer_id == payment_customer_id)
+            .limit(2)
+        ).all()
+        if len(rows) != 1:
             return None
-        return _business_from_row(row)
+        return _business_from_row(rows[0])
 
     def get_by_payment_subscription_id(self, payment_subscription_id: str) -> Business | None:
-        row = self.session.scalar(
-            select(BusinessRow).where(BusinessRow.payment_subscription_id == payment_subscription_id)
-        )
-        if row is None:
+        # Provider subscription IDs are expected to be unique, but the
+        # schema intentionally does not make a historical data anomaly a
+        # cross-tenant write.  Fail closed unless there is exactly one owner.
+        rows = self.session.scalars(
+            select(BusinessRow)
+            .where(BusinessRow.payment_subscription_id == payment_subscription_id)
+            .limit(2)
+        ).all()
+        if len(rows) != 1:
             return None
-        return _business_from_row(row)
+        return _business_from_row(rows[0])
 
     def list_all(self) -> tuple[Business, ...]:
         rows = self.session.scalars(select(BusinessRow).order_by(BusinessRow.id))

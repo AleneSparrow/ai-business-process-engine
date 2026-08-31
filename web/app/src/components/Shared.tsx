@@ -7,7 +7,20 @@ import type { ProcessState } from "../api/client";
  * kept pixel-for-pixel so Dashboard/Conversation/Settings still read as one product.
  */
 
-export const STAGES = ["Trigger", "Context", "Decision", "Action", "Result"];
+/**
+ * The five steps of the DEAL, in the owner's words -- this is what the
+ * "Where this case is" stepper shows.
+ *
+ * It used to read Trigger / Context / Decision / Action / Result. Those are
+ * the engine's five phases for processing ONE MESSAGE (arrived, understood,
+ * decided, replied, state written), which is a debugging view: every message
+ * walks all five, so the stepper told the owner nothing about the deal and
+ * the audit trail looked like the same four lines on a loop. The owner's
+ * question is never "which phase is this message in", it is "where is this
+ * deal". The indices below are unchanged -- mapProcessState already derived
+ * them from the CASE state, not from events, so only the words were wrong.
+ */
+export const STAGES = ["New", "Contacted", "Qualified", "Booked", "Completed"];
 
 export type CaseState = "NEW" | "QUALIFYING" | "NEEDS_HUMAN" | "BOOKED" | "LOST" | "COMPLETED";
 
@@ -97,19 +110,27 @@ export function mapProcessState(state: ProcessState): { caseState: CaseState; st
   }
 }
 
-/** event_type -> (STAGES label, human-readable summary) for the audit trail. */
+/**
+ * event_type -> (what kind of step it was, human-readable summary) for the
+ * audit trail.
+ *
+ * `stage` here is deliberately NOT the deal stage above -- it says what the
+ * engine DID on that line. It used to borrow the old Trigger/Context/
+ * Decision/Action/Result words, which made the audit trail read like
+ * engineering telemetry; these are the same distinctions in plain English.
+ */
 const EVENT_TYPE_META: Record<string, { stage: string; label: string }> = {
-  TRIGGER_RECEIVED: { stage: "Trigger", label: "Inbound message received" },
-  LEAD_INTAKE_RECEIVED: { stage: "Trigger", label: "Lead intake received" },
-  INTENT_EXTRACTED: { stage: "Context", label: "Customer intent understood" },
-  QUALIFICATION_EVALUATED: { stage: "Decision", label: "Qualification evaluated" },
-  DECISION_RECORDED: { stage: "Decision", label: "Decision recorded" },
-  CUSTOMER_RESPONSE_CREATED: { stage: "Action", label: "Reply sent to customer" },
-  STATE_CHANGED: { stage: "Result", label: "Case moved to a new stage" },
-  TRANSITION_REJECTED: { stage: "Result", label: "Transition rejected" },
-  DUPLICATE_IGNORED: { stage: "Result", label: "Duplicate message ignored" },
-  LEAD_QUALIFICATION_TRANSITION: { stage: "Decision", label: "Qualification stage updated" },
-  HUMAN_REPLY_SENT: { stage: "Action", label: "Staff replied to customer" },
+  TRIGGER_RECEIVED: { stage: "Received", label: "Inbound message received" },
+  LEAD_INTAKE_RECEIVED: { stage: "Received", label: "Lead intake received" },
+  INTENT_EXTRACTED: { stage: "Understood", label: "Customer intent understood" },
+  QUALIFICATION_EVALUATED: { stage: "Decided", label: "Qualification evaluated" },
+  DECISION_RECORDED: { stage: "Decided", label: "Decision recorded" },
+  CUSTOMER_RESPONSE_CREATED: { stage: "Replied", label: "Reply sent to customer" },
+  STATE_CHANGED: { stage: "Updated", label: "Case moved to a new stage" },
+  TRANSITION_REJECTED: { stage: "Updated", label: "Transition rejected" },
+  DUPLICATE_IGNORED: { stage: "Updated", label: "Duplicate message ignored" },
+  LEAD_QUALIFICATION_TRANSITION: { stage: "Decided", label: "Qualification stage updated" },
+  HUMAN_REPLY_SENT: { stage: "Replied", label: "Staff replied to customer" },
 };
 
 export function describeEvent(eventType: string): { stage: string; label: string } {

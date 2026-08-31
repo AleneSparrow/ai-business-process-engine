@@ -25,6 +25,7 @@ FastAPI startup:
 """
 
 import json
+import hashlib
 import logging
 from dataclasses import dataclass
 from datetime import datetime
@@ -303,7 +304,7 @@ class PersistentFollowUpRunner:
                 source="follow_up_runner",
                 payload={
                     "attempt_number": decision.attempt_number,
-                    "message_text": message_text,
+                    "message_fingerprint": hashlib.sha256(message_text.encode("utf-8")).hexdigest(),
                     "delivered": delivered,
                     "twilio_sid": twilio_sid,
                 },

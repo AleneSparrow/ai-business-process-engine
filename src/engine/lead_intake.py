@@ -2,6 +2,7 @@
 
 from dataclasses import replace
 from copy import deepcopy
+import hashlib
 import json
 import logging
 import re
@@ -201,11 +202,11 @@ class LeadIntakeService:
             occurred_at=message.timestamp,
             source=message.channel,
             payload={
-                "external_message_id": message.external_message_id,
-                "customer_name": message.customer_name,
-                "phone": message.phone,
-                "email": message.email,
-                "raw_text": message.raw_text,
+                # Conversation storage is access-controlled and keeps the
+                # original text when needed.  The process audit must instead
+                # prove that an intake happened without copying customer PII
+                # or free-form text into every event consumer and export.
+                "message_id_fingerprint": self._audit_fingerprint(message.external_message_id),
             },
         ))
         case.record(ProcessEvent(
@@ -216,13 +217,12 @@ class LeadIntakeService:
             payload={
                 "service_requested": intent.service_requested,
                 "urgency": intent.urgency.value,
-                "customer_location": intent.customer_location,
-                "preferred_time": intent.preferred_time,
-                "notes": intent.notes,
+                "location_provided": intent.customer_location is not None,
+                "preferred_time_provided": intent.preferred_time is not None,
                 "confidence": intent.confidence,
                 "requires_human": intent.requires_human,
                 "unintelligible": intent.unintelligible,
-                "qualification_answers": intent.qualification_answers,
+                "answered_question_ids": self._answer_ids(intent.qualification_answers),
                 "customer_tone": intent.customer_tone.value,
                 "ai": intent.ai_metadata,
             },
@@ -255,7 +255,7 @@ class LeadIntakeService:
                 source="lead_intake_service",
                 causation_id=intake_event_id,
                 payload={
-                    "message_text": response.message_text,
+                    "message_fingerprint": self._audit_fingerprint(response.message_text),
                     "channel": response.channel,
                     "reason": response.reason,
                     "requires_human": response.requires_human,
@@ -274,6 +274,20 @@ class LeadIntakeService:
         self._processed_messages[idempotency_key] = result
         self._message_fingerprints[idempotency_key] = self._fingerprint(message)
         return result
+
+    @staticmethod
+    def _audit_fingerprint(value: str) -> str:
+        """Stable evidence for an audit event without retaining text/PII."""
+        return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _answer_ids(value: Mapping[str, object] | tuple[object, ...] | list[object]) -> tuple[str, ...]:
+        if isinstance(value, Mapping):
+            return tuple(sorted(str(key) for key in value))
+        # Some AI adapters return a list of answer objects.  The audit needs
+        # only to show that answers existed, never their customer-provided
+        # values.
+        return tuple(str(index) for index, _ in enumerate(value))
 
     def _progress_case(
         self,
@@ -319,7 +333,10 @@ class LeadIntakeService:
                 "LEAD_QUALIFICATION_TRANSITION",
                 event_id=self._event_id(message, stage),
                 source="lead_intake_service",
-                payload={"target_state": target.value, "external_message_id": message.external_message_id},
+                payload={
+                    "target_state": target.value,
+                    "message_id_fingerprint": self._audit_fingerprint(message.external_message_id),
+                },
             ),
             DecisionRequest(decision_type, requested_target),
         )
@@ -813,4 +830,9 @@ class LeadIntakeService:
 
     @staticmethod
     def _event_id(message: IncomingMessage, stage: str) -> str:
-        return f"lead-intake:{message.business_id}:{message.channel}:{message.external_message_id}:{stage}"
+        # Event IDs are stored alongside audit payloads.  A public channel
+        # can supply an arbitrary external identifier, so do not copy it
+        # verbatim into audit history even though it remains in the scoped
+        # idempotency store where it is operationally necessary.
+        identifier = LeadIntakeService._audit_fingerprint(message.external_message_id)
+        return f"lead-intake:{message.business_id}:{message.channel}:{identifier}:{stage}"

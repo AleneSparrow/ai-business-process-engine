@@ -105,12 +105,13 @@ def test_concurrent_sweeps_on_same_case_send_exactly_once(pg_factory) -> None:
     with ThreadPoolExecutor(max_workers=2) as executor:
         outcomes = list(executor.map(lambda _: run_sweep(), range(2)))
 
-    # Exactly one thread actually claimed and sent; the other backed off
-    # (or, if it ran after the first had already finished updating the
-    # case, found the case no longer due) rather than sending a duplicate.
+    # Exactly one thread actually claimed and sent. The other either backs
+    # off, finds the case no longer due, or loses the optimistic case-version
+    # race after the first worker commits ("stale"). All four outcomes are
+    # safe: none may send a second SMS or create a second attempt.
     assert len(sms.send_calls) == 1
     assert outcomes.count("sent") == 1
-    assert set(outcomes) <= {"sent", "already_claimed", "no_longer_due"}
+    assert set(outcomes) <= {"sent", "already_claimed", "no_longer_due", "stale"}
 
     with pg_factory() as uow:
         case = uow.cases.get(business_id, case_id)

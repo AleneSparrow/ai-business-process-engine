@@ -15,6 +15,7 @@ same mechanism the engine already validates and audits, not a new one.
 
 from collections.abc import Callable
 from dataclasses import dataclass
+import hashlib
 from uuid import uuid4
 
 from src.domain.auth import StaffUser
@@ -98,7 +99,16 @@ class StaffActionService:
                         EventType.HUMAN_REPLY_SENT,
                         occurred_at=occurred_at,
                         source="staff_action",
-                        payload={"staff_user_id": staff_user.user_id, "message_preview": message_text[:200]},
+                        # The actual reply is retained in the scoped
+                        # conversation record.  The case audit proves a
+                        # reply was sent without duplicating possibly
+                        # customer-identifying free-form text.
+                        payload={
+                            "staff_user_id": staff_user.user_id,
+                            "message_fingerprint": hashlib.sha256(
+                                message_text.encode("utf-8")
+                            ).hexdigest(),
+                        },
                     ))
 
             unit_of_work.commit()

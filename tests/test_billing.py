@@ -392,6 +392,73 @@ def test_webhook_subscription_created_allows_shared_customer_id_across_businesse
     assert acme_labs.has_billing_access is True
 
 
+def test_metadata_less_webhook_uses_subscription_before_shared_customer_id(uow_factory) -> None:
+    """A shared customer ID is not a tenant key.
+
+    Lemon Squeezy's invoice/status webhooks may omit checkout custom_data.
+    Once two businesses share a customer, an update must use the known
+    subscription ID, never whichever customer row the database returns first.
+    """
+    _make_business(uow_factory, "acme-co")
+    _make_business(uow_factory, "acme-labs")
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+
+    for business_id, subscription_id in (("acme-co", "sub-acme-co"), ("acme-labs", "sub-acme-labs")):
+        payload = _subscription_event(
+            "subscription_created",
+            subscription_id=subscription_id,
+            customer_id="cus_shared",
+            variant_id=_VARIANT_STARTER,
+            status="active",
+            custom_data={"business_id": business_id, "plan": "starter"},
+        )
+        service.handle_webhook(payload, _sign(payload))
+
+    update = _subscription_event(
+        "subscription_updated",
+        subscription_id="sub-acme-labs",
+        customer_id="cus_shared",
+        variant_id=_VARIANT_PRO,
+        status="past_due",
+    )
+    service.handle_webhook(update, _sign(update))
+
+    assert service.get_status("acme-co").subscription_status == "active"
+    updated = service.get_status("acme-labs")
+    assert updated.subscription_status == "past_due"
+    assert updated.plan == "pro"
+
+
+def test_metadata_less_webhook_with_ambiguous_customer_is_a_noop(uow_factory) -> None:
+    """Without a subscription mapping, a shared customer has no safe owner."""
+    _make_business(uow_factory, "acme-co")
+    _make_business(uow_factory, "acme-labs")
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+
+    for business_id, subscription_id in (("acme-co", "sub-acme-co"), ("acme-labs", "sub-acme-labs")):
+        payload = _subscription_event(
+            "subscription_created",
+            subscription_id=subscription_id,
+            customer_id="cus_shared",
+            variant_id=_VARIANT_STARTER,
+            status="active",
+            custom_data={"business_id": business_id, "plan": "starter"},
+        )
+        service.handle_webhook(payload, _sign(payload))
+
+    unknown_subscription = _subscription_event(
+        "subscription_updated",
+        subscription_id="sub-unmapped",
+        customer_id="cus_shared",
+        variant_id=_VARIANT_PRO,
+        status="past_due",
+    )
+    service.handle_webhook(unknown_subscription, _sign(unknown_subscription))
+
+    assert service.get_status("acme-co").subscription_status == "active"
+    assert service.get_status("acme-labs").subscription_status == "active"
+
+
 def test_webhook_subscription_updated_sets_status_and_dates(uow_factory) -> None:
     _make_business(uow_factory)
     service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())

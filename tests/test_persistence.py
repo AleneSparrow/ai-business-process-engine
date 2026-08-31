@@ -297,6 +297,40 @@ def test_postgresql_compatible_intake_persists_and_is_idempotent(uow_factory) ->
         assert qualification_event.payload["business_dna_version"] == 1
 
 
+def test_intake_audit_proves_decisions_without_copying_customer_text_or_contact_pii(uow_factory) -> None:
+    seed_business(uow_factory)
+    raw_text = "My name is Ada Example; email ada.private@example.test and phone +1 312 555 0100"
+    intake = make_intake(uow_factory, {
+        "customer-message:ada.private@example.test": IntentResult(
+            service_requested="diagnostic-visit",
+            customer_location="60601",
+            notes=raw_text,
+            qualification_answers={"email": "ada.private@example.test"},
+            confidence=0.95,
+        ),
+    })
+    result = intake.receive(intake_message(
+        "customer-message:ada.private@example.test",
+        customer_name="Ada Example",
+        email="ada.private@example.test",
+        raw_text=raw_text,
+    ))
+
+    with uow_factory() as uow:
+        events = uow.events.list_for_case("acme-home-services", result.case_id)
+    # Domain payloads are immutable mapping proxies (and can contain nested
+    # mapping proxies in decision metadata); their representation is enough
+    # for this non-serialization privacy assertion.
+    serialized = "\n".join(
+        f"{event.event_id}\n{dict(event.payload)!r}" for event in events
+    )
+    for private_value in (raw_text, "Ada Example", "ada.private@example.test", "+1 312 555 0100"):
+        assert private_value not in serialized
+    intent_event = next(event for event in events if event.event_type == EventType.INTENT_EXTRACTED)
+    assert intent_event.payload["location_provided"] is True
+    assert intent_event.payload["answered_question_ids"] == ("email",)
+
+
 def test_test_mode_classifies_only_new_cases_and_survives_rehydration(uow_factory) -> None:
     now = utc_now()
     with uow_factory() as uow:

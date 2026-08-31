@@ -6,6 +6,7 @@ generator). No real Twilio call is ever made here: `FakeSmsService` below
 stands in for `SmsService`, recording calls instead of touching the network.
 """
 
+import hashlib
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -143,6 +144,10 @@ def test_send_one_sends_and_records_delivery_before_case_update(uow_factory) -> 
     assert len(sent_events) == 1
     assert sent_events[0].payload["delivered"] is True
     assert sent_events[0].payload["twilio_sid"] == attempt.twilio_sid
+    assert "message_text" not in sent_events[0].payload
+    assert sent_events[0].payload["message_fingerprint"] == hashlib.sha256(
+        sms.send_calls[0][2].encode("utf-8")
+    ).hexdigest()
 
 
 def test_run_sends_follow_up_for_due_case_via_full_sweep(uow_factory) -> None:

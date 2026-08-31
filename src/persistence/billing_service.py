@@ -267,12 +267,16 @@ class BillingService:
         business_id = custom_data.get("business_id")
         if business_id:
             return business_id
-        if customer_id is not None:
-            business = unit_of_work.businesses.get_by_payment_customer_id(str(customer_id))
-            if business is not None:
-                return business.business_id
+        # A subscription is the provider's tenant-specific identity.  A
+        # customer is not: the same owner/email can pay for multiple
+        # businesses.  Prefer the unambiguous subscription link, then use a
+        # customer only when its repository lookup proves it has one owner.
         if subscription_id is not None:
             business = unit_of_work.businesses.get_by_payment_subscription_id(str(subscription_id))
+            if business is not None:
+                return business.business_id
+        if customer_id is not None:
+            business = unit_of_work.businesses.get_by_payment_customer_id(str(customer_id))
             if business is not None:
                 return business.business_id
         return None

@@ -414,11 +414,9 @@ class PersistentLeadIntakeService:
             occurred_at=message.timestamp,
             source=message.channel,
             payload={
-                "external_message_id": message.external_message_id,
-                "customer_name": message.customer_name,
-                "phone": message.phone,
-                "email": message.email,
-                "raw_text": message.raw_text,
+                "message_id_fingerprint": LeadIntakeService._audit_fingerprint(
+                    message.external_message_id
+                ),
             },
         ))
         case.record(ProcessEvent(
@@ -429,13 +427,14 @@ class PersistentLeadIntakeService:
             payload={
                 "service_requested": intent.service_requested,
                 "urgency": intent.urgency.value,
-                "customer_location": intent.customer_location,
-                "preferred_time": intent.preferred_time,
-                "notes": intent.notes,
+                "location_provided": intent.customer_location is not None,
+                "preferred_time_provided": intent.preferred_time is not None,
                 "confidence": intent.confidence,
                 "requires_human": intent.requires_human,
                 "unintelligible": intent.unintelligible,
-                "qualification_answers": intent.qualification_answers,
+                "answered_question_ids": LeadIntakeService._answer_ids(
+                    intent.qualification_answers
+                ),
                 "customer_tone": intent.customer_tone.value,
                 "ai": intent.ai_metadata,
             },
@@ -468,7 +467,7 @@ class PersistentLeadIntakeService:
             source="lead_intake_service",
             causation_id=LeadIntakeService._event_id(message, "intake"),
             payload={
-                "message_text": response.message_text,
+                "message_fingerprint": LeadIntakeService._audit_fingerprint(response.message_text),
                 "channel": response.channel,
                 "reason": response.reason,
                 "requires_human": response.requires_human,
