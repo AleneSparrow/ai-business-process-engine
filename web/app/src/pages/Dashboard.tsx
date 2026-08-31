@@ -497,8 +497,13 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,300px)_minmax(0,1fr)]">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 lg:content-start">
+            {/* min-[880px] rather than lg (1024). The breakpoint is measured
+                against the WINDOW, but this band lives inside main, which the
+                313px sidebar has already narrowed -- on a real 901px window
+                the split never engaged and everything stacked. 880 is where
+                260 + a two-up metrics grid still has room to breathe. */}
+            <div className="grid gap-3 min-[880px]:grid-cols-[minmax(0,260px)_minmax(0,1fr)]">
+              <div className="grid gap-3 sm:grid-cols-2 min-[880px]:grid-cols-1 min-[880px]:content-start">
                 <StatCard
                   label="Needs your attention"
                   value={counts.needsHuman}
@@ -516,7 +521,7 @@ export default function Dashboard() {
                 />
               </div>
 
-              <div className="grid gap-2 grid-cols-2 xl:grid-cols-3">
+              <div className="grid gap-2 grid-cols-2 min-[1200px]:grid-cols-3">
                 <StatCard compact label="Qualifying now" value={counts.qualifying} sub="active leads" tone="#B87333" onClick={() => { setFilter("QUALIFYING"); setReasonFilter(null); setFollowUpOnly(false); }} />
                 <StatCard compact label="Booked" value={counts.booked} sub="active cases" tone="#1E7B52" onClick={() => { setFilter("BOOKED"); setReasonFilter(null); setFollowUpOnly(false); }} />
                 {/* Deliberately not clickable, unlike "Booked" above: this
