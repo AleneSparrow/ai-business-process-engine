@@ -17,6 +17,21 @@ import {
 const FILTERS: (CaseState | "ALL")[] = ["ALL", "NEEDS_HUMAN", "QUALIFYING", "BOOKED", "LOST", "COMPLETED"];
 
 /**
+ * Sorting, back after being cut. What was wrong before was the CONTROL, not
+ * the capability: a select plus a direction button plus a text label, three
+ * widgets for one choice, and its default (date) buried safety messages
+ * under whatever arrived later. One select now, urgency as the default.
+ */
+type SortKey = "urgency" | "newest" | "oldest" | "name";
+
+const SORT_LABELS: Record<SortKey, string> = {
+  urgency: "Most urgent first",
+  newest: "Newest first",
+  oldest: "Oldest first",
+  name: "Name A–Z",
+};
+
+/**
  * How loudly a lead is asking for a person, lowest first. This replaced a
  * date/name sort control: sorting by name is not a thing anyone needs from a
  * work queue, and plain recency buried a safety message under whatever
@@ -217,6 +232,7 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<CaseState | "ALL">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<SortKey>("urgency");
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [resettingStats, setResettingStats] = useState(false);
   const [resetError, setResetError] = useState<string | null>(null);
@@ -294,12 +310,24 @@ export default function Dashboard() {
       if (lead.followUpDue) return 6;
       return 10;
     };
+    const newestFirst = (left: typeof visible[number], right: typeof visible[number]) =>
+      new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
     return visible.sort((left, right) => {
+      if (sortBy === "newest") return newestFirst(left, right);
+      if (sortBy === "oldest") return -newestFirst(left, right);
+      if (sortBy === "name") {
+        const leftName = left.lead.name;
+        const rightName = right.lead.name;
+        if (!leftName && !rightName) return 0;
+        if (!leftName) return 1;
+        if (!rightName) return -1;
+        return leftName.localeCompare(rightName, "en", { sensitivity: "base" });
+      }
       const byUrgency = priority(left) - priority(right);
       if (byUrgency !== 0) return byUrgency;
-      return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+      return newestFirst(left, right);
     });
-  }, [decorated, filter, followUpOnly, reasonFilter, searchQuery]);
+  }, [decorated, filter, followUpOnly, reasonFilter, searchQuery, sortBy]);
 
   const selected = useMemo(
     () => decorated.find((c) => c.case_id === selectedId) ?? decorated[0] ?? null,
@@ -521,7 +549,15 @@ export default function Dashboard() {
                 />
               </div>
 
-              <div className="grid gap-2 grid-cols-2 min-[1024px]:grid-cols-3">
+              {/* Pairs must stay pairs. Row-major across three columns split
+                    "Booking rate" and "Lost rate" -- the two outcome rates --
+                    onto different rows and left Lost rate opening row two on
+                    the far left, reading as if it belonged to the action
+                    column. grid-flow-col with two fixed rows fills column by
+                    column instead, so each column is one pair: volume,
+                    outcome rates, engine health. Below 1024 the plain
+                    two-column row-major order gives the same pairs. */}
+              <div className="grid gap-2 grid-cols-2 min-[1024px]:grid-cols-3 min-[1024px]:grid-rows-2 min-[1024px]:grid-flow-col">
                 <StatCard compact label="Qualifying now" value={counts.qualifying} sub="active leads" tone="#B87333" onClick={() => { setFilter("QUALIFYING"); setReasonFilter(null); setFollowUpOnly(false); }} />
                 <StatCard compact label="Booked" value={counts.booked} sub="active cases" tone="#1E7B52" onClick={() => { setFilter("BOOKED"); setReasonFilter(null); setFollowUpOnly(false); }} />
                 {/* Deliberately not clickable, unlike "Booked" above: this
@@ -585,7 +621,19 @@ export default function Dashboard() {
                       {s === "ALL" ? `All (${filterCount(s)})` : `${STATE_META[s].label} (${filterCount(s)})`}
                     </button>
                   ))}
-                  <span className="ml-auto text-[11px] text-[#9C9488] whitespace-nowrap">Most urgent first</span>
+                  <label className="ml-auto flex items-center gap-1.5 text-[11px] text-[#9C9488] whitespace-nowrap">
+                    Sort
+                    <select
+                      aria-label="Sort leads"
+                      value={sortBy}
+                      onChange={(event) => setSortBy(event.target.value as SortKey)}
+                      className="bg-white border border-[#E7E5DE] rounded-lg px-2 py-1 text-[11px] text-[#151515] outline-none focus:border-[#B87333]"
+                    >
+                      {(Object.keys(SORT_LABELS) as SortKey[]).map((key) => (
+                        <option key={key} value={key}>{SORT_LABELS[key]}</option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
                 {/* What the "Review queue" card used to be, in one line.
                     That card was a third copy of this list's own filters: it
