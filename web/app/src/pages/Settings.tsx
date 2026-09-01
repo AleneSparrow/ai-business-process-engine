@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Globe, Loader2, MapPin, MessageSquare, Plus, RotateCcw, X } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { AreaOption, Field, formatRelativeTime, inputCls, ToneOption } from "../components/Shared";
+import { AccountSecurityPanel } from "../components/AccountSecurityPanel";
 import { useAuth, describeError } from "../auth/AuthContext";
 import { API_BASE, api, type BusinessDNASettings, type CommercialPath, type ReportingSettings, type SmsStatus } from "../api/client";
 
@@ -18,8 +19,12 @@ const SETTINGS_TABS = [
   { key: "basics", label: "Basics" },
   { key: "services", label: "Services & booking" },
   { key: "conversation", label: "Conversation" },
-  { key: "reporting", label: "Reporting" },
+  // The key stays "reporting" so existing ?tab=reporting links keep working;
+  // only what the owner reads changes. The tab holds actions on the numbers,
+  // and "Statistics" says that where "Reporting" did not.
+  { key: "reporting", label: "Statistics" },
   { key: "sms", label: "SMS" },
+  { key: "security", label: "Security" },
 ] as const;
 
 const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
@@ -605,6 +610,55 @@ export default function Settings() {
                       </a>
                     </div>
                   </div>
+
+                  {/* Lives here, not on the Statistics tab, because this is
+                      the screen you are on when you test the widget and the
+                      screen you come back to when you are ready to go live.
+                      Nobody installing a widget opens a statistics tab. */}
+                  <div className="rounded-2xl border p-5 mt-5" style={{ borderColor: "#E7E5DE" }}>
+                    <h2 className="text-base font-semibold">Test mode</h2>
+                    <p className="text-sm text-[#6B6459] mt-1 leading-relaxed">
+                      Keep this on while you test your widget. New conversations stay fully visible in your audit trail, but do not affect your statistics until you go live.
+                    </p>
+                    <label className="flex items-start gap-3 mt-5 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={reporting?.test_mode_enabled ?? false}
+                        disabled={!reporting || reportingSaving}
+                        onChange={(event) => updateReporting({ test_mode_enabled: event.target.checked })}
+                        className="mt-0.5 accent-[#B87333]"
+                      />
+                      <span>
+                        {/* The label used to read "Test mode is on" as a fixed
+                            string beside a checkbox bound to the real state.
+                            With the mode off, the screen said it was on. On
+                            the switch that decides whether a firm's real
+                            customer conversations count, that is not a
+                            wording nit. */}
+                        <span className="block text-sm font-medium">Test mode</span>
+                        <span className="block text-xs text-[#6B6459] mt-0.5">
+                          {reporting?.test_mode_enabled
+                            ? "On — new conversations stay out of your statistics. Turn it off when you are ready for real customers to count."
+                            : "Off — new conversations count towards your statistics."}
+                        </span>
+                      </span>
+                    </label>
+                    {reporting?.test_mode_enabled && (
+                      <button
+                        onClick={() => updateReporting({ test_mode_enabled: false })}
+                        disabled={reportingSaving}
+                        className="mt-4 text-sm font-medium text-white px-4 py-2.5 rounded-lg disabled:opacity-50"
+                        style={{ backgroundColor: "#151515" }}
+                      >
+                        Go live
+                      </button>
+                    )}
+                    {reportingError && (
+                      <div className="mt-4 px-4 py-3 rounded-lg text-sm" style={{ backgroundColor: "#FBEBE9", color: "#8A3225" }}>
+                        {reportingError}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -944,37 +998,26 @@ export default function Settings() {
 
               {tab === "reporting" && (
                 <div>
-                  <div className="rounded-2xl border p-5" style={{ borderColor: "#E7E5DE" }}>
-                    <h2 className="text-base font-semibold">Test mode</h2>
-                    <p className="text-sm text-[#6B6459] mt-1 leading-relaxed">
-                      Keep this on while you test your widget. New conversations stay fully visible in your audit trail, but do not affect reporting until you go live.
-                    </p>
-                    <label className="flex items-start gap-3 mt-5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={reporting?.test_mode_enabled ?? false}
-                        disabled={!reporting || reportingSaving}
-                        onChange={(event) => updateReporting({ test_mode_enabled: event.target.checked })}
-                        className="mt-0.5 accent-[#B87333]"
-                      />
-                      <span>
-                        <span className="block text-sm font-medium">Test mode is on</span>
-                        <span className="block text-xs text-[#6B6459] mt-0.5">Turn it off when you are ready for new customer conversations to count.</span>
-                      </span>
-                    </label>
-                    {reporting?.test_mode_enabled && (
+                  {/* Test mode moved to Install widget: you touch it while
+                      putting the widget on your site and again when going
+                      live, and both of those are that tab. What stays here is
+                      a read-only line, because Statistics is where you notice
+                      the numbers are empty and come looking for why. */}
+                  {reporting?.test_mode_enabled && (
+                    <div className="rounded-2xl border p-4 mb-5 flex flex-wrap items-center gap-x-3 gap-y-1" style={{ borderColor: "#E8CFAF", backgroundColor: "#FFF8EE" }}>
+                      <span className="text-sm font-medium text-[#8A561B]">Test mode is on.</span>
+                      <span className="text-sm text-[#6B6459]">New conversations are not counted here.</span>
                       <button
-                        onClick={() => updateReporting({ test_mode_enabled: false })}
-                        disabled={reportingSaving}
-                        className="mt-4 text-sm font-medium text-white px-4 py-2.5 rounded-lg disabled:opacity-50"
-                        style={{ backgroundColor: "#151515" }}
+                        type="button"
+                        onClick={() => setTab("widget")}
+                        className="text-sm font-medium text-[#151515] underline"
                       >
-                        Go live
+                        Change it in Install widget
                       </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
-                  <div className="rounded-2xl border p-5 mt-5" style={{ borderColor: "#E7E5DE" }}>
+                  <div className="rounded-2xl border p-5" style={{ borderColor: "#E7E5DE" }}>
                     <h2 className="text-base font-semibold">Statistics baseline</h2>
                     <p className="text-sm text-[#6B6459] mt-1 leading-relaxed">
                       Resetting starts dashboard metrics from now. It never deletes conversations, cases, or audit events, and you can restore the full history at any time.
@@ -1063,6 +1106,7 @@ export default function Settings() {
                   )}
                 </div>
               )}
+              {tab === "security" && token && <AccountSecurityPanel token={token} />}
             </div>
 
             {dirty && (
