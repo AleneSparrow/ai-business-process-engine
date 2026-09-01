@@ -301,14 +301,84 @@ class FollowUpDeliveryRepository(Protocol):
 class StaffUserRepository(Protocol):
     def add(self, user: StaffUser) -> None: ...
     def get(self, user_id: str) -> StaffUser | None: ...
-    def get_by_email(self, normalized_email: str) -> StaffUser | None: ...
+    def get_by_email(self, normalized_email: str, *, for_update: bool = False) -> StaffUser | None: ...
     def save(self, user: StaffUser) -> None: ...
 
 
 class StaffSessionRepository(Protocol):
     def add(self, session: StaffSession) -> None: ...
+    def get(self, session_id: str) -> StaffSession | None: ...
     def get_by_token_hash(self, token_hash: str) -> StaffSession | None: ...
+    def list_for_user(self, user_id: str) -> tuple[StaffSession, ...]: ...
     def revoke(self, session_id: str, revoked_at: datetime) -> None: ...
+    def revoke_all_for_user(self, user_id: str, revoked_at: datetime, *, except_session_id: str | None = None) -> int: ...
+
+
+@dataclass(frozen=True, slots=True)
+class SecurityCredentials:
+    user_id: str
+    totp_secret_encrypted: str | None
+    pending_totp_secret_encrypted: str | None
+    pending_expires_at: datetime | None
+    two_factor_enabled_at: datetime | None
+    updated_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class PasswordResetRecord:
+    reset_id: str
+    user_id: str
+    token_hash: str
+    created_at: datetime
+    expires_at: datetime
+    used_at: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
+class LoginChallenge:
+    challenge_id: str
+    user_id: str
+    token_hash: str
+    created_at: datetime
+    expires_at: datetime
+    consumed_at: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
+class RecoveryCode:
+    recovery_code_id: str
+    user_id: str
+    code_hash: str
+    created_at: datetime
+    used_at: datetime | None
+
+
+@dataclass(frozen=True, slots=True)
+class SecurityAuditEvent:
+    event_id: str
+    user_id: str
+    event_type: str
+    created_at: datetime
+    metadata: Mapping[str, Any]
+
+
+class StaffSecurityRepository(Protocol):
+    def get_credentials(self, user_id: str, *, for_update: bool = False) -> SecurityCredentials | None: ...
+    def save_credentials(self, value: SecurityCredentials) -> None: ...
+    def add_reset(self, value: PasswordResetRecord) -> None: ...
+    def get_reset_by_hash(self, token_hash: str, *, for_update: bool = False) -> PasswordResetRecord | None: ...
+    def invalidate_resets(self, user_id: str, now: datetime) -> None: ...
+    def mark_reset_used(self, reset_id: str, now: datetime) -> None: ...
+    def add_login_challenge(self, value: LoginChallenge) -> None: ...
+    def get_login_challenge_by_hash(self, token_hash: str, *, for_update: bool = False) -> LoginChallenge | None: ...
+    def consume_login_challenge(self, challenge_id: str, now: datetime) -> None: ...
+    def invalidate_login_challenges(self, user_id: str, now: datetime) -> None: ...
+    def replace_recovery_codes(self, user_id: str, values: tuple[RecoveryCode, ...]) -> None: ...
+    def get_recovery_code(self, user_id: str, code_hash: str, *, for_update: bool = False) -> RecoveryCode | None: ...
+    def use_recovery_code(self, recovery_code_id: str, now: datetime) -> None: ...
+    def list_recovery_codes(self, user_id: str) -> tuple[RecoveryCode, ...]: ...
+    def add_audit_event(self, value: SecurityAuditEvent) -> None: ...
+    def list_audit_events(self, user_id: str, *, limit: int = 100) -> tuple[SecurityAuditEvent, ...]: ...
 
 
 class UnitOfWork(Protocol):
@@ -325,6 +395,7 @@ class UnitOfWork(Protocol):
     payment_requests: PaymentRequestRepository
     staff_users: StaffUserRepository
     staff_sessions: StaffSessionRepository
+    staff_security: StaffSecurityRepository
     crm_webhook_connections: CrmWebhookConnectionRepository
     sms_connections: SmsConnectionRepository
     billing_webhook_events: BillingWebhookEventRepository

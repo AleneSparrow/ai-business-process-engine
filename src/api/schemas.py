@@ -447,7 +447,7 @@ def _validate_email_shape(value: str) -> str:
 
 class SignupRequest(ApiModel):
     email: Annotated[str, Field(min_length=3, max_length=320)]
-    password: Annotated[str, Field(min_length=8, max_length=128)]
+    password: Annotated[str, Field(min_length=12, max_length=128)]
 
     @field_validator("email")
     @classmethod
@@ -479,6 +479,74 @@ class SessionResponse(ApiModel):
     token: str
     expires_in_hours: int
     user: StaffUserResponse
+
+
+class TwoFactorLoginChallengeResponse(ApiModel):
+    two_factor_required: bool = True
+    challenge_token: str
+    expires_in_minutes: int
+
+
+class ForgotPasswordRequest(ApiModel):
+    email: Annotated[str, Field(min_length=3, max_length=320)]
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        return _validate_email_shape(value)
+
+
+class ResetPasswordRequest(ApiModel):
+    token: Annotated[str, Field(min_length=20, max_length=256)]
+    password: Annotated[str, Field(min_length=12, max_length=128)]
+
+
+class ChangePasswordRequest(ApiModel):
+    current_password: Annotated[str, Field(min_length=1, max_length=128)]
+    new_password: Annotated[str, Field(min_length=12, max_length=128)]
+
+
+class CurrentPasswordRequest(ApiModel):
+    current_password: Annotated[str, Field(min_length=1, max_length=128)]
+
+
+class TwoFactorCodeRequest(ApiModel):
+    code: Annotated[str, Field(min_length=4, max_length=32)]
+
+
+class PasswordAndTwoFactorRequest(ApiModel):
+    current_password: Annotated[str, Field(min_length=1, max_length=128)]
+    code: Annotated[str, Field(min_length=4, max_length=32)]
+
+
+class TwoFactorSetupResponse(ApiModel):
+    secret: str
+    provisioning_uri: str
+    expires_in_minutes: int
+
+
+class RecoveryCodesResponse(ApiModel):
+    codes: list[str]
+
+
+class SecurityStatusResponse(ApiModel):
+    two_factor_enabled: bool
+    recovery_codes_remaining: int
+
+
+class SecuritySessionResponse(ApiModel):
+    session_id: str
+    created_at: datetime
+    expires_at: datetime
+    revoked_at: datetime | None
+    current: bool
+
+
+class SecurityAuditEventResponse(ApiModel):
+    event_id: str
+    event_type: str
+    created_at: datetime
+    metadata: dict[str, object]
 
 
 # --- Self-serve business onboarding -------------------------------------------------------

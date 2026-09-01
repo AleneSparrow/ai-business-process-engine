@@ -56,6 +56,20 @@ class Settings:
     # who finds the URL. None (the default) means the endpoint is disabled
     # entirely, not "open" -- see that route for the check.
     internal_task_secret: str | None = field(default=None, repr=False)
+    # Required only when the owner enables authenticator-app 2FA. It has no
+    # development default: an operator must provide high-entropy key material
+    # before the server may retain an encrypted TOTP seed.
+    account_security_encryption_key: str | None = field(default=None, repr=False)
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = field(default=None, repr=False)
+    smtp_password: str | None = field(default=None, repr=False)
+    smtp_from_email: str | None = None
+    smtp_use_tls: bool = True
+
+    @property
+    def smtp_configured(self) -> bool:
+        return all((self.smtp_host, self.smtp_username, self.smtp_password, self.smtp_from_email))
 
     @property
     def sms_configured(self) -> bool:
@@ -136,6 +150,10 @@ class Settings:
                     "TWILIO_ACCOUNT_SID is set, so SMS delivery is enabled -- also required: "
                     + ", ".join(sms_missing)
                 )
+        if any((self.smtp_host, self.smtp_username, self.smtp_password, self.smtp_from_email)) and not self.smtp_configured:
+            raise ValueError("SMTP reset delivery requires SMTP_HOST, SMTP_USERNAME, SMTP_PASSWORD, and SMTP_FROM_EMAIL")
+        if not 1 <= self.smtp_port <= 65535:
+            raise ValueError("SMTP_PORT must be between 1 and 65535")
 
     @classmethod
     def from_environment(cls) -> "Settings":
@@ -159,6 +177,7 @@ class Settings:
             token_ttl = int(os.getenv("PUBLIC_CONVERSATION_TOKEN_TTL_HOURS", "720"))
             message_max = int(os.getenv("PUBLIC_CHAT_MESSAGE_MAX_CHARS", "2000"))
             billing_trial_days = int(os.getenv("BILLING_TRIAL_DAYS", "7"))
+            smtp_port = int(os.getenv("SMTP_PORT", "587"))
         except ValueError as exc:
             raise RuntimeError("numeric application settings contain an invalid value") from exc
         origins = tuple(
@@ -199,6 +218,10 @@ class Settings:
                     public_api_base_url.rstrip("/") if public_api_base_url else None
                 ),
                 internal_task_secret=os.getenv("INTERNAL_TASK_SECRET"),
+                account_security_encryption_key=os.getenv("ACCOUNT_SECURITY_ENCRYPTION_KEY"),
+                smtp_host=os.getenv("SMTP_HOST"), smtp_port=smtp_port,
+                smtp_username=os.getenv("SMTP_USERNAME"), smtp_password=os.getenv("SMTP_PASSWORD"),
+                smtp_from_email=os.getenv("SMTP_FROM_EMAIL"), smtp_use_tls=os.getenv("SMTP_USE_TLS", "true").strip().lower() in {"1", "true", "yes"},
             )
         except ValueError as exc:
             raise RuntimeError(str(exc)) from exc

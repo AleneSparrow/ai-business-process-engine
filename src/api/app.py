@@ -20,6 +20,11 @@ from src.engine.reassurance_response_generator import (
     UniversalReassuranceResponseGenerator,
 )
 from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork, create_database_engine
+from src.persistence.password_reset_email import (
+    DisabledPasswordResetEmailSender,
+    InMemoryPasswordResetEmailSender,
+    SmtpPasswordResetEmailSender,
+)
 
 from .dependencies import ApplicationContainer
 from .errors import install_error_handlers
@@ -141,6 +146,18 @@ def create_app(
             public_chat_rate_limiter=InMemorySlidingWindowRateLimiter(
                 runtime_settings.public_chat_rate_limit_requests,
                 runtime_settings.public_chat_rate_limit_window_seconds,
+            ),
+            account_security_rate_limiter=InMemorySlidingWindowRateLimiter(5, 900),
+            # Development/test never deliver real account-recovery mail. The
+            # in-memory outbox is intentionally not an HTTP endpoint.
+            password_reset_email_sender=(
+                InMemoryPasswordResetEmailSender()
+                if runtime_settings.app_env.casefold() in {"development", "test"}
+                else SmtpPasswordResetEmailSender(
+                    host=runtime_settings.smtp_host or "", port=runtime_settings.smtp_port,
+                    username=runtime_settings.smtp_username or "", password=runtime_settings.smtp_password or "",
+                    from_email=runtime_settings.smtp_from_email or "", use_tls=runtime_settings.smtp_use_tls,
+                ) if runtime_settings.smtp_configured else DisabledPasswordResetEmailSender()
             ),
         )
         log_event(

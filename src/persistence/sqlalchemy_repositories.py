@@ -4,7 +4,7 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Sequence
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert as postgresql_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
@@ -40,6 +40,10 @@ from .errors import (
     StaleQuoteError,
 )
 from .repositories import ClaimStatus, DeliveryStatus, FollowUpDeliveryAttempt, IdempotencyRecord
+from .repositories import (
+    LoginChallenge, PasswordResetRecord, RecoveryCode, SecurityAuditEvent,
+    SecurityCredentials,
+)
 from .sqlalchemy_models import (
     BillingWebhookEventRow,
     BusinessDNARow,
@@ -58,6 +62,11 @@ from .sqlalchemy_models import (
     QuoteLineRow,
     QuoteRow,
     StaffSessionRow,
+    StaffSecurityCredentialRow,
+    StaffPasswordResetRow,
+    StaffLoginChallengeRow,
+    StaffRecoveryCodeRow,
+    StaffSecurityAuditEventRow,
     BusinessMembershipRow,
     StaffUserRow,
 )
@@ -501,10 +510,11 @@ class SQLAlchemyStaffUserRepository:
         row = self.session.get(StaffUserRow, user_id)
         return self._to_domain(row) if row else None
 
-    def get_by_email(self, normalized_email: str) -> StaffUser | None:
-        row = self.session.scalar(
-            select(StaffUserRow).where(StaffUserRow.normalized_email == normalized_email)
-        )
+    def get_by_email(self, normalized_email: str, *, for_update: bool = False) -> StaffUser | None:
+        statement = select(StaffUserRow).where(StaffUserRow.normalized_email == normalized_email)
+        if for_update:
+            statement = statement.with_for_update()
+        row = self.session.scalar(statement)
         return self._to_domain(row) if row else None
 
     def save(self, user: StaffUser) -> None:
@@ -570,11 +580,33 @@ class SQLAlchemyStaffSessionRepository:
         )
         return self._to_domain(row) if row else None
 
+    def get(self, session_id: str) -> StaffSession | None:
+        row = self.session.get(StaffSessionRow, session_id)
+        return self._to_domain(row) if row else None
+
+    def list_for_user(self, user_id: str) -> tuple[StaffSession, ...]:
+        rows = self.session.scalars(
+            select(StaffSessionRow).where(StaffSessionRow.user_id == user_id).order_by(StaffSessionRow.created_at.desc())
+        )
+        return tuple(self._to_domain(row) for row in rows)
+
     def revoke(self, session_id: str, revoked_at: datetime) -> None:
         row = self.session.get(StaffSessionRow, session_id)
         if row is None:
             raise KeyError(f"unknown session_id: {session_id}")
         row.revoked_at = revoked_at
+
+    def revoke_all_for_user(
+        self, user_id: str, revoked_at: datetime, *, except_session_id: str | None = None
+    ) -> int:
+        statement = update(StaffSessionRow).where(
+            StaffSessionRow.user_id == user_id,
+            StaffSessionRow.revoked_at.is_(None),
+        )
+        if except_session_id is not None:
+            statement = statement.where(StaffSessionRow.id != except_session_id)
+        result = self.session.execute(statement.values(revoked_at=revoked_at))
+        return result.rowcount or 0
 
     @staticmethod
     def _to_domain(row: StaffSessionRow) -> StaffSession:
@@ -582,6 +614,137 @@ class SQLAlchemyStaffSessionRepository:
             row.id, row.user_id, row.token_hash, _aware(row.created_at), _aware(row.expires_at),
             _aware(row.revoked_at) if row.revoked_at is not None else None,
         )
+
+
+class SQLAlchemyStaffSecurityRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def get_credentials(self, user_id: str, *, for_update: bool = False) -> SecurityCredentials | None:
+        statement = select(StaffSecurityCredentialRow).where(StaffSecurityCredentialRow.user_id == user_id)
+        if for_update:
+            statement = statement.with_for_update()
+        row = self.session.scalar(statement)
+        return self._credentials(row) if row else None
+
+    def save_credentials(self, value: SecurityCredentials) -> None:
+        row = self.session.get(StaffSecurityCredentialRow, value.user_id)
+        if row is None:
+            self.session.add(StaffSecurityCredentialRow(
+                user_id=value.user_id, totp_secret_encrypted=value.totp_secret_encrypted,
+                pending_totp_secret_encrypted=value.pending_totp_secret_encrypted,
+                pending_expires_at=value.pending_expires_at, two_factor_enabled_at=value.two_factor_enabled_at,
+                updated_at=value.updated_at,
+            ))
+            return
+        row.totp_secret_encrypted = value.totp_secret_encrypted
+        row.pending_totp_secret_encrypted = value.pending_totp_secret_encrypted
+        row.pending_expires_at = value.pending_expires_at
+        row.two_factor_enabled_at = value.two_factor_enabled_at
+        row.updated_at = value.updated_at
+
+    def add_reset(self, value: PasswordResetRecord) -> None:
+        self.session.add(StaffPasswordResetRow(
+            id=value.reset_id, user_id=value.user_id, token_hash=value.token_hash,
+            created_at=value.created_at, expires_at=value.expires_at, used_at=value.used_at,
+        ))
+
+    def get_reset_by_hash(self, token_hash: str, *, for_update: bool = False) -> PasswordResetRecord | None:
+        statement = select(StaffPasswordResetRow).where(StaffPasswordResetRow.token_hash == token_hash)
+        if for_update:
+            statement = statement.with_for_update()
+        row = self.session.scalar(statement)
+        return self._reset(row) if row else None
+
+    def invalidate_resets(self, user_id: str, now: datetime) -> None:
+        self.session.execute(update(StaffPasswordResetRow).where(
+            StaffPasswordResetRow.user_id == user_id, StaffPasswordResetRow.used_at.is_(None)
+        ).values(used_at=now))
+
+    def mark_reset_used(self, reset_id: str, now: datetime) -> None:
+        self.session.execute(update(StaffPasswordResetRow).where(
+            StaffPasswordResetRow.id == reset_id, StaffPasswordResetRow.used_at.is_(None)
+        ).values(used_at=now))
+
+    def add_login_challenge(self, value: LoginChallenge) -> None:
+        self.session.add(StaffLoginChallengeRow(
+            id=value.challenge_id, user_id=value.user_id, token_hash=value.token_hash,
+            created_at=value.created_at, expires_at=value.expires_at, consumed_at=value.consumed_at,
+        ))
+
+    def get_login_challenge_by_hash(self, token_hash: str, *, for_update: bool = False) -> LoginChallenge | None:
+        statement = select(StaffLoginChallengeRow).where(StaffLoginChallengeRow.token_hash == token_hash)
+        if for_update:
+            statement = statement.with_for_update()
+        row = self.session.scalar(statement)
+        return self._challenge(row) if row else None
+
+    def consume_login_challenge(self, challenge_id: str, now: datetime) -> None:
+        self.session.execute(update(StaffLoginChallengeRow).where(
+            StaffLoginChallengeRow.id == challenge_id, StaffLoginChallengeRow.consumed_at.is_(None)
+        ).values(consumed_at=now))
+
+    def invalidate_login_challenges(self, user_id: str, now: datetime) -> None:
+        self.session.execute(update(StaffLoginChallengeRow).where(
+            StaffLoginChallengeRow.user_id == user_id,
+            StaffLoginChallengeRow.consumed_at.is_(None),
+        ).values(consumed_at=now))
+
+    def replace_recovery_codes(self, user_id: str, values: tuple[RecoveryCode, ...]) -> None:
+        self.session.execute(delete(StaffRecoveryCodeRow).where(StaffRecoveryCodeRow.user_id == user_id))
+        self.session.add_all(StaffRecoveryCodeRow(
+            id=value.recovery_code_id, user_id=value.user_id, code_hash=value.code_hash,
+            created_at=value.created_at, used_at=value.used_at,
+        ) for value in values)
+
+    def get_recovery_code(self, user_id: str, code_hash: str, *, for_update: bool = False) -> RecoveryCode | None:
+        statement = select(StaffRecoveryCodeRow).where(
+            StaffRecoveryCodeRow.user_id == user_id, StaffRecoveryCodeRow.code_hash == code_hash,
+            StaffRecoveryCodeRow.used_at.is_(None),
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        row = self.session.scalar(statement)
+        return self._recovery(row) if row else None
+
+    def use_recovery_code(self, recovery_code_id: str, now: datetime) -> None:
+        self.session.execute(update(StaffRecoveryCodeRow).where(
+            StaffRecoveryCodeRow.id == recovery_code_id, StaffRecoveryCodeRow.used_at.is_(None)
+        ).values(used_at=now))
+
+    def list_recovery_codes(self, user_id: str) -> tuple[RecoveryCode, ...]:
+        rows = self.session.scalars(select(StaffRecoveryCodeRow).where(StaffRecoveryCodeRow.user_id == user_id))
+        return tuple(self._recovery(row) for row in rows)
+
+    def add_audit_event(self, value: SecurityAuditEvent) -> None:
+        self.session.add(StaffSecurityAuditEventRow(
+            id=value.event_id, user_id=value.user_id, event_type=value.event_type,
+            created_at=value.created_at, metadata_json=_json_value(value.metadata),
+        ))
+
+    def list_audit_events(self, user_id: str, *, limit: int = 100) -> tuple[SecurityAuditEvent, ...]:
+        rows = self.session.scalars(select(StaffSecurityAuditEventRow).where(
+            StaffSecurityAuditEventRow.user_id == user_id
+        ).order_by(StaffSecurityAuditEventRow.created_at.desc()).limit(limit))
+        return tuple(SecurityAuditEvent(row.id, row.user_id, row.event_type, _aware(row.created_at), row.metadata_json) for row in rows)
+
+    @staticmethod
+    def _credentials(row: StaffSecurityCredentialRow) -> SecurityCredentials:
+        return SecurityCredentials(row.user_id, row.totp_secret_encrypted, row.pending_totp_secret_encrypted,
+            _aware(row.pending_expires_at) if row.pending_expires_at else None,
+            _aware(row.two_factor_enabled_at) if row.two_factor_enabled_at else None, _aware(row.updated_at))
+
+    @staticmethod
+    def _reset(row: StaffPasswordResetRow) -> PasswordResetRecord:
+        return PasswordResetRecord(row.id, row.user_id, row.token_hash, _aware(row.created_at), _aware(row.expires_at), _aware(row.used_at) if row.used_at else None)
+
+    @staticmethod
+    def _challenge(row: StaffLoginChallengeRow) -> LoginChallenge:
+        return LoginChallenge(row.id, row.user_id, row.token_hash, _aware(row.created_at), _aware(row.expires_at), _aware(row.consumed_at) if row.consumed_at else None)
+
+    @staticmethod
+    def _recovery(row: StaffRecoveryCodeRow) -> RecoveryCode:
+        return RecoveryCode(row.id, row.user_id, row.code_hash, _aware(row.created_at), _aware(row.used_at) if row.used_at else None)
 
 
 class SQLAlchemyLeadRepository:

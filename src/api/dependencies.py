@@ -18,6 +18,7 @@ from src.engine.reassurance_response_generator import (
     UniversalReassuranceResponseGenerator,
 )
 from src.persistence.auth_service import AuthService, SessionInvalidError
+from src.persistence.password_reset_email import PasswordResetEmailSender
 from src.persistence.billing_service import BillingService
 from src.persistence.business_provisioning_service import BusinessProvisioningService
 from src.persistence.lead_intake import PersistentLeadIntakeService
@@ -52,6 +53,8 @@ class ApplicationContainer:
     ai_provider_name: str
     ai_model_name: str
     public_chat_rate_limiter: RateLimiter
+    account_security_rate_limiter: RateLimiter
+    password_reset_email_sender: PasswordResetEmailSender
 
 
 def get_container(request: Request) -> ApplicationContainer:
@@ -140,7 +143,13 @@ def get_public_chat_rate_limiter(
 def get_auth_service(
     container: Annotated[ApplicationContainer, Depends(get_container)],
 ) -> AuthService:
-    return AuthService(container.unit_of_work_factory)
+    return AuthService(
+        container.unit_of_work_factory,
+        frontend_base_url=container.settings.frontend_base_url,
+        password_reset_email_sender=container.password_reset_email_sender,
+        account_security_encryption_key=container.settings.account_security_encryption_key,
+        forgot_password_rate_limiter=container.account_security_rate_limiter,
+    )
 
 
 def get_business_provisioning_service(

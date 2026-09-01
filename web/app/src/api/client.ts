@@ -102,6 +102,38 @@ export interface SessionResponse {
   user: StaffUser;
 }
 
+export interface TwoFactorLoginChallenge {
+  two_factor_required: true;
+  challenge_token: string;
+  expires_in_minutes: number;
+}
+
+export interface TwoFactorSetup {
+  secret: string;
+  provisioning_uri: string;
+  expires_in_minutes: number;
+}
+
+export interface SecurityStatus {
+  two_factor_enabled: boolean;
+  recovery_codes_remaining: number;
+}
+
+export interface SecuritySession {
+  session_id: string;
+  created_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+  current: boolean;
+}
+
+export interface SecurityAuditEvent {
+  event_id: string;
+  event_type: string;
+  created_at: string;
+  metadata: Record<string, unknown>;
+}
+
 export interface BusinessCreatedResponse {
   business_id: string;
   name: string;
@@ -384,14 +416,43 @@ export const api = {
     }),
 
   login: (email: string, password: string) =>
-    request<SessionResponse>("/api/v1/auth/login", {
+    request<SessionResponse | TwoFactorLoginChallenge>("/api/v1/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     }),
 
+  completeTwoFactorLogin: (challengeToken: string, code: string) =>
+    request<SessionResponse>("/api/v1/auth/login/two-factor", {
+      method: "POST",
+      headers: { "X-Two-Factor-Challenge": challengeToken },
+      body: JSON.stringify({ code }),
+    }),
+
+  forgotPassword: (email: string) => request<{ message: string }>("/api/v1/auth/forgot-password", {
+    method: "POST", body: JSON.stringify({ email }),
+  }),
+
+  resetPassword: (token: string, password: string) => request<void>("/api/v1/auth/reset-password", {
+    method: "POST", body: JSON.stringify({ token, password }),
+  }),
+
   logout: (token: string) => request<void>("/api/v1/auth/logout", { method: "POST" }, token),
 
   me: (token: string) => request<StaffUser>("/api/v1/auth/me", { method: "GET" }, token),
+
+  getSecurityStatus: (token: string) => request<SecurityStatus>("/api/v1/auth/security", { method: "GET" }, token),
+  changePassword: (token: string, currentPassword: string, newPassword: string) =>
+    request<void>("/api/v1/auth/security/password", { method: "POST", body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }) }, token),
+  beginTwoFactorSetup: (token: string, currentPassword: string) => request<TwoFactorSetup>("/api/v1/auth/security/two-factor/setup", { method: "POST", body: JSON.stringify({ current_password: currentPassword }) }, token),
+  confirmTwoFactorSetup: (token: string, code: string) => request<{ codes: string[] }>("/api/v1/auth/security/two-factor/confirm", { method: "POST", body: JSON.stringify({ code }) }, token),
+  disableTwoFactor: (token: string, currentPassword: string, code: string) =>
+    request<void>("/api/v1/auth/security/two-factor/disable", { method: "POST", body: JSON.stringify({ current_password: currentPassword, code }) }, token),
+  regenerateRecoveryCodes: (token: string, currentPassword: string, code: string) =>
+    request<{ codes: string[] }>("/api/v1/auth/security/recovery-codes", { method: "POST", body: JSON.stringify({ current_password: currentPassword, code }) }, token),
+  listSecuritySessions: (token: string) => request<SecuritySession[]>("/api/v1/auth/security/sessions", { method: "GET" }, token),
+  revokeSecuritySession: (token: string, sessionId: string) => request<void>(`/api/v1/auth/security/sessions/${sessionId}`, { method: "DELETE" }, token),
+  revokeOtherSecuritySessions: (token: string) => request<{ revoked: number }>("/api/v1/auth/security/sessions/revoke-others", { method: "POST" }, token),
+  listSecurityAudit: (token: string) => request<SecurityAuditEvent[]>("/api/v1/auth/security/audit", { method: "GET" }, token),
 
   createBusiness: (token: string, payload: OnboardingPayload) =>
     request<BusinessCreatedResponse>(

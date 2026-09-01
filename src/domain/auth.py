@@ -21,8 +21,11 @@ _PBKDF2_SALT_BYTES = 16
 
 
 def hash_password(plain_password: str) -> str:
-    if not plain_password or len(plain_password) < 8:
-        raise ValueError("password must be at least 8 characters")
+    normalized = plain_password.strip()
+    if len(plain_password) < 12 or not normalized:
+        raise ValueError("password must be at least 12 non-whitespace characters")
+    if normalized.casefold() in {"passwordpassword", "correcthorsebattery", "letmeinletmein"}:
+        raise ValueError("password is too common")
     salt = secrets.token_hex(_PBKDF2_SALT_BYTES)
     digest = hashlib.pbkdf2_hmac(
         _PBKDF2_ALGORITHM, plain_password.encode("utf-8"), bytes.fromhex(salt), _PBKDF2_ITERATIONS

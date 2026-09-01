@@ -202,6 +202,90 @@ class StaffSessionRow(Base):
     )
 
 
+class StaffSecurityCredentialRow(Base):
+    """Encrypted TOTP material, isolated from the staff identity row."""
+
+    __tablename__ = "staff_security_credentials"
+
+    user_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("staff_users.id", ondelete="CASCADE"), primary_key=True
+    )
+    totp_secret_encrypted: Mapped[str | None] = mapped_column(Text)
+    pending_totp_secret_encrypted: Mapped[str | None] = mapped_column(Text)
+    pending_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    two_factor_enabled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class StaffPasswordResetRow(Base):
+    __tablename__ = "staff_password_resets"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("staff_users.id", ondelete="CASCADE"), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_staff_password_resets_token_hash"),
+        Index("ix_staff_password_resets_user_expiry", "user_id", "expires_at"),
+        CheckConstraint("expires_at > created_at", name="ck_staff_password_resets_expiry"),
+    )
+
+
+class StaffLoginChallengeRow(Base):
+    __tablename__ = "staff_login_challenges"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("staff_users.id", ondelete="CASCADE"), nullable=False
+    )
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("token_hash", name="uq_staff_login_challenges_token_hash"),
+        Index("ix_staff_login_challenges_user_expiry", "user_id", "expires_at"),
+        CheckConstraint("expires_at > created_at", name="ck_staff_login_challenges_expiry"),
+    )
+
+
+class StaffRecoveryCodeRow(Base):
+    __tablename__ = "staff_recovery_codes"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("staff_users.id", ondelete="CASCADE"), nullable=False
+    )
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "code_hash", name="uq_staff_recovery_codes_user_hash"),
+        Index("ix_staff_recovery_codes_user_active", "user_id", "used_at"),
+    )
+
+
+class StaffSecurityAuditEventRow(Base):
+    __tablename__ = "staff_security_audit_events"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("staff_users.id", ondelete="CASCADE"), nullable=False
+    )
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSON_VALUE, nullable=False, default=dict)
+
+    __table_args__ = (Index("ix_staff_security_audit_events_user_created", "user_id", "created_at"),)
+
+
 class LeadRow(Base):
     __tablename__ = "leads"
 

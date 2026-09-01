@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, ApiError, type StaffUser } from "../api/client";
+import { api, ApiError, type StaffUser, type TwoFactorLoginChallenge } from "../api/client";
 
 const TOKEN_STORAGE_KEY = "flywheel.session_token";
 // Which of the account's (possibly several) businesses the dashboard is
@@ -20,7 +20,8 @@ interface AuthContextValue {
   /** Switch which of the account's businesses the dashboard operates on. */
   selectBusiness: (businessId: string) => void;
   signup: (email: string, password: string) => Promise<StaffUser>;
-  login: (email: string, password: string) => Promise<StaffUser>;
+  login: (email: string, password: string) => Promise<StaffUser | TwoFactorLoginChallenge>;
+  completeTwoFactorLogin: (challengeToken: string, code: string) => Promise<StaffUser>;
   logout: () => Promise<void>;
   setUser: (user: StaffUser) => void;
 }
@@ -92,14 +93,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return session.user;
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const session = await api.login(email, password);
+  const storeSession = useCallback((session: { token: string; user: StaffUser }) => {
     localStorage.setItem(TOKEN_STORAGE_KEY, session.token);
     setToken(session.token);
     setUserState(session.user);
     setBusinessIdState(resolveBusinessId(session.user));
-    return session.user;
   }, []);
+
+  const login = useCallback(async (email: string, password: string) => {
+    const session = await api.login(email, password);
+    if ("two_factor_required" in session) return session;
+    storeSession(session);
+    return session.user;
+  }, [storeSession]);
+
+  const completeTwoFactorLogin = useCallback(async (challengeToken: string, code: string) => {
+    const session = await api.completeTwoFactorLogin(challengeToken, code);
+    storeSession(session);
+    return session.user;
+  }, [storeSession]);
 
   const logout = useCallback(async () => {
     if (token) {
@@ -118,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, token, loading, businessId, selectBusiness, signup, login, logout, setUser }}
+      value={{ user, token, loading, businessId, selectBusiness, signup, login, completeTwoFactorLogin, logout, setUser }}
     >
       {children}
     </AuthContext.Provider>

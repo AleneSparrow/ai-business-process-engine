@@ -10,6 +10,9 @@ from jsonschema import Draft202012Validator
 
 from src.api.app import create_app
 from src.config import Settings
+from src.domain.account_security import _totp_code
+from src.domain.models import utc_now
+from src.persistence.password_reset_email import InMemoryPasswordResetEmailSender
 from src.domain.business_dna_builder import OnboardingInput, OnboardingService, build_business_dna
 from src.persistence.sqlalchemy_models import Base
 from src.persistence.sqlalchemy_uow import create_database_engine
@@ -23,7 +26,12 @@ def auth_environment(tmp_path: Path):
     database_url = f"sqlite+pysqlite:///{tmp_path / 'auth.db'}"
     engine = create_database_engine(database_url)
     Base.metadata.create_all(engine)
-    application = create_app(settings=Settings(database_url=database_url, app_env="test"))
+    application = create_app(settings=Settings(
+        database_url=database_url,
+        app_env="test",
+        frontend_base_url="https://app.example.test",
+        account_security_encryption_key="test-account-security-key-material-that-is-long-enough",
+    ))
     with TestClient(application, raise_server_exceptions=False) as client:
         yield client
     engine.dispose()
@@ -112,6 +120,56 @@ def test_logout_revokes_the_session(auth_environment: TestClient) -> None:
     assert logout_response.status_code == 204
     me_response = auth_environment.get("/api/v1/auth/me", headers=headers)
     assert me_response.status_code == 401
+
+
+def test_forgot_password_response_is_neutral_and_reset_is_one_time(auth_environment: TestClient) -> None:
+    original = signup(auth_environment, email="recover@example.com").json()["token"]
+    known = auth_environment.post("/api/v1/auth/forgot-password", json={"email": "recover@example.com"})
+    unknown = auth_environment.post("/api/v1/auth/forgot-password", json={"email": "missing@example.com"})
+
+    assert known.status_code == unknown.status_code == 202
+    assert known.json() == unknown.json()
+    sender = auth_environment.app.state.container.password_reset_email_sender
+    assert isinstance(sender, InMemoryPasswordResetEmailSender)
+    token = sender.outbox[-1].reset_url.split("token=", 1)[1]
+    reset = auth_environment.post("/api/v1/auth/reset-password", json={
+        "token": token, "password": "a newly strong password 456",
+    })
+    assert reset.status_code == 204
+    assert auth_environment.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {original}"}).status_code == 401
+    assert auth_environment.post("/api/v1/auth/reset-password", json={
+        "token": token, "password": "another strong password 789",
+    }).status_code == 422
+
+
+def test_two_factor_login_requires_separate_challenge(auth_environment: TestClient) -> None:
+    signup_response = signup(auth_environment, email="twofactor@example.com")
+    session_token = signup_response.json()["token"]
+    headers = {"Authorization": f"Bearer {session_token}"}
+    setup = auth_environment.post("/api/v1/auth/security/two-factor/setup", headers=headers, json={
+        "current_password": "correct horse battery",
+    })
+    assert setup.status_code == 200
+    secret = setup.json()["secret"]
+    code = _totp_code(secret, int(utc_now().timestamp()) // 30)
+    confirm = auth_environment.post("/api/v1/auth/security/two-factor/confirm", headers=headers, json={"code": code})
+    assert confirm.status_code == 200
+    assert len(confirm.json()["codes"]) == 8
+
+    login = auth_environment.post("/api/v1/auth/login", json={
+        "email": "twofactor@example.com", "password": "correct horse battery",
+    })
+    assert login.status_code == 200
+    assert login.json()["two_factor_required"] is True
+    assert "token" not in login.json()
+    challenge = login.json()["challenge_token"]
+    complete = auth_environment.post(
+        "/api/v1/auth/login/two-factor",
+        headers={"X-Two-Factor-Challenge": challenge},
+        json={"code": code},
+    )
+    assert complete.status_code == 200
+    assert complete.json()["user"]["email"] == "twofactor@example.com"
 
 
 def test_business_creation_requires_authentication(auth_environment: TestClient) -> None:
