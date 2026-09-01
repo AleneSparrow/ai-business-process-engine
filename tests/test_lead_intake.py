@@ -529,3 +529,102 @@ def test_silence_still_preserves_a_known_fact() -> None:
     intake.receive(message("no-zip", name=None, phone=None, case_id=first.case_id))
 
     assert intake.get_case(first.case_id).metadata["customer_location"] == "60601"
+
+
+def test_unsupported_service_request_clears_the_stale_established_service() -> None:
+    """An unsupported-service mention is not silence.
+
+    Found live while QA-testing the "unsupported service" scenario across
+    five business types (2026-08-31): a case with an already-established
+    service (e.g. diagnostic-visit) that later asked about something
+    unsupported (e.g. a roof replacement) kept "diagnostic-visit" as
+    service_requested in QUALIFICATION_EVALUATED and case.metadata, even
+    though the customer's current message was about something else
+    entirely and had just been declined for it. corrected_fact() cannot
+    tell "the customer said nothing about service this turn" apart from
+    "the customer asked for something we don't offer" -- both leave
+    current.service_requested None -- so it silently preserved the old
+    value. The LOST decision itself was already correct (driven by
+    unsupported_service_name, not service_requested), but the persisted
+    audit trail was misleading.
+    """
+    intake = service_with({
+        "established": valid_intent(service_requested="diagnostic-visit"),
+        "unsupported": valid_intent(service_requested=None, unsupported_service_name="a roof replacement"),
+    })
+
+    first = intake.receive(message("established", name=None, phone=None))
+    second = intake.receive(message("unsupported", name=None, phone=None, case_id=first.case_id))
+
+    assert second.current_state is ProcessState.LOST
+    case = intake.get_case(first.case_id)
+    assert case.metadata["unsupported_service_name"] == "a roof replacement"
+    # Not re-stamped with the stale prior service -- case.metadata simply
+    # keeps whatever it already had (still "diagnostic-visit" from the
+    # first turn, untouched) rather than looking freshly re-confirmed.
+    assert case.metadata["service_requested"] == "diagnostic-visit"
+    # The actual fix, observable here: the merged IntentResult for THIS
+    # turn no longer carries the stale "diagnostic-visit" forward into the
+    # lead's own attributes (case.update_lead runs every turn, unlike
+    # case.metadata which is only ever additively set) -- before the fix
+    # this stayed "diagnostic-visit" even on the turn that asked about a
+    # roof replacement instead.
+    assert case.lead.attributes["service_requested"] is None
+
+
+def test_a_vague_first_message_gets_a_question_not_a_handoff() -> None:
+    """The behaviour the whole product rests on.
+
+    Found live on 2026-09-01: a first message of "Hi! what do you want?" was
+    answered with "one of our team members is gonna take a look at your
+    request and get back to you soon" and the case went to NEEDS_HUMAN on
+    turn one. Low confidence escalated on the spot without asking anything,
+    while only intent.unintelligible got the clarification loop -- and
+    prompts.py deliberately keeps those two flags apart. So the most common
+    real opening message ended the automated cycle immediately, which is
+    intake, not "from enquiry to deal".
+    """
+    intake = service_with({"vague": valid_intent(confidence=0.2, service_requested=None)})
+
+    result = intake.receive(message("vague", name=None, phone=None))
+
+    assert result.current_state is ProcessState.QUALIFYING
+    assert not result.qualification.requires_human
+    assert result.response is not None
+
+
+def test_repeated_low_confidence_still_reaches_a_person() -> None:
+    """The cap is what keeps the loop honest.
+
+    A customer whose messages never become interpretable must not be kept
+    talking to the engine forever -- after MAX_CLARIFICATION_ATTEMPTS the
+    case escalates exactly as it did before.
+    """
+    intake = service_with({
+        "one": valid_intent(confidence=0.2, service_requested=None),
+        "two": valid_intent(confidence=0.2, service_requested=None),
+        "three": valid_intent(confidence=0.2, service_requested=None),
+        "four": valid_intent(confidence=0.2, service_requested=None),
+    })
+
+    first = intake.receive(message("one", name=None, phone=None))
+    for external_id in ("two", "three", "four"):
+        last = intake.receive(message(external_id, name=None, phone=None, case_id=first.case_id))
+
+    assert last.current_state is ProcessState.NEEDS_HUMAN
+
+
+def test_a_complete_case_read_with_low_confidence_still_goes_to_a_person() -> None:
+    """The clarification loop must not buy a booking on a shaky reading.
+
+    Low confidence means the service or answers extracted this turn may be
+    wrong. While the case is incomplete the engine asks another question;
+    once everything required is present it still hands to a person, exactly
+    as it did before low confidence joined the loop.
+    """
+    intake = service_with({"complete": valid_intent(confidence=0.2)})
+
+    result = intake.receive(message("complete"))
+
+    assert result.current_state is ProcessState.NEEDS_HUMAN
+

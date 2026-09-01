@@ -54,12 +54,25 @@ class QualificationService:
 
     # Bounded per case, mirroring LeadIntakeService.MAX_REASSURANCE_ATTEMPTS --
     # see universal-sales-cycle-model.md section 6 ("Ограничение
-    # настойчивости"). A message the AI could not interpret at all
-    # (intent.unintelligible) stays in the automated clarification loop
-    # instead of escalating immediately, but only up to this many attempts
-    # per case; once exhausted it escalates like any other unresolved case.
-    # Without this cap a customer who never sends an interpretable message
-    # would loop with the bot forever and never reach a human.
+    # настойчивости"). A message we cannot act on yet -- one the AI could not
+    # interpret at all (intent.unintelligible) OR one it read with confidence
+    # below the business's threshold -- stays in the automated clarification
+    # loop instead of escalating immediately, but only up to this many
+    # attempts per case; once exhausted it escalates like any other
+    # unresolved case. Without this cap a customer who never sends an
+    # interpretable message would loop with the bot forever and never reach
+    # a human.
+    #
+    # Low confidence joined this loop on 2026-09-01. Before that it escalated
+    # on the spot, without asking anything: a first message of "Hi! what do
+    # you want?" went straight to NEEDS_HUMAN, and "Low confidence in the
+    # request" was the single largest escalation reason on production (36 of
+    # 77). That is intake, not "from enquiry to deal" -- and CLAUDE.md
+    # already required the opposite ("переспрос на непонятном сообщении
+    # вместо сброса на человека"); the requirement was simply only
+    # implemented for the unintelligible flag, which prompts.py deliberately
+    # keeps distinct from low confidence ("do not set unintelligible merely
+    # because confidence is low").
     MAX_CLARIFICATION_ATTEMPTS = 3
 
     def evaluate(
@@ -94,44 +107,46 @@ class QualificationService:
                 QualificationReasonCode.REQUIRES_HUMAN,
                 intent,
             )
-        if intent.unintelligible:
+        low_confidence = not intent.unintelligible and intent.confidence < threshold
+        if intent.unintelligible or low_confidence:
             attempts = self._clarification_attempts(case_metadata)
             if attempts >= self.MAX_CLARIFICATION_ATTEMPTS:
                 _log_event(
                     logging.INFO,
                     "qualification_needs_human_diagnostic",
-                    reason="unintelligible_attempts_exhausted",
+                    reason=(
+                        "below_confidence_threshold_attempts_exhausted" if low_confidence
+                        else "unintelligible_attempts_exhausted"
+                    ),
                     confidence=intent.confidence,
                     threshold=threshold,
                     attempts=attempts,
                 )
                 return self._result(
                     ProcessState.NEEDS_HUMAN,
-                    ("Customer message could not be interpreted after repeated clarification attempts",),
-                    QualificationReasonCode.UNINTELLIGIBLE,
+                    (
+                        ("Intent confidence is below policy or extraction requested review",)
+                        if low_confidence
+                        else ("Customer message could not be interpreted after repeated clarification attempts",)
+                    ),
+                    (
+                        QualificationReasonCode.LOW_CONFIDENCE if low_confidence
+                        else QualificationReasonCode.UNINTELLIGIBLE
+                    ),
                     intent,
                 )
             self._record_clarification_attempt(case_metadata, attempts)
             # Treated as "no new information this turn" and falls through to
             # the ordinary missing-fields flow below -- same as any other
             # message that doesn't add a fact, never a special-cased
-            # response. This also means confidence.threshold is deliberately
-            # NOT checked for this turn: an unintelligible message's
-            # confidence score isn't a meaningful signal either way.
-        elif intent.confidence < threshold:
-            _log_event(
-                logging.INFO,
-                "qualification_needs_human_diagnostic",
-                reason="below_confidence_threshold",
-                confidence=intent.confidence,
-                threshold=threshold,
-            )
-            return self._result(
-                ProcessState.NEEDS_HUMAN,
-                ("Intent confidence is below policy or extraction requested review",),
-                QualificationReasonCode.LOW_CONFIDENCE,
-                intent,
-            )
+            # response. For an unintelligible message this also means
+            # confidence.threshold is deliberately NOT checked for this turn:
+            # its confidence score isn't a meaningful signal either way.
+            #
+            # A low-confidence turn falls through the SAME way, but may not
+            # finish the case on that turn -- see the guard after the
+            # missing-information block. Asking one more question on a shaky
+            # reading is cheap; booking on one is not.
         if intent.urgency.value in triggers:
             return self._result(
                 ProcessState.NEEDS_HUMAN,
@@ -217,6 +232,31 @@ class QualificationService:
                 # objection_responses entry answers it is decided later, in
                 # response generation, never here.
                 objection_phrase=intent.objection_phrase,
+            )
+
+        if low_confidence:
+            # Everything required is present, but this turn's reading was
+            # below the business's confidence threshold, so the service or
+            # answers it produced may be wrong. Falling through to a booking
+            # on a shaky reading is the one thing the clarification loop must
+            # not buy: a case that is otherwise complete still goes to a
+            # person, exactly as it did before low confidence joined the
+            # loop. The loop only changed what happens while the case is
+            # still incomplete -- which is where "Hi! what do you want?"
+            # lives.
+            _log_event(
+                logging.INFO,
+                "qualification_needs_human_diagnostic",
+                reason="below_confidence_threshold_on_complete_case",
+                confidence=intent.confidence,
+                threshold=threshold,
+            )
+            return self._result(
+                ProcessState.NEEDS_HUMAN,
+                ("Intent confidence is below policy or extraction requested review",),
+                QualificationReasonCode.LOW_CONFIDENCE,
+                intent,
+                service,
             )
 
         rule_outcome = self._qualification_rule_outcome(context, business_dna["qualification"])
