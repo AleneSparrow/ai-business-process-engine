@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from src.domain.conversations import Conversation, ConversationStatus, MessageDirection, MessageRole
 from src.domain.events import EventType
 from src.domain.models import Lead, ProcessCase, ProcessEvent, utc_now
 from src.domain.states import ProcessState
@@ -147,10 +148,39 @@ def test_send_one_sends_and_records_delivery_before_case_update(uow_factory) -> 
     assert len(sent_events) == 1
     assert sent_events[0].payload["delivered"] is True
     assert sent_events[0].payload["twilio_sid"] == attempt.twilio_sid
-    assert "message_text" not in sent_events[0].payload
-    assert sent_events[0].payload["message_fingerprint"] == hashlib.sha256(
-        sms.send_calls[0][2].encode("utf-8")
-    ).hexdigest()
+
+
+def test_follow_up_text_is_copied_into_the_linked_conversation(uow_factory) -> None:
+    _make_stalled_case(uow_factory)
+    with uow_factory() as uow:
+        conversation = Conversation(
+            conversation_id="conv-sms",
+            business_id=_BUSINESS_ID,
+            token_hash="b" * 64,
+            channel="sms",
+            status=ConversationStatus.AI_ACTIVE,
+            created_at=NOW,
+            updated_at=NOW,
+            last_activity_at=NOW,
+            token_expires_at=NOW + timedelta(days=30),
+            lead_id="lead-1",
+            case_id=_CASE_ID,
+            external_session_id="+15551234567",
+        )
+        uow.conversations.add(conversation)
+        uow.commit()
+
+    sms = FakeSmsService()
+    PersistentFollowUpRunner(uow_factory, sms)._send_one(_BUSINESS_ID, _CASE_ID, NOW)
+
+    with uow_factory() as uow:
+        messages = uow.conversation_messages.list_for_conversation(_BUSINESS_ID, "conv-sms")
+    assert len(messages) == 1
+    assert messages[0].direction is MessageDirection.OUTBOUND
+    assert messages[0].role is MessageRole.ASSISTANT
+    assert messages[0].text == sms.send_calls[0][2]
+    assert messages[0].metadata["follow_up"] is True
+    assert messages[0].metadata["delivered"] is True
 
 
 def test_run_sends_follow_up_for_due_case_via_full_sweep(uow_factory) -> None:

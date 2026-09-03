@@ -30,7 +30,9 @@ import logging
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
+from uuid import uuid4
 
+from src.domain.conversations import ConversationStatus, ConversationMessage, MessageDirection, MessageRole
 from src.domain.events import EventType
 from src.domain.models import ProcessEvent
 from src.domain.states import ProcessState
@@ -58,6 +60,61 @@ _STALLED_STATES = (ProcessState.NEW_LEAD, ProcessState.CONTACTED, ProcessState.Q
 def _log_event(level: int, event: str, **fields: Any) -> None:
     payload = {"event": event, **{key: value for key, value in fields.items() if value is not None}}
     LOGGER.log(level, json.dumps(payload, separators=(",", ":"), default=str))
+
+
+def _mirror_follow_up_into_conversations(
+    uow: Any,
+    business_id: str,
+    case_id: str,
+    *,
+    message_text: str,
+    attempt_number: int,
+    delivered: bool,
+    now: datetime,
+) -> None:
+    """Copy the SMS that just went out into every staff/widget thread for the case.
+
+    The phone send is the source of truth; this is so Conversations shows the
+    same text the customer received. A missing or stale conversation must not
+    undo a successful follow-up.
+    """
+    fingerprint = hashlib.sha256(message_text.encode("utf-8")).hexdigest()
+    external_id = f"followup:{attempt_number}"
+    for conversation in uow.conversations.list_for_case(business_id, case_id):
+        if conversation.status is ConversationStatus.CLOSED:
+            continue
+        if uow.conversation_messages.get_by_external_id(
+            business_id, conversation.conversation_id, external_id
+        ):
+            continue
+        try:
+            sequence = uow.conversation_messages.next_sequence(
+                business_id, conversation.conversation_id
+            )
+            uow.conversation_messages.add(
+                ConversationMessage(
+                    message_id=str(uuid4()),
+                    business_id=business_id,
+                    conversation_id=conversation.conversation_id,
+                    sequence_number=sequence,
+                    direction=MessageDirection.OUTBOUND,
+                    role=MessageRole.ASSISTANT,
+                    text=message_text,
+                    created_at=now,
+                    external_message_id=external_id,
+                    content_fingerprint=fingerprint,
+                    metadata={"follow_up": True, "delivered": delivered},
+                )
+            )
+            expected_version = conversation.version
+            conversation.touch(now)
+            uow.conversations.save(conversation, expected_version)
+        except StaleCaseError:
+            LOGGER.warning(
+                "follow_up_conversation_stale business_id=%s conversation_id=%s",
+                business_id,
+                conversation.conversation_id,
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -317,6 +374,15 @@ class PersistentFollowUpRunner:
                 return "stale"
             new_events = case.event_history[existing_event_count:]
             uow.events.add_many(business_id, case.case_id, new_events)
+            _mirror_follow_up_into_conversations(
+                uow,
+                business_id,
+                case.case_id,
+                message_text=message_text,
+                attempt_number=decision.attempt_number,
+                delivered=delivered,
+                now=now,
+            )
             uow.commit()
             _log_event(
                 logging.INFO,

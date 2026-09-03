@@ -1225,6 +1225,17 @@ class SQLAlchemyConversationRepository:
         )
         return tuple(self._to_domain(row) for row in rows)
 
+    def list_for_case(self, business_id: str, case_id: str) -> tuple[Conversation, ...]:
+        rows = self.session.scalars(
+            select(ConversationRow)
+            .where(
+                ConversationRow.business_id == business_id,
+                ConversationRow.case_id == case_id,
+            )
+            .order_by(ConversationRow.last_activity_at.desc())
+        )
+        return tuple(self._to_domain(row) for row in rows)
+
     @staticmethod
     def _to_domain(row: ConversationRow) -> Conversation:
         return Conversation(
