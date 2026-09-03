@@ -1,6 +1,6 @@
 import { useEffect, useState, type ComponentType } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { LayoutGrid, MessageSquare, Workflow, CreditCard, LogOut, Menu, X, Plus, Check, ChevronsUpDown, Home, HelpCircle } from "lucide-react";
+import { LayoutGrid, MessageSquare, Workflow, CreditCard, LogOut, Menu, X, Plus, Check, ChevronsUpDown, Home, HelpCircle, User } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { api, type OwnedBusiness } from "../api/client";
 import { FlywheelMark } from "./Shared";
@@ -117,7 +117,7 @@ function MobileNav({
   onSelectBusiness,
   onLogout,
 }: {
-  view: "dashboard" | "conversation" | "settings" | "billing" | "account";
+  view: "dashboard" | "conversation" | "settings" | "billing" | "account" | "faq";
   businesses: OwnedBusiness[];
   businessId: string | null;
   businessName: string | null;
@@ -198,8 +198,11 @@ function MobileNav({
                 <NavItem icon={MessageSquare} label="Conversations" active={view === "conversation"} onClick={() => go("/app/conversations")} />
                 <NavItem icon={Workflow} label="Settings" active={view === "settings"} onClick={() => go("/app/settings")} />
                 <NavItem icon={CreditCard} label="Billing" active={view === "billing"} onClick={() => go("/app/billing")} />
-                <NavItem icon={HelpCircle} label="FAQ" active={view === "account"} onClick={() => go("/app/account#faq")} />
                 <NavItem icon={Plus} label="Add another business" active={false} onClick={() => go("/onboarding")} />
+                <div className="border-t border-[#F0EFE9] mt-3 pt-3">
+                  <NavItem icon={User} label="Account" active={view === "account"} onClick={() => go("/app/account")} />
+                  <NavItem icon={HelpCircle} label="FAQ" active={view === "faq"} onClick={() => go("/app/account#faq")} />
+                </div>
               </nav>
             </div>
             <button
@@ -249,7 +252,9 @@ export function Sidebar() {
   const view = location.pathname.startsWith("/app/settings")
     ? "settings"
     : location.pathname.startsWith("/app/account")
-      ? "account"
+      ? location.hash === "#faq"
+        ? "faq"
+        : "account"
       : location.pathname.startsWith("/app/billing")
         ? "billing"
         : location.pathname.startsWith("/app/conversations")
@@ -321,8 +326,11 @@ export function Sidebar() {
               onClick={() => navigate("/app/settings")}
             />
             <NavItem icon={CreditCard} label="Billing" active={view === "billing"} onClick={() => navigate("/app/billing")} />
-            <NavItem icon={HelpCircle} label="FAQ" active={view === "account"} onClick={() => navigate("/app/account#faq")} />
             <NavItem icon={Plus} label="Add another business" active={false} onClick={() => navigate("/onboarding")} />
+            <div className="border-t border-[#F0EFE9] mt-3 pt-3">
+              <NavItem icon={User} label="Account" active={view === "account"} onClick={() => navigate({ pathname: "/app/account", hash: "" })} />
+              <NavItem icon={HelpCircle} label="FAQ" active={view === "faq"} onClick={() => navigate("/app/account#faq")} />
+            </div>
           </nav>
         </div>
         <div>

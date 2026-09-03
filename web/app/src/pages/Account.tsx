@@ -20,8 +20,11 @@ export default function Account() {
   useEffect(() => setName(user?.name ?? ""), [user?.name]);
 
   useEffect(() => {
-    if (location.hash !== "#faq") return;
-    document.getElementById("faq")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (location.hash === "#faq") {
+      document.getElementById("faq")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }, [location.hash]);
 
   async function saveProfile(event: FormEvent) {
