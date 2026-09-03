@@ -65,6 +65,7 @@ class _FakeThreads:
         self.paused = False
         self.appended: list[tuple[str, str, str]] = []
         self.synced: list[str] = []
+        self.commands: list[tuple[str, str, str, str, bool]] = []
 
     def is_paused(self, business_id: str, phone_number: str) -> bool:
         return self.paused
@@ -78,6 +79,18 @@ class _FakeThreads:
         self, business_id: str, phone_number: str, *, body: str, inbound_message_id: str, intake
     ) -> None:
         self.synced.append(inbound_message_id)
+
+    def record_command(
+        self,
+        business_id: str,
+        phone_number: str,
+        *,
+        body: str,
+        inbound_message_id: str,
+        outbound_text: str,
+        pause: bool = False,
+    ) -> None:
+        self.commands.append((phone_number, body, inbound_message_id, outbound_text, pause))
 
 
 class _FakeIntakeService:
@@ -151,6 +164,15 @@ def test_stop_command_does_not_enter_intake() -> None:
     assert response.status_code == 200
     assert intake.received_ids == []
     assert sms.opt_outs == [("tenant-a", "+15551234567", "SM_stop")]
+    assert _threads.commands == [
+        (
+            "+15551234567",
+            "STOP",
+            "SM_stop",
+            "You have been unsubscribed from texts from this number. Reply START to resume.",
+            True,
+        )
+    ]
     assert sms.outbound_calls == [
         (
             "tenant-a",

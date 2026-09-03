@@ -55,6 +55,19 @@ LOGGER = logging.getLogger("uvicorn.error")
 # expected to be the next thing the customer hears from. See
 # src/engine/follow_up.py's STALLED_STATES, kept in sync with this.
 _STALLED_STATES = (ProcessState.NEW_LEAD, ProcessState.CONTACTED, ProcessState.QUALIFYING)
+_HUMAN_OWNED = frozenset(
+    {
+        ConversationStatus.HUMAN_TAKEOVER_REQUESTED,
+        ConversationStatus.HUMAN_TAKEOVER_ACTIVE,
+    }
+)
+
+
+def _human_owns_case(uow: Any, business_id: str, case_id: str) -> bool:
+    return any(
+        conversation.status in _HUMAN_OWNED
+        for conversation in uow.conversations.list_for_case(business_id, case_id)
+    )
 
 
 def _log_event(level: int, event: str, **fields: Any) -> None:
@@ -233,6 +246,8 @@ class PersistentFollowUpRunner:
             phone = case.lead.phone
             if not phone:
                 return "no_longer_due"
+            if _human_owns_case(uow, business_id, case_id):
+                return "no_longer_due"
 
             missing = missing_information_from_case(case)
             response = self.message_generator.generate(
@@ -313,6 +328,8 @@ class PersistentFollowUpRunner:
                 return None
             decision = decide_follow_up(case, dna_version.configuration, now)
             if not decision.due or decision.attempt_number != attempt_number or not case.lead.phone:
+                return None
+            if _human_owns_case(uow, business_id, case_id):
                 return None
             if self.sms_service.is_suppressed(business_id, case.lead.phone):
                 return None

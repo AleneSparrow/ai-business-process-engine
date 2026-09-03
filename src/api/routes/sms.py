@@ -27,7 +27,14 @@ from src.domain.qualification import IncomingMessage
 from src.domain.sms_commands import classify_inbound_sms
 from src.persistence.errors import WebhookSignatureError
 from src.persistence.lead_intake import PersistentLeadIntakeService
-from src.persistence.sms_service import INBOUND_SMS_WEBHOOK_PATH, SmsProvisioningError, SmsService
+from src.persistence.sms_service import (
+    HELP_ACK,
+    INBOUND_SMS_WEBHOOK_PATH,
+    START_ACK,
+    STOP_ACK,
+    SmsProvisioningError,
+    SmsService,
+)
 from src.persistence.sms_thread_service import SmsThreadService
 from src.persistence.twilio_client import validate_inbound_signature
 
@@ -102,12 +109,34 @@ async def receive_inbound_sms(
     command = classify_inbound_sms(body)
     if command == "stop":
         sms_service.opt_out(business_id, from_number, inbound_message_id=message_sid)
+        sms_threads.record_command(
+            business_id,
+            from_number,
+            body=body,
+            inbound_message_id=message_sid,
+            outbound_text=STOP_ACK,
+            pause=True,
+        )
         return Response(content=_EMPTY_TWIML, media_type="application/xml")
     if command == "start":
         sms_service.opt_in(business_id, from_number, inbound_message_id=message_sid)
+        sms_threads.record_command(
+            business_id,
+            from_number,
+            body=body,
+            inbound_message_id=message_sid,
+            outbound_text=START_ACK,
+        )
         return Response(content=_EMPTY_TWIML, media_type="application/xml")
     if command == "help":
         sms_service.send_help(business_id, from_number, inbound_message_id=message_sid)
+        sms_threads.record_command(
+            business_id,
+            from_number,
+            body=body,
+            inbound_message_id=message_sid,
+            outbound_text=HELP_ACK,
+        )
         return Response(content=_EMPTY_TWIML, media_type="application/xml")
 
     if sms_threads.is_paused(business_id, from_number):

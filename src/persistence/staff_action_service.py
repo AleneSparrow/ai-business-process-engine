@@ -11,6 +11,10 @@ before it needed a human (set by `DecisionRouter._escalation` and consumed by
 just a staff member approving that exact pending transition, submitted as a
 `DecisionType.HUMAN` decision with `approved_by` set to their email -- the
 same mechanism the engine already validates and audits, not a new one.
+
+A staff reply on an `AI_ACTIVE` thread is an explicit takeover: the
+conversation moves to `HUMAN_TAKEOVER_ACTIVE` so inbound SMS and the widget
+stop running the engine on that session.
 """
 
 from collections.abc import Callable
@@ -88,7 +92,10 @@ class StaffActionService:
                 created_at=occurred_at,
                 metadata={"staff_user_id": staff_user.user_id},
             ))
-            if conversation.status is ConversationStatus.HUMAN_TAKEOVER_REQUESTED:
+            if conversation.status in {
+                ConversationStatus.AI_ACTIVE,
+                ConversationStatus.HUMAN_TAKEOVER_REQUESTED,
+            }:
                 conversation.set_status(ConversationStatus.HUMAN_TAKEOVER_ACTIVE, occurred_at)
             else:
                 conversation.touch(occurred_at)

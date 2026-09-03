@@ -89,6 +89,30 @@ class SmsThreadService:
         except Exception:  # noqa: BLE001
             LOGGER.exception("sms_thread_sync_failed business_id=%s", business_id)
 
+    def record_command(
+        self,
+        business_id: str,
+        phone_number: str,
+        *,
+        body: str,
+        inbound_message_id: str,
+        outbound_text: str,
+        pause: bool = False,
+    ) -> None:
+        """Show STOP/START/HELP (and the ack we sent) on Conversations. Never raises."""
+        try:
+            self._append(
+                business_id,
+                phone_number,
+                body=body,
+                inbound_message_id=inbound_message_id,
+                intake=None,
+                outbound_text=outbound_text,
+                pause=pause,
+            )
+        except Exception:  # noqa: BLE001
+            LOGGER.exception("sms_thread_command_failed business_id=%s", business_id)
+
     def _append(
         self,
         business_id: str,
@@ -97,6 +121,8 @@ class SmsThreadService:
         body: str,
         inbound_message_id: str,
         intake: LeadIntakeResult | None,
+        outbound_text: str | None = None,
+        pause: bool = False,
     ) -> None:
         now = utc_now()
         with self.unit_of_work_factory() as uow:
@@ -148,26 +174,30 @@ class SmsThreadService:
                     content_fingerprint=_fingerprint(body),
                 )
             )
+            reply = outbound_text
             if intake is not None:
                 conversation.link_case(intake.lead_id, intake.case_id)
                 if intake.current_state is ProcessState.NEEDS_HUMAN:
                     conversation.set_status(ConversationStatus.HUMAN_TAKEOVER_REQUESTED, now)
-                reply = intake.response.message_text if intake.response is not None else None
-                if reply and not intake.duplicate:
-                    uow.conversation_messages.add(
-                        ConversationMessage(
-                            message_id=str(uuid4()),
-                            business_id=business_id,
-                            conversation_id=conversation.conversation_id,
-                            sequence_number=sequence + 1,
-                            direction=MessageDirection.OUTBOUND,
-                            role=MessageRole.ASSISTANT,
-                            text=reply,
-                            created_at=now,
-                            external_message_id=f"{inbound_message_id}:reply",
-                            content_fingerprint=_fingerprint(reply),
-                        )
+                if intake.response is not None and not intake.duplicate:
+                    reply = intake.response.message_text
+            elif pause and conversation.status is ConversationStatus.AI_ACTIVE:
+                conversation.set_status(ConversationStatus.HUMAN_TAKEOVER_REQUESTED, now)
+            if reply:
+                uow.conversation_messages.add(
+                    ConversationMessage(
+                        message_id=str(uuid4()),
+                        business_id=business_id,
+                        conversation_id=conversation.conversation_id,
+                        sequence_number=sequence + 1,
+                        direction=MessageDirection.OUTBOUND,
+                        role=MessageRole.ASSISTANT,
+                        text=reply,
+                        created_at=now,
+                        external_message_id=f"{inbound_message_id}:reply",
+                        content_fingerprint=_fingerprint(reply),
                     )
+                )
             conversation.touch(now)
             uow.conversations.save(conversation, expected_version)
             uow.commit()

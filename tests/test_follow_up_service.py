@@ -195,6 +195,33 @@ def test_run_sends_follow_up_for_due_case_via_full_sweep(uow_factory) -> None:
     assert len(sms.send_calls) == 1
 
 
+def test_follow_up_is_not_sent_when_staff_owns_the_conversation(uow_factory) -> None:
+    _make_stalled_case(uow_factory, provision_sms_number="+15005550006")
+    with uow_factory() as uow:
+        conversation = Conversation(
+            conversation_id="conv-sms",
+            business_id=_BUSINESS_ID,
+            token_hash="b" * 64,
+            channel="sms",
+            status=ConversationStatus.HUMAN_TAKEOVER_ACTIVE,
+            created_at=NOW,
+            updated_at=NOW,
+            last_activity_at=NOW,
+            token_expires_at=NOW + timedelta(days=30),
+            lead_id="lead-1",
+            case_id=_CASE_ID,
+            external_session_id="+15551234567",
+        )
+        uow.conversations.add(conversation)
+        uow.commit()
+
+    sms = FakeSmsService()
+    result = PersistentFollowUpRunner(uow_factory, sms).run(NOW)
+
+    assert result.follow_ups_sent == 0
+    assert sms.send_calls == []
+
+
 @pytest.mark.parametrize("new_state", (ProcessState.QUALIFIED, ProcessState.NEEDS_HUMAN))
 def test_policy_change_after_delivery_claim_cancels_before_sms_send(
     uow_factory, monkeypatch: pytest.MonkeyPatch, new_state: ProcessState

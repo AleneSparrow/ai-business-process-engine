@@ -148,3 +148,73 @@ def test_staff_reply_on_sms_thread_enqueues_outbound(tmp_path) -> None:
     )
     assert sent == [("+15551234567", "We can take this on Tuesday.")]
     engine.dispose()
+
+
+def test_staff_reply_takes_over_an_ai_active_sms_thread(tmp_path) -> None:
+    factory, engine = _factory(tmp_path)
+    threads = SmsThreadService(factory)
+    threads.sync_from_intake(
+        "tenant-a",
+        "+15551234567",
+        body="hello",
+        inbound_message_id="SM4",
+        intake=_intake(human=False),
+    )
+    with factory() as uow:
+        conversation = uow.conversations.get_by_channel_session(
+            "tenant-a", SMS_CHANNEL, "+15551234567"
+        )
+        assert conversation is not None
+        assert conversation.status is ConversationStatus.AI_ACTIVE
+        conversation_id = conversation.conversation_id
+
+    staff = StaffUser(
+        "user-1",
+        "owner@example.com",
+        "owner@example.com",
+        "hash",
+        "tenant-a",
+        NOW,
+        ("tenant-a",),
+    )
+    StaffActionService(factory, sms_service=None).reply(
+        "tenant-a", conversation_id, staff, "I'll take this from here."
+    )
+    assert threads.is_paused("tenant-a", "+15551234567")
+    with factory() as uow:
+        conversation = uow.conversations.get("tenant-a", conversation_id)
+        assert conversation is not None
+        assert conversation.status is ConversationStatus.HUMAN_TAKEOVER_ACTIVE
+    engine.dispose()
+
+
+def test_stop_command_appears_on_the_sms_thread_and_pauses_ai(tmp_path) -> None:
+    factory, engine = _factory(tmp_path)
+    threads = SmsThreadService(factory)
+    threads.sync_from_intake(
+        "tenant-a",
+        "+15551234567",
+        body="hello",
+        inbound_message_id="SM5",
+        intake=_intake(),
+    )
+    threads.record_command(
+        "tenant-a",
+        "+15551234567",
+        body="STOP",
+        inbound_message_id="SM6",
+        outbound_text="You have been unsubscribed from texts from this number. Reply START to resume.",
+        pause=True,
+    )
+    assert threads.is_paused("tenant-a", "+15551234567")
+    with factory() as uow:
+        conversation = uow.conversations.get_by_channel_session(
+            "tenant-a", SMS_CHANNEL, "+15551234567"
+        )
+        assert conversation is not None
+        messages = uow.conversation_messages.list_for_conversation(
+            "tenant-a", conversation.conversation_id
+        )
+        assert messages[-2].text == "STOP"
+        assert messages[-1].direction is MessageDirection.OUTBOUND
+    engine.dispose()

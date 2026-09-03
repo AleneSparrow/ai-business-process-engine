@@ -61,11 +61,11 @@ def test_closed_conversation_still_rejects_every_other_transition(target: Conver
         conversation.set_status(target, datetime(2026, 1, 2, tzinfo=timezone.utc))
 
 
-def test_ai_active_conversation_still_cannot_jump_straight_to_human_takeover_active() -> None:
-    """Unrelated to the fix, but the same table -- guards against a future
-    edit accidentally loosening more than the one CLOSED case above."""
+def test_ai_active_conversation_can_move_to_human_takeover_active() -> None:
+    """Staff reply from Conversations is an explicit takeover; the engine
+    must not keep answering that session."""
     conversation = _conversation(ConversationStatus.AI_ACTIVE)
-    with pytest.raises(ValueError, match="invalid conversation status transition"):
-        conversation.set_status(
-            ConversationStatus.HUMAN_TAKEOVER_ACTIVE, datetime(2026, 1, 2, tzinfo=timezone.utc)
-        )
+    conversation.set_status(
+        ConversationStatus.HUMAN_TAKEOVER_ACTIVE, datetime(2026, 1, 2, tzinfo=timezone.utc)
+    )
+    assert conversation.status is ConversationStatus.HUMAN_TAKEOVER_ACTIVE

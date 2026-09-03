@@ -50,13 +50,13 @@ INBOUND_SMS_WEBHOOK_PATH = "/api/v1/public/sms/inbound"
 _SMS_REPLY_KIND = "sms_reply"
 _MAX_ATTEMPTS = 8
 _BACKOFF = timedelta(minutes=5)
-_STOP_ACK = (
+STOP_ACK = (
     "You have been unsubscribed from texts from this number. Reply START to resume."
 )
-_START_ACK = (
+START_ACK = (
     "You are subscribed to texts from this number again. Reply STOP to opt out."
 )
-_HELP_ACK = (
+HELP_ACK = (
     "This number sends updates about your request. Reply STOP to opt out. Reply START to resume."
 )
 
@@ -174,7 +174,7 @@ class SmsService:
             self.enqueue_reply(
                 business_id,
                 to_number=phone_number,
-                body=_STOP_ACK,
+                body=STOP_ACK,
                 inbound_message_id=inbound_message_id,
                 ignore_suppression=True,
             )
@@ -194,7 +194,7 @@ class SmsService:
             self.enqueue_reply(
                 business_id,
                 to_number=phone_number,
-                body=_START_ACK,
+                body=START_ACK,
                 inbound_message_id=inbound_message_id,
             )
         except Exception:  # noqa: BLE001
@@ -204,7 +204,7 @@ class SmsService:
         self.enqueue_reply(
             business_id,
             to_number=phone_number,
-            body=_HELP_ACK,
+            body=HELP_ACK,
             inbound_message_id=inbound_message_id,
             ignore_suppression=True,
         )
