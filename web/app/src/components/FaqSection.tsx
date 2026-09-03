@@ -9,6 +9,16 @@ export function FaqItem({ q, a }: { q: string; a: string }) {
   );
 }
 
+export function FaqList() {
+  return (
+    <div>
+      {FAQ_ITEMS.map((item) => (
+        <FaqItem key={item.q} q={item.q} a={item.a} />
+      ))}
+    </div>
+  );
+}
+
 export function FaqSection({ headingLevel = "h2", standalone = false }: { headingLevel?: "h1" | "h2"; standalone?: boolean }) {
   const Heading = headingLevel;
   return (
@@ -21,11 +31,7 @@ export function FaqSection({ headingLevel = "h2", standalone = false }: { headin
         >
           What people ask before they start
         </Heading>
-        <div>
-          {FAQ_ITEMS.map((item) => (
-            <FaqItem key={item.q} q={item.q} a={item.a} />
-          ))}
-        </div>
+        <FaqList />
       </div>
     </section>
   );

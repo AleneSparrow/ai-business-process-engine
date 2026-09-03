@@ -198,12 +198,9 @@ function MobileNav({
                 <NavItem icon={MessageSquare} label="Conversations" active={view === "conversation"} onClick={() => go("/app/conversations")} />
                 <NavItem icon={Workflow} label="Settings" active={view === "settings"} onClick={() => go("/app/settings")} />
                 <NavItem icon={CreditCard} label="Billing" active={view === "billing"} onClick={() => go("/app/billing")} />
+                <NavItem icon={HelpCircle} label="FAQ" active={view === "account"} onClick={() => go("/app/account#faq")} />
                 <NavItem icon={Plus} label="Add another business" active={false} onClick={() => go("/onboarding")} />
               </nav>
-              <div className="border-t border-[#F0EFE9] mt-3 pt-3 flex flex-col gap-1">
-                <NavItem icon={Home} label="Home page" active={false} onClick={() => go("/")} />
-                <NavItem icon={HelpCircle} label="FAQ" active={false} onClick={() => go("/faq")} />
-              </div>
             </div>
             <button
               onClick={() => {
@@ -324,14 +321,12 @@ export function Sidebar() {
               onClick={() => navigate("/app/settings")}
             />
             <NavItem icon={CreditCard} label="Billing" active={view === "billing"} onClick={() => navigate("/app/billing")} />
+            <NavItem icon={HelpCircle} label="FAQ" active={view === "account"} onClick={() => navigate("/app/account#faq")} />
             <NavItem icon={Plus} label="Add another business" active={false} onClick={() => navigate("/onboarding")} />
           </nav>
         </div>
         <div>
-          <nav className="flex flex-col gap-1 mb-2">
-            <NavItem icon={Home} label="Home page" active={false} onClick={() => navigate("/")} />
-            <NavItem icon={HelpCircle} label="FAQ" active={false} onClick={() => navigate("/faq")} />
-          </nav>
+          <NavItem icon={Home} label="Home page" active={false} onClick={() => navigate("/")} />
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-[#6B6459] hover:text-[#151515] transition-colors"
