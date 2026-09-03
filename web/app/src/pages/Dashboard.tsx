@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Bell, ArrowUpRight, Clock, Phone, Mail, Loader2, ArrowDown, ArrowUp } from "lucide-react";
+import { Search, Bell, ArrowUpRight, Clock, Phone, Mail, Loader2, ArrowDown, ArrowUp, MessageSquare } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { useAuth, describeError } from "../auth/AuthContext";
 import { api, type DashboardAnalytics, type DashboardCaseSummary } from "../api/client";
@@ -544,8 +544,31 @@ export default function Dashboard() {
               <Loader2 size={16} className="animate-spin" /> Loading your leads…
             </div>
           ) : decorated.length === 0 ? (
-            <div className="bg-white rounded-2xl border border-[#E7E5DE] px-6 py-12 text-center text-sm text-[#6B6459]">
-              No leads yet. Once a customer messages your widget or number, cases will show up here in real time.
+            <div className="bg-white rounded-2xl border border-[#E7E5DE] px-6 py-12 text-center">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-4 text-white" style={{ backgroundColor: "#B87333" }}>
+                <MessageSquare size={18} />
+              </div>
+              <h2 className="text-base font-semibold mb-1.5">No conversations yet</h2>
+              <p className="text-sm text-[#6B6459] max-w-md mx-auto mb-6">
+                Flywheel is on. Put the chat snippet on your site (or open the preview) so the next person who writes in shows up here.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => navigate("/app/settings?tab=widget")}
+                  className="text-sm font-medium text-white px-4 py-2.5 rounded-lg"
+                  style={{ backgroundColor: "#151515" }}
+                >
+                  Install website chat
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate("/app/conversations")}
+                  className="text-sm font-medium px-4 py-2.5 rounded-lg border border-[#E7E5DE]"
+                >
+                  Open conversations
+                </button>
+              </div>
             </div>
           ) : (
             <div className="flex flex-col lg:flex-row gap-6">

@@ -1,12 +1,19 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Check } from "lucide-react";
 import { useAuth, describeError } from "../auth/AuthContext";
 import { Field, FlywheelMark, inputCls } from "../components/Shared";
+import { setPageMeta } from "../lib/pageMeta";
 
 export default function Signup() {
   const navigate = useNavigate();
   const { signup } = useAuth();
+  useEffect(() => {
+    setPageMeta(
+      "Create your Flywheel account",
+      "Start a 7-day trial. Set up Business DNA in about 20 minutes, then put chat on your site.",
+    );
+  }, []);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -40,7 +47,7 @@ export default function Signup() {
   return (
     <div style={{ backgroundColor: "#F5F1EA", fontFamily: "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif", color: "#151515" }} className="min-h-screen w-full flex items-center justify-center px-6">
       <div className="w-full max-w-sm">
-        <Link to="/lawyers" className="flex items-center gap-2 mb-8 justify-center">
+        <Link to="/" className="flex items-center gap-2 mb-8 justify-center">
           <div
             className="w-7 h-7 rounded-lg flex items-center justify-center text-white"
             style={{ backgroundColor: "#B87333" }}
@@ -52,9 +59,20 @@ export default function Signup() {
 
         <div className="bg-white rounded-2xl border border-[#E7E5DE] p-7">
           <h1 className="text-2xl mb-1.5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
-            Create your account
+            Start your 7-day trial
           </h1>
-          <p className="text-sm text-[#6B6459] mb-6">Sets up your login. You'll build your Business DNA next.</p>
+          <p className="text-sm text-[#6B6459] mb-5">Create a login. Next you'll describe the business — about 20 minutes, no developer.</p>
+          <ul className="flex flex-col gap-1.5 mb-6 text-xs text-[#6B6459]">
+            {[
+              "No charge until the trial ends",
+              "Starter is $199/mo after — cancel anytime",
+              "Works for any business, not a custom build",
+            ].map((t) => (
+              <li key={t} className="flex items-center gap-2">
+                <Check size={13} color="#1E7B52" /> {t}
+              </li>
+            ))}
+          </ul>
 
           <form onSubmit={handleSubmit}>
             <Field label="Work email">
@@ -102,7 +120,7 @@ export default function Signup() {
               className="w-full text-sm font-medium text-white px-5 py-2.5 rounded-lg flex items-center justify-center gap-1.5 disabled:opacity-60"
               style={{ backgroundColor: "#151515" }}
             >
-              {submitting ? "Creating account…" : "Create account"} <ArrowRight size={14} />
+              {submitting ? "Creating account…" : "Create account and continue"} <ArrowRight size={14} />
             </button>
           </form>
         </div>

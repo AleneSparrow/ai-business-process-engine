@@ -83,3 +83,6 @@ AI не принимает решений — `decision_router` / `qualification
 
 Стратегия, GTM, анализ рынка и решения лежат в claude.ai Project «AI engine for
 business». Ключевой якорный документ — `product-foundation-goals-and-usp.md`.
+Скорость до первой выручки (две дорожки, что не обещать, UX воронки) —
+`docs/marketing/06-speed-to-revenue-playbook.md`. Волна 1 для соло-юристов —
+`docs/marketing/04-gtm-legal-vertical.md`; это вход, не позиционирование продукта.
