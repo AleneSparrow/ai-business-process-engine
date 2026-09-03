@@ -1,14 +1,16 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { LogOut } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { describeError, useAuth } from "../auth/AuthContext";
 import { AccountSecurityPanel } from "../components/AccountSecurityPanel";
+import { FaqList } from "../components/FaqSection";
 import { Field, inputCls } from "../components/Shared";
 import { Sidebar } from "../components/Sidebar";
 
 export default function Account() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, token, setUser, logout } = useAuth();
   const [name, setName] = useState(user?.name ?? "");
   const [saving, setSaving] = useState(false);
@@ -16,6 +18,11 @@ export default function Account() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => setName(user?.name ?? ""), [user?.name]);
+
+  useEffect(() => {
+    if (location.hash !== "#faq") return;
+    document.getElementById("faq")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [location.hash]);
 
   async function saveProfile(event: FormEvent) {
     event.preventDefault();
@@ -68,6 +75,13 @@ export default function Account() {
           </form>
 
           {token && <AccountSecurityPanel token={token} />}
+
+          <section id="faq" className="max-w-2xl border border-[#E7E5DE] bg-white rounded-xl p-5 sm:p-6 mt-10">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#B87333]">FAQ</p>
+            <h2 className="text-lg font-semibold mt-2">What people ask before they start</h2>
+            <p className="text-sm text-[#6B6459] mt-1 mb-2">Straight answers about what Flywheel does and does not do.</p>
+            <FaqList />
+          </section>
 
           <section className="max-w-2xl border-t border-[#E7E5DE] mt-10 pt-8">
             <h2 className="text-lg font-semibold">Sign out</h2>

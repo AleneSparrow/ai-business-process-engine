@@ -1,6 +1,6 @@
 import { useEffect, useState, type ComponentType } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { LayoutGrid, MessageSquare, Workflow, CreditCard, LogOut, Menu, X, Plus, Check, ChevronsUpDown } from "lucide-react";
+import { LayoutGrid, MessageSquare, Workflow, CreditCard, LogOut, Menu, X, Plus, Check, ChevronsUpDown, Home, HelpCircle } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { api, type OwnedBusiness } from "../api/client";
 import { FlywheelMark } from "./Shared";
@@ -198,6 +198,7 @@ function MobileNav({
                 <NavItem icon={MessageSquare} label="Conversations" active={view === "conversation"} onClick={() => go("/app/conversations")} />
                 <NavItem icon={Workflow} label="Settings" active={view === "settings"} onClick={() => go("/app/settings")} />
                 <NavItem icon={CreditCard} label="Billing" active={view === "billing"} onClick={() => go("/app/billing")} />
+                <NavItem icon={HelpCircle} label="FAQ" active={view === "account"} onClick={() => go("/app/account#faq")} />
                 <NavItem icon={Plus} label="Add another business" active={false} onClick={() => go("/onboarding")} />
               </nav>
             </div>
@@ -320,10 +321,12 @@ export function Sidebar() {
               onClick={() => navigate("/app/settings")}
             />
             <NavItem icon={CreditCard} label="Billing" active={view === "billing"} onClick={() => navigate("/app/billing")} />
+            <NavItem icon={HelpCircle} label="FAQ" active={view === "account"} onClick={() => navigate("/app/account#faq")} />
             <NavItem icon={Plus} label="Add another business" active={false} onClick={() => navigate("/onboarding")} />
           </nav>
         </div>
         <div>
+          <NavItem icon={Home} label="Home page" active={false} onClick={() => navigate("/")} />
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-[#6B6459] hover:text-[#151515] transition-colors"
