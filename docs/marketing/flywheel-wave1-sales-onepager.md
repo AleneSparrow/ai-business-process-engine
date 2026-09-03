@@ -10,9 +10,9 @@ Companion to `flywheel-wave1-outreach-ad-materials.md` — same specifics, same 
 
 ## 2. Value proposition (3 lines)
 
-- Answers and qualifies leads 24/7 without adding headcount — $199/month against $55,000–$80,000/year for a dedicated intake specialist.
-- Architecturally incapable of overstepping into legal advice — not a policy, a hard limit in how outgoing messages get built.
-- Live in about 20 minutes, no developer needed.
+- Carries an inquiry through qualifying, cost hesitation, follow-up, and a booked consultation — $199/month against $55,000–$80,000/year for a dedicated intake specialist.
+- Safe to put in front of a client: the AI only rewords the script you approved, so it cannot give advice or estimate odds. That answers “is this allowed,” not “why buy.”
+- Live in about 20 minutes, no developer needed. No lead generation, no client payment collection.
 
 ## 3. Objection handling
 

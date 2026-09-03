@@ -1,5 +1,7 @@
 # Outreach\-материалы: Волна 1
 
+> **Superseded 24 August 2026.** Use `flywheel-wave1-outreach-ad-materials.md`. This draft led with compliance and called the product an AI intake assistant — both wrong after the USP correction (full cycle first; legal is the entry wave, not the category). Kept as history.
+
 Соло\-практики, семейное право / general practice · Калифорния и Нью\-Йорк · черновик для вашей правки
 
 Всё ниже — на английском, потому что аудитория американская. Структура и логика — по стратегии из `gtm-legal-vertical.md`\: ведём только на Starter, комплаенс — главный аргумент, не цена.
