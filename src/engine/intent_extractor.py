@@ -4,6 +4,7 @@ import re
 from typing import Mapping, Protocol
 
 from src.domain.qualification import IncomingMessage, IntentResult, Urgency
+from src.domain.risk_cues import ADVICE_OR_COMMITMENT_CUE, SAFETY_CUE
 
 
 class IntentExtractor(Protocol):
@@ -15,10 +16,111 @@ class IntentExtractor(Protocol):
 # and my phone is ..." captures "Ada and my phone is".
 _NAME_STOP = r"(?!(?:and|my|phone|number|email|call|text|but|so|please)\b)"
 _NAME_TOKEN = _NAME_STOP + r"[A-Za-z][A-Za-z'-]*"
+_STOPWORDS = frozenset({
+    "about", "after", "also", "and", "appointment", "are", "for", "from", "have",
+    "help", "into", "need", "other", "please", "service", "that", "the", "this",
+    "with", "your", "ours", "their", "them", "they", "what", "when", "where",
+    "which", "will", "would", "water", "general", "problem", "problems", "fault",
+    "faults", "issue", "issues", "residential", "looking", "just", "like",
+})
+_TOKEN = re.compile(r"[a-z0-9]{4,}")
+_REQUESTISH = re.compile(
+    r"\b(?:can you|could you|i need|i want|please|repair(?:ed|ing)?|fix(?:ed|ing)?|book|help)\b",
+    re.IGNORECASE,
+)
+# Catalog id never goes here -- this is the fallback's stand-in when the
+# customer has already been asked which service they need and still named
+# nothing in the catalog. QualificationService treats any non-None value as
+# SERVICE_NOT_OFFERED. The phrase is a fixed label, never customer prose.
+UNLISTED_SERVICE = "unlisted-service"
+# "I'm Sam at 10002" is how people actually introduce themselves. Require an
+# uppercase given name so "I'm really worried" is not captured as a name.
+_INTRODUCED_NAME = re.compile(
+    r"\bI(?:['’]m| am)\s+(" + _NAME_STOP + r"[A-Z][A-Za-z'-]*)\b"
+)
+
+
+def _tokens(text: str) -> frozenset[str]:
+    return frozenset(
+        token for token in _TOKEN.findall(text.casefold()) if token not in _STOPWORDS
+    )
+
+
+def _catalog_tokens(service: Mapping[str, object]) -> frozenset[str]:
+    parts: list[str] = []
+    for key in ("id", "name", "description"):
+        value = service.get(key)
+        if isinstance(value, str):
+            parts.append(value)
+    keywords = service.get("intake_keywords")
+    if isinstance(keywords, list | tuple):
+        parts.extend(item for item in keywords if isinstance(item, str))
+    return _tokens(" ".join(parts))
+
+
+def _stem_hit(message_tokens: frozenset[str], catalog: frozenset[str]) -> bool:
+    for message_token in message_tokens:
+        if len(message_token) < 4:
+            continue
+        prefix = message_token[:4]
+        if any(
+            len(item) >= 4 and (item.startswith(prefix) or message_token.startswith(item[:4]))
+            for item in catalog
+        ):
+            return True
+    return False
+
+
+def _distinctive_service_match(
+    raw_text: str,
+    services: list[object],
+) -> tuple[str, ...]:
+    """Zero-config fallback: match everyday wording to one catalog service.
+
+    Shared tokens ("repair") are ignored. A service wins only when the
+    customer's words hit a token that belongs to that service alone, so a
+    multi-service business does not guess between plumbing and HVAC.
+    """
+    catalogued: list[tuple[str, frozenset[str]]] = []
+    if not isinstance(services, list):
+        return ()
+    for service in services:
+        if not isinstance(service, Mapping):
+            continue
+        service_id = service.get("id")
+        if not isinstance(service_id, str) or not service_id:
+            continue
+        catalogued.append((service_id, _catalog_tokens(service)))
+    if not catalogued:
+        return ()
+    all_tokens = [tokens for _, tokens in catalogued]
+    union: set[str] = set()
+    for tokens in all_tokens:
+        union |= set(tokens)
+    shared = {token for token in union if sum(token in tokens for tokens in all_tokens) > 1}
+    message_tokens = _tokens(raw_text)
+    scored: list[tuple[int, str]] = []
+    for service_id, tokens in catalogued:
+        distinctive = tokens - shared
+        exact = len(message_tokens & distinctive)
+        stemmed = 1 if exact == 0 and _stem_hit(message_tokens, distinctive) else 0
+        score = exact + stemmed
+        if score:
+            scored.append((score, service_id))
+    if not scored:
+        return ()
+    best = max(item[0] for item in scored)
+    winners = tuple(service_id for score, service_id in scored if score == best)
+    return winners
 
 
 class DeterministicIntentExtractor:
-    """Scriptable extractor for tests and local demos; never calls an external model."""
+    """Scriptable extractor for tests, local demos, and provider-outage fallback.
+
+    Catalog-term matching stays exact. Everyday customer wording is mapped only
+    through distinctive tokens from the owner-supplied service description, so
+    zero-config intake still works when the live model is unavailable.
+    """
 
     def __init__(self, scripted_results: Mapping[str, IntentResult] | None = None) -> None:
         self._scripted_results = dict(scripted_results or {})
@@ -53,6 +155,8 @@ class DeterministicIntentExtractor:
             r"(?<!\w)(?:\+?\d[\d .()\-]{5,}\d)(?!\w)", raw_text
         ))
         unique_matches = tuple(dict.fromkeys(matches))
+        if not unique_matches:
+            unique_matches = _distinctive_service_match(raw_text, services if isinstance(services, list) else [])
         context = message.conversation_context
         unresolved = set(context.unresolved_items) if context is not None else set()
         phone_context = "field:phone" in unresolved or bool(re.search(
@@ -97,6 +201,10 @@ class DeterministicIntentExtractor:
         customer_name: str | None = (
             explicit_name.group(1).strip(" .,;:!?") if explicit_name else None
         )
+        if customer_name is None:
+            introduced = _INTRODUCED_NAME.search(raw_text)
+            if introduced is not None:
+                customer_name = introduced.group(1)
         if (
             customer_name is None
             and not suspicious_instruction
@@ -118,10 +226,25 @@ class DeterministicIntentExtractor:
             else {}
         )
         urgency = Urgency.NORMAL
-        if any(term in text for term in ("emergency", "urgent", "asap")):
+        if SAFETY_CUE.search(raw_text):
+            urgency = Urgency.EMERGENCY
+        elif any(term in text for term in ("emergency", "urgent", "asap")):
             urgency = Urgency.EMERGENCY if "emergency" in text else Urgency.HIGH
 
         ambiguous = len(unique_matches) > 1
+        advice_request = bool(ADVICE_OR_COMMITMENT_CUE.search(raw_text))
+        unsupported_service_name = None
+        if (
+            not unique_matches
+            and "field:service_id" in unresolved
+            and not suspicious_instruction
+            and _REQUESTISH.search(raw_text)
+            and not (phone or postal_match or customer_name)
+        ):
+            # Already asked what they need; this turn still names nothing we
+            # offer. First-turn ambiguity ("a noise in the utility room") is
+            # untouched because service_id is not yet an unresolved item.
+            unsupported_service_name = UNLISTED_SERVICE
         contextual_answer = context is not None and bool(
             postal_match or email_match or phone or customer_name or answers or unique_matches
         )
@@ -131,9 +254,10 @@ class DeterministicIntentExtractor:
             customer_location=postal_match.group(0) if postal_match else None,
             notes=message.raw_text,
             confidence=0.4 if ambiguous else (0.95 if unique_matches or contextual_answer else 0.6),
-            requires_human=ambiguous,
+            requires_human=ambiguous or advice_request,
             qualification_answers=answers,
             customer_name=customer_name,
             phone=phone,
             email=email_match.group(0) if email_match else None,
+            unsupported_service_name=unsupported_service_name,
         )

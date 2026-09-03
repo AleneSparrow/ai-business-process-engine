@@ -410,6 +410,7 @@
       return null;
     }
   }
+  async function restore() {
     if (!conversationToken) {
       history.replaceChildren();
       if (config) {

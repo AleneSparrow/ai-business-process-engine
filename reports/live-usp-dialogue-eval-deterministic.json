@@ -1,0 +1,2116 @@
+{
+  "summary": {
+    "generated_at": "2026-09-03T05:25:55.142083+00:00",
+    "provider": "deterministic",
+    "model": "deterministic-v1",
+    "cases": 34,
+    "businesses": 13,
+    "pass_rate": 1.0,
+    "sales_bar": 0.98,
+    "sales_bar_met": true,
+    "service_match_rate": 1.0,
+    "state_match_rate": 1.0,
+    "to_deal_rate": 0.6764705882352942,
+    "to_deal_claim_pass_rate": 1.0,
+    "any_business_claim_pass_rate": 1.0,
+    "zero_config_claim_pass_rate": 1.0,
+    "everyday_wording_pass_rate": 1.0,
+    "no_invented_price_rate": 1.0,
+    "errors": 0,
+    "mean_wall_latency_ms": 61,
+    "by_segment": {
+      "b2b": {
+        "cases": 4,
+        "pass_rate": 1.0,
+        "service_match_rate": 1.0,
+        "to_deal_rate": 0.25
+      },
+      "consumer services": {
+        "cases": 2,
+        "pass_rate": 1.0,
+        "service_match_rate": 1.0,
+        "to_deal_rate": 1.0
+      },
+      "local services": {
+        "cases": 25,
+        "pass_rate": 1.0,
+        "service_match_rate": 1.0,
+        "to_deal_rate": 0.8
+      },
+      "regulated": {
+        "cases": 3,
+        "pass_rate": 1.0,
+        "service_match_rate": 1.0,
+        "to_deal_rate": 0.0
+      }
+    },
+    "by_usp_claim": {
+      "any_business": {
+        "cases": 29,
+        "pass_rate": 1.0
+      },
+      "safety": {
+        "cases": 2,
+        "pass_rate": 1.0
+      },
+      "to_deal": {
+        "cases": 22,
+        "pass_rate": 1.0
+      },
+      "tone": {
+        "cases": 2,
+        "pass_rate": 1.0
+      },
+      "zero_config": {
+        "cases": 4,
+        "pass_rate": 1.0
+      },
+      "zero_config_wording": {
+        "cases": 24,
+        "pass_rate": 1.0
+      }
+    },
+    "failures": [],
+    "requested_provider": "deterministic",
+    "anthropic_available": false
+  },
+  "records": [
+    {
+      "scenario_id": "northstar-furnace-booking",
+      "business_id": "northstar-home",
+      "business_name": "Northstar Home Services",
+      "industry": "Residential home services",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "My furnace keeps making a rattling noise and the house isn't warming up. I'm Sam, at 10002. You can reach me at +1 212-555-0101. The unit still runs.",
+      "expected_service": "heating-ac-repair",
+      "expected_states": [
+        "BOOKED"
+      ],
+      "turns": [
+        {
+          "customer": "My furnace keeps making a rattling noise and the house isn't warming up. I'm Sam, at 10002. You can reach me at +1 212-555-0101. The unit still runs.",
+          "assistant": "Is the system running at all?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "The unit still runs",
+          "assistant": "Choose an appointment time:\n1) Thursday, September 03 at 09:00 AM EDT\n2) Thursday, September 03 at 09:30 AM EDT\n3) Thursday, September 03 at 10:00 AM EDT",
+          "state": "QUALIFIED",
+          "requires_human": false
+        },
+        {
+          "customer": "The second option works",
+          "assistant": "Your appointment is confirmed for Thursday, September 03 at 09:30 AM EDT.",
+          "state": "BOOKED",
+          "requires_human": false
+        }
+      ],
+      "final_state": "BOOKED",
+      "requires_human": false,
+      "service_requested": "heating-ac-repair",
+      "unresolved": [],
+      "has_booking": true,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 78
+    },
+    {
+      "scenario_id": "northstar-ambiguous-then-furnace",
+      "business_id": "northstar-home",
+      "business_name": "Northstar Home Services",
+      "industry": "Residential home services",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "Something in the utility room is making a strange noise. Can somebody help?",
+      "expected_service": "heating-ac-repair",
+      "expected_states": [
+        "BOOKED",
+        "QUALIFIED",
+        "QUALIFYING"
+      ],
+      "turns": [
+        {
+          "customer": "Something in the utility room is making a strange noise. Can somebody help?",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? What's the ZIP code where you need service? Is the system running at all?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 212-555-0106",
+          "assistant": "What name should we use for the request? What's the ZIP code where you need service?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Sam",
+          "assistant": "What's the ZIP code where you need service?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "10002",
+          "assistant": "Choose an appointment time:\n1) Thursday, September 03 at 11:00 AM EDT\n2) Thursday, September 03 at 11:30 AM EDT\n3) Thursday, September 03 at 12:00 PM EDT",
+          "state": "QUALIFIED",
+          "requires_human": false
+        },
+        {
+          "customer": "The second option works",
+          "assistant": "Your appointment is confirmed for Thursday, September 03 at 11:30 AM EDT.",
+          "state": "BOOKED",
+          "requires_human": false
+        }
+      ],
+      "final_state": "BOOKED",
+      "requires_human": false,
+      "service_requested": "heating-ac-repair",
+      "unresolved": [],
+      "has_booking": true,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 92
+    },
+    {
+      "scenario_id": "northstar-drain-quote",
+      "business_id": "northstar-home",
+      "business_name": "Northstar Home Services",
+      "industry": "Residential home services",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "The kitchen sink takes forever to empty and now water comes back up when the dishwasher runs.",
+      "expected_service": "drain-cleaning",
+      "expected_states": [
+        "WON",
+        "FOLLOW_UP"
+      ],
+      "turns": [
+        {
+          "customer": "The kitchen sink takes forever to empty and now water comes back up when the dishwasher runs.",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? What's the ZIP code where you need service? Which drain is affected?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 212-555-0107",
+          "assistant": "What name should we use for the request? What's the ZIP code where you need service?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Jordan",
+          "assistant": "What's the ZIP code where you need service?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "10003",
+          "assistant": "Your quote for Drain cleaning is USD 149.00, valid through 2026-09-17. Reply accept or decline.",
+          "state": "QUOTED",
+          "requires_human": false
+        },
+        {
+          "customer": "sounds good, lets do it",
+          "assistant": "Thank you — your quote is accepted. The business will coordinate the next step.",
+          "state": "WON",
+          "requires_human": false
+        }
+      ],
+      "final_state": "WON",
+      "requires_human": false,
+      "service_requested": "drain-cleaning",
+      "unresolved": [],
+      "has_booking": false,
+      "has_quote": true,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 99
+    },
+    {
+      "scenario_id": "northstar-out-of-area",
+      "business_id": "northstar-home",
+      "business_name": "Northstar Home Services",
+      "industry": "Residential home services",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business"
+      ],
+      "everyday_wording": true,
+      "first_message": "My AC isn't cooling. I'm Alex, phone +1 212-555-0102, ZIP 07030, and the system is still running.",
+      "expected_service": "heating-ac-repair",
+      "expected_states": [
+        "LOST"
+      ],
+      "turns": [
+        {
+          "customer": "My AC isn't cooling. I'm Alex, phone +1 212-555-0102, ZIP 07030, and the system is still running.",
+          "assistant": "Sorry — that address is outside the area we currently serve. If you have another address nearby, send the ZIP code and we'll check it right away.",
+          "state": "LOST",
+          "requires_human": false
+        }
+      ],
+      "final_state": "LOST",
+      "requires_human": false,
+      "service_requested": "heating-ac-repair",
+      "unresolved": [],
+      "has_booking": false,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": false,
+        "reached_qualified_or_beyond": false,
+        "pass": true
+      },
+      "wall_latency_ms": 19
+    },
+    {
+      "scenario_id": "northstar-anxious-furnace",
+      "business_id": "northstar-home",
+      "business_name": "Northstar Home Services",
+      "industry": "Residential home services",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "tone",
+        "any_business"
+      ],
+      "everyday_wording": true,
+      "first_message": "I'm really worried. The furnace stopped and I have children in the house. Please tell me what to do. I'm Riley at 10001, +1 212-555-0104.",
+      "expected_service": "heating-ac-repair",
+      "expected_states": [
+        "BOOKED",
+        "QUALIFIED",
+        "QUALIFYING",
+        "NEEDS_HUMAN"
+      ],
+      "turns": [
+        {
+          "customer": "I'm really worried. The furnace stopped and I have children in the house. Please tell me what to do. I'm Riley at 10001, +1 212-555-0104.",
+          "assistant": "Is the system running at all?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "It stopped",
+          "assistant": "Choose an appointment time:\n1) Thursday, September 03 at 01:00 PM EDT\n2) Thursday, September 03 at 01:30 PM EDT\n3) Thursday, September 03 at 02:00 PM EDT",
+          "state": "QUALIFIED",
+          "requires_human": false
+        },
+        {
+          "customer": "The second option works",
+          "assistant": "Your appointment is confirmed for Thursday, September 03 at 01:30 PM EDT.",
+          "state": "BOOKED",
+          "requires_human": false
+        }
+      ],
+      "final_state": "BOOKED",
+      "requires_human": false,
+      "service_requested": "heating-ac-repair",
+      "unresolved": [],
+      "has_booking": true,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 53
+    },
+    {
+      "scenario_id": "northstar-electrical-emergency",
+      "business_id": "northstar-home",
+      "business_name": "Northstar Home Services",
+      "industry": "Residential home services",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "safety"
+      ],
+      "everyday_wording": true,
+      "first_message": "The breaker panel is smoking and I can see sparks.",
+      "expected_service": null,
+      "expected_states": [
+        "NEEDS_HUMAN"
+      ],
+      "turns": [
+        {
+          "customer": "The breaker panel is smoking and I can see sparks.",
+          "assistant": "A team member needs to review your request and will follow up shortly.",
+          "state": "NEEDS_HUMAN",
+          "requires_human": true
+        }
+      ],
+      "final_state": "NEEDS_HUMAN",
+      "requires_human": true,
+      "service_requested": "electrical-troubleshooting",
+      "unresolved": [],
+      "has_booking": false,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": false,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 17
+    },
+    {
+      "scenario_id": "northstar-irritated-plumbing",
+      "business_id": "northstar-home",
+      "business_name": "Northstar Home Services",
+      "industry": "Residential home services",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "tone",
+        "to_deal",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "I already explained this twice. The toilet is leaking, I'm in 11201, and my number is +1 718-555-0105. Just tell me when someone can come.",
+      "expected_service": "plumbing-repair",
+      "expected_states": [
+        "BOOKED"
+      ],
+      "turns": [
+        {
+          "customer": "I already explained this twice. The toilet is leaking, I'm in 11201, and my number is +1 718-555-0105. Just tell me when someone can come.",
+          "assistant": "What name should we use for the request? Is water currently leaking?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Chris",
+          "assistant": "Choose an appointment time:\n1) Thursday, September 03 at 09:00 AM EDT\n2) Thursday, September 03 at 09:30 AM EDT\n3) Thursday, September 03 at 10:00 AM EDT",
+          "state": "QUALIFIED",
+          "requires_human": false
+        },
+        {
+          "customer": "The second option works",
+          "assistant": "Your appointment is confirmed for Thursday, September 03 at 09:30 AM EDT.",
+          "state": "BOOKED",
+          "requires_human": false
+        }
+      ],
+      "final_state": "BOOKED",
+      "requires_human": false,
+      "service_requested": "plumbing-repair",
+      "unresolved": [],
+      "has_booking": true,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 51
+    },
+    {
+      "scenario_id": "northstar-unsupported-laptop",
+      "business_id": "northstar-home",
+      "business_name": "Northstar Home Services",
+      "industry": "Residential home services",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business"
+      ],
+      "everyday_wording": true,
+      "first_message": "Can you repair my laptop? I'm Maya at 10001, +1 212-555-0110.",
+      "expected_service": null,
+      "expected_states": [
+        "LOST"
+      ],
+      "turns": [
+        {
+          "customer": "Can you repair my laptop? I'm Maya at 10001, +1 212-555-0110.",
+          "assistant": "What kind of service do you need help with?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "It's my laptop that needs to be repaired.",
+          "assistant": "Sorry, this request is outside what we currently support — we'll follow up if that changes.",
+          "state": "LOST",
+          "requires_human": false
+        }
+      ],
+      "final_state": "LOST",
+      "requires_human": false,
+      "service_requested": null,
+      "unresolved": [],
+      "has_booking": false,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": false,
+        "reached_qualified_or_beyond": false,
+        "pass": true
+      },
+      "wall_latency_ms": 36
+    },
+    {
+      "scenario_id": "salon-balayage-booking",
+      "business_id": "bloom-salon",
+      "business_name": "Bloom and Blade Salon",
+      "industry": "Beauty services",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "I'd like to book balayage for my hair this week.",
+      "expected_service": "hair-color-appointment",
+      "expected_states": [
+        "BOOKED"
+      ],
+      "turns": [
+        {
+          "customer": "I'd like to book balayage for my hair this week.",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? What's the ZIP code where you need service? What result are you hoping for?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 415-555-0121",
+          "assistant": "What name should we use for the request? What's the ZIP code where you need service?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Priya",
+          "assistant": "What's the ZIP code where you need service?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "94102",
+          "assistant": "Choose an appointment time:\n1) Thursday, September 03 at 09:00 AM PDT\n2) Thursday, September 03 at 09:30 AM PDT\n3) Thursday, September 03 at 10:00 AM PDT",
+          "state": "QUALIFIED",
+          "requires_human": false
+        },
+        {
+          "customer": "The second option works",
+          "assistant": "Your appointment is confirmed for Thursday, September 03 at 09:30 AM PDT.",
+          "state": "BOOKED",
+          "requires_human": false
+        }
+      ],
+      "final_state": "BOOKED",
+      "requires_human": false,
+      "service_requested": "hair-color-appointment",
+      "unresolved": [],
+      "has_booking": true,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 91
+    },
+    {
+      "scenario_id": "auto-brakes",
+      "business_id": "ridge-auto",
+      "business_name": "Ridge Auto Care",
+      "industry": "Auto repair",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "My car shakes when I brake. Can someone look at it in 85001?",
+      "expected_service": "brake-service",
+      "expected_states": [
+        "BOOKED"
+      ],
+      "turns": [
+        {
+          "customer": "My car shakes when I brake. Can someone look at it in 85001?",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? What is the vehicle make and model?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 602-555-0131",
+          "assistant": "What name should we use for the request?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Diego",
+          "assistant": "Choose an appointment time:\n1) Thursday, September 03 at 09:00 AM MST\n2) Thursday, September 03 at 09:30 AM MST\n3) Thursday, September 03 at 10:00 AM MST",
+          "state": "QUALIFIED",
+          "requires_human": false
+        },
+        {
+          "customer": "The second option works",
+          "assistant": "Your appointment is confirmed for Thursday, September 03 at 09:30 AM MST.",
+          "state": "BOOKED",
+          "requires_human": false
+        }
+      ],
+      "final_state": "BOOKED",
+      "requires_human": false,
+      "service_requested": "brake-service",
+      "unresolved": [],
+      "has_booking": true,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 70
+    },
+    {
+      "scenario_id": "wealth-retirement-zero-config",
+      "business_id": "harbor-wealth",
+      "business_name": "Harbor Wealth Advisors",
+      "industry": "Financial planning",
+      "segment": "regulated",
+      "setup": "zero_config",
+      "usp_claims": [
+        "any_business",
+        "zero_config",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "I need a plan for retiring in ten years. I'm in Oregon.",
+      "expected_service": "retirement-planning",
+      "expected_states": [
+        "NEEDS_HUMAN",
+        "QUALIFIED"
+      ],
+      "turns": [
+        {
+          "customer": "I need a plan for retiring in ten years. I'm in Oregon.",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? What is your planning horizon?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 503-555-0103",
+          "assistant": "What name should we use for the request?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Casey",
+          "assistant": "A team member needs to review your request and will follow up shortly.",
+          "state": "NEEDS_HUMAN",
+          "requires_human": true
+        }
+      ],
+      "final_state": "NEEDS_HUMAN",
+      "requires_human": true,
+      "service_requested": "retirement-planning",
+      "unresolved": [],
+      "has_booking": false,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": false,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 56
+    },
+    {
+      "scenario_id": "wealth-return-guarantee",
+      "business_id": "harbor-wealth",
+      "business_name": "Harbor Wealth Advisors",
+      "industry": "Financial planning",
+      "segment": "regulated",
+      "setup": "zero_config",
+      "usp_claims": [
+        "safety"
+      ],
+      "everyday_wording": true,
+      "first_message": "Guarantee me a 20 percent return and invest it now.",
+      "expected_service": null,
+      "expected_states": [
+        "NEEDS_HUMAN"
+      ],
+      "turns": [
+        {
+          "customer": "Guarantee me a 20 percent return and invest it now.",
+          "assistant": "A team member needs to review your request and will follow up shortly.",
+          "state": "NEEDS_HUMAN",
+          "requires_human": true
+        }
+      ],
+      "final_state": "NEEDS_HUMAN",
+      "requires_human": true,
+      "service_requested": "retirement-planning",
+      "unresolved": [],
+      "has_booking": false,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": false,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 17
+    },
+    {
+      "scenario_id": "tutoring-algebra-remote",
+      "business_id": "brightpath-tutoring",
+      "business_name": "BrightPath Tutoring",
+      "industry": "Education",
+      "segment": "consumer services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "My daughter needs help with high school algebra. We are in Oregon.",
+      "expected_service": "math-tutoring",
+      "expected_states": [
+        "BOOKED"
+      ],
+      "turns": [
+        {
+          "customer": "My daughter needs help with high school algebra. We are in Oregon.",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? Which subject needs support?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 503-555-0144",
+          "assistant": "What name should we use for the request?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Morgan",
+          "assistant": "Choose an appointment time:\n1) Thursday, September 03 at 09:00 AM EDT\n2) Thursday, September 03 at 09:30 AM EDT\n3) Thursday, September 03 at 10:00 AM EDT",
+          "state": "QUALIFIED",
+          "requires_human": false
+        },
+        {
+          "customer": "The second option works",
+          "assistant": "Your appointment is confirmed for Thursday, September 03 at 09:30 AM EDT.",
+          "state": "BOOKED",
+          "requires_human": false
+        }
+      ],
+      "final_state": "BOOKED",
+      "requires_human": false,
+      "service_requested": "math-tutoring",
+      "unresolved": [],
+      "has_booking": true,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 70
+    },
+    {
+      "scenario_id": "freight-pallets-quote",
+      "business_id": "packwright-freight",
+      "business_name": "Packwright Freight",
+      "industry": "Freight and logistics",
+      "segment": "b2b",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "We ship four pallets from Dallas to Miami each week.",
+      "expected_service": "freight-quote",
+      "expected_states": [
+        "WON",
+        "FOLLOW_UP"
+      ],
+      "turns": [
+        {
+          "customer": "We ship four pallets from Dallas to Miami each week.",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? What are you shipping?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 214-555-0155",
+          "assistant": "What name should we use for the request?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Avery Chen",
+          "assistant": "Your quote for Freight quote is USD 890.00, valid through 2026-09-17. Reply accept or decline.",
+          "state": "QUOTED",
+          "requires_human": false
+        },
+        {
+          "customer": "sounds good, lets do it",
+          "assistant": "Thank you — your quote is accepted. The business will coordinate the next step.",
+          "state": "WON",
+          "requires_human": false
+        }
+      ],
+      "final_state": "WON",
+      "requires_human": false,
+      "service_requested": "freight-quote",
+      "unresolved": [],
+      "has_booking": false,
+      "has_quote": true,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 75
+    },
+    {
+      "scenario_id": "northstar-ac-booking",
+      "business_id": "northstar-home",
+      "business_name": "Northstar Home Services",
+      "industry": "Residential home services",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "Our air conditioner is blowing warm air. Can someone come to 10009?",
+      "expected_service": "heating-ac-repair",
+      "expected_states": [
+        "BOOKED"
+      ],
+      "turns": [
+        {
+          "customer": "Our air conditioner is blowing warm air. Can someone come to 10009?",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? Is the system running at all?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 212-555-0160",
+          "assistant": "What name should we use for the request?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Pat",
+          "assistant": "Choose an appointment time:\n1) Thursday, September 03 at 03:00 PM EDT\n2) Thursday, September 03 at 03:30 PM EDT\n3) Thursday, September 03 at 04:00 PM EDT",
+          "state": "QUALIFIED",
+          "requires_human": false
+        },
+        {
+          "customer": "The second option works",
+          "assistant": "Your appointment is confirmed for Thursday, September 03 at 03:30 PM EDT.",
+          "state": "BOOKED",
+          "requires_human": false
+        }
+      ],
+      "final_state": "BOOKED",
+      "requires_human": false,
+      "service_requested": "heating-ac-repair",
+      "unresolved": [],
+      "has_booking": true,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 71
+    },
+    {
+      "scenario_id": "northstar-need-it-today-still-books",
+      "business_id": "northstar-home",
+      "business_name": "Northstar Home Services",
+      "industry": "Residential home services",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal"
+      ],
+      "everyday_wording": true,
+      "first_message": "The furnace stopped and I need it today if possible. I'm Kim at 10001, +1 212-555-0161. It is not running.",
+      "expected_service": "heating-ac-repair",
+      "expected_states": [
+        "BOOKED"
+      ],
+      "turns": [
+        {
+          "customer": "The furnace stopped and I need it today if possible. I'm Kim at 10001, +1 212-555-0161. It is not running.",
+          "assistant": "Is the system running at all?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "It is not running",
+          "assistant": "Choose an appointment time:\n1) Friday, September 04 at 09:00 AM EDT\n2) Friday, September 04 at 09:30 AM EDT\n3) Friday, September 04 at 10:00 AM EDT",
+          "state": "QUALIFIED",
+          "requires_human": false
+        },
+        {
+          "customer": "The second option works",
+          "assistant": "Your appointment is confirmed for Friday, September 04 at 09:30 AM EDT.",
+          "state": "BOOKED",
+          "requires_human": false
+        }
+      ],
+      "final_state": "BOOKED",
+      "requires_human": false,
+      "service_requested": "heating-ac-repair",
+      "unresolved": [],
+      "has_booking": true,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 54
+    },
+    {
+      "scenario_id": "northstar-invented-slot-rejected",
+      "business_id": "northstar-home",
+      "business_name": "Northstar Home Services",
+      "industry": "Residential home services",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "to_deal"
+      ],
+      "everyday_wording": true,
+      "first_message": "My furnace is rattling. I'm Lee at 10002, +1 212-555-0162. The unit still runs.",
+      "expected_service": "heating-ac-repair",
+      "expected_states": [
+        "QUALIFIED"
+      ],
+      "turns": [
+        {
+          "customer": "My furnace is rattling. I'm Lee at 10002, +1 212-555-0162. The unit still runs.",
+          "assistant": "Is the system running at all?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "The unit still runs",
+          "assistant": "Choose an appointment time:\n1) Friday, September 04 at 11:00 AM EDT\n2) Friday, September 04 at 11:30 AM EDT\n3) Friday, September 04 at 12:00 PM EDT",
+          "state": "QUALIFIED",
+          "requires_human": false
+        },
+        {
+          "customer": "Book me tomorrow at 7:15 AM",
+          "assistant": "Please choose one of the proposed times by replying with its option number.",
+          "state": "QUALIFIED",
+          "requires_human": false
+        }
+      ],
+      "final_state": "QUALIFIED",
+      "requires_human": false,
+      "service_requested": "heating-ac-repair",
+      "unresolved": [],
+      "has_booking": false,
+      "has_quote": false,
+      "slot_count": 3,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": false,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 49
+    },
+    {
+      "scenario_id": "northstar-out-of-area-then-correct-zip",
+      "business_id": "northstar-home",
+      "business_name": "Northstar Home Services",
+      "industry": "Residential home services",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal"
+      ],
+      "everyday_wording": true,
+      "first_message": "My AC isn't cooling. I'm Alex, phone +1 212-555-0163, ZIP 07030, and the system is still running.",
+      "expected_service": "heating-ac-repair",
+      "expected_states": [
+        "BOOKED"
+      ],
+      "turns": [
+        {
+          "customer": "My AC isn't cooling. I'm Alex, phone +1 212-555-0163, ZIP 07030, and the system is still running.",
+          "assistant": "Sorry — that address is outside the area we currently serve. If you have another address nearby, send the ZIP code and we'll check it right away.",
+          "state": "LOST",
+          "requires_human": false
+        },
+        {
+          "customer": "Sorry, the ZIP is actually 10001.",
+          "assistant": "Is the system running at all?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "the system is still running",
+          "assistant": "Choose an appointment time:\n1) Friday, September 04 at 11:00 AM EDT\n2) Friday, September 04 at 11:30 AM EDT\n3) Friday, September 04 at 12:00 PM EDT",
+          "state": "QUALIFIED",
+          "requires_human": false
+        },
+        {
+          "customer": "The second option works",
+          "assistant": "Your appointment is confirmed for Friday, September 04 at 11:30 AM EDT.",
+          "state": "BOOKED",
+          "requires_human": false
+        }
+      ],
+      "final_state": "BOOKED",
+      "requires_human": false,
+      "service_requested": "heating-ac-repair",
+      "unresolved": [],
+      "has_booking": true,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 81
+    },
+    {
+      "scenario_id": "salon-haircut-booking",
+      "business_id": "bloom-salon",
+      "business_name": "Bloom and Blade Salon",
+      "industry": "Beauty services",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "I need a trim, not a full restyle. I'm in 94103.",
+      "expected_service": "haircut",
+      "expected_states": [
+        "BOOKED"
+      ],
+      "turns": [
+        {
+          "customer": "I need a trim, not a full restyle. I'm in 94103.",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? How short would you like it?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 415-555-0164",
+          "assistant": "What name should we use for the request?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Jamie",
+          "assistant": "Choose an appointment time:\n1) Thursday, September 03 at 09:00 AM PDT\n2) Thursday, September 03 at 09:30 AM PDT\n3) Thursday, September 03 at 10:00 AM PDT",
+          "state": "QUALIFIED",
+          "requires_human": false
+        },
+        {
+          "customer": "The second option works",
+          "assistant": "Your appointment is confirmed for Thursday, September 03 at 09:30 AM PDT.",
+          "state": "BOOKED",
+          "requires_human": false
+        }
+      ],
+      "final_state": "BOOKED",
+      "requires_human": false,
+      "service_requested": "haircut",
+      "unresolved": [],
+      "has_booking": true,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 70
+    },
+    {
+      "scenario_id": "auto-check-engine",
+      "business_id": "ridge-auto",
+      "business_name": "Ridge Auto Care",
+      "industry": "Auto repair",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "The check-engine light came on this morning in 85003.",
+      "expected_service": "vehicle-diagnostic",
+      "expected_states": [
+        "BOOKED"
+      ],
+      "turns": [
+        {
+          "customer": "The check-engine light came on this morning in 85003.",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? What warning lights or symptoms do you see?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 602-555-0165",
+          "assistant": "What name should we use for the request?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Reese",
+          "assistant": "Choose an appointment time:\n1) Thursday, September 03 at 09:00 AM MST\n2) Thursday, September 03 at 09:30 AM MST\n3) Thursday, September 03 at 10:00 AM MST",
+          "state": "QUALIFIED",
+          "requires_human": false
+        },
+        {
+          "customer": "The second option works",
+          "assistant": "Your appointment is confirmed for Thursday, September 03 at 09:30 AM MST.",
+          "state": "BOOKED",
+          "requires_human": false
+        }
+      ],
+      "final_state": "BOOKED",
+      "requires_human": false,
+      "service_requested": "vehicle-diagnostic",
+      "unresolved": [],
+      "has_booking": true,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 69
+    },
+    {
+      "scenario_id": "auto-out-of-area",
+      "business_id": "ridge-auto",
+      "business_name": "Ridge Auto Care",
+      "industry": "Auto repair",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business"
+      ],
+      "everyday_wording": true,
+      "first_message": "My car shakes when I brake. I'm in 99999. I'm Taylor, +1 602-555-0166.",
+      "expected_service": "brake-service",
+      "expected_states": [
+        "LOST"
+      ],
+      "turns": [
+        {
+          "customer": "My car shakes when I brake. I'm in 99999. I'm Taylor, +1 602-555-0166.",
+          "assistant": "Sorry — that address is outside the area we currently serve. If you have another address nearby, send the ZIP code and we'll check it right away.",
+          "state": "LOST",
+          "requires_human": false
+        }
+      ],
+      "final_state": "LOST",
+      "requires_human": false,
+      "service_requested": "brake-service",
+      "unresolved": [],
+      "has_booking": false,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": false,
+        "reached_qualified_or_beyond": false,
+        "pass": true
+      },
+      "wall_latency_ms": 18
+    },
+    {
+      "scenario_id": "pest-termites",
+      "business_id": "greenleaf-pest",
+      "business_name": "GreenLeaf Pest Control",
+      "industry": "Pest control",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "We keep finding termites near the garage in 33101.",
+      "expected_service": "pest-inspection",
+      "expected_states": [
+        "BOOKED"
+      ],
+      "turns": [
+        {
+          "customer": "We keep finding termites near the garage in 33101.",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? Which pest have you noticed?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 305-555-0167",
+          "assistant": "What name should we use for the request?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Drew",
+          "assistant": "Choose an appointment time:\n1) Thursday, September 03 at 09:00 AM EDT\n2) Thursday, September 03 at 09:30 AM EDT\n3) Thursday, September 03 at 10:00 AM EDT",
+          "state": "QUALIFIED",
+          "requires_human": false
+        },
+        {
+          "customer": "The second option works",
+          "assistant": "Your appointment is confirmed for Thursday, September 03 at 09:30 AM EDT.",
+          "state": "BOOKED",
+          "requires_human": false
+        }
+      ],
+      "final_state": "BOOKED",
+      "requires_human": false,
+      "service_requested": "pest-inspection",
+      "unresolved": [],
+      "has_booking": true,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 73
+    },
+    {
+      "scenario_id": "moving-two-bedroom-quote",
+      "business_id": "moveright",
+      "business_name": "MoveRight Movers",
+      "industry": "Moving services",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "We are moving a two-bedroom apartment next month from 10002.",
+      "expected_service": "moving-quote",
+      "expected_states": [
+        "WON",
+        "FOLLOW_UP"
+      ],
+      "turns": [
+        {
+          "customer": "We are moving a two-bedroom apartment next month from 10002.",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? What size home are you moving?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 212-555-0168",
+          "assistant": "What name should we use for the request?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Quinn",
+          "assistant": "Your quote for Moving quote is USD 1299.00, valid through 2026-09-17. Reply accept or decline.",
+          "state": "QUOTED",
+          "requires_human": false
+        },
+        {
+          "customer": "sounds good, lets do it",
+          "assistant": "Thank you — your quote is accepted. The business will coordinate the next step.",
+          "state": "WON",
+          "requires_human": false
+        }
+      ],
+      "final_state": "WON",
+      "requires_human": false,
+      "service_requested": "moving-quote",
+      "unresolved": [],
+      "has_booking": false,
+      "has_quote": true,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 76
+    },
+    {
+      "scenario_id": "photo-product-launch",
+      "business_id": "lenslight",
+      "business_name": "Lens and Light Studio",
+      "industry": "Photography",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "We need a photographer for our product launch in 90012.",
+      "expected_service": "product-photography",
+      "expected_states": [
+        "BOOKED"
+      ],
+      "turns": [
+        {
+          "customer": "We need a photographer for our product launch in 90012.",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? What type of shoot is this?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 213-555-0169",
+          "assistant": "What name should we use for the request?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Sasha",
+          "assistant": "Choose an appointment time:\n1) Thursday, September 03 at 09:00 AM PDT\n2) Thursday, September 03 at 09:30 AM PDT\n3) Thursday, September 03 at 10:00 AM PDT",
+          "state": "QUALIFIED",
+          "requires_human": false
+        },
+        {
+          "customer": "The second option works",
+          "assistant": "Your appointment is confirmed for Thursday, September 03 at 09:30 AM PDT.",
+          "state": "BOOKED",
+          "requires_human": false
+        }
+      ],
+      "final_state": "BOOKED",
+      "requires_human": false,
+      "service_requested": "product-photography",
+      "unresolved": [],
+      "has_booking": true,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 73
+    },
+    {
+      "scenario_id": "saas-onboarding-zero-config",
+      "business_id": "cloudnest",
+      "business_name": "CloudNest",
+      "industry": "SaaS sales",
+      "segment": "b2b",
+      "setup": "zero_config",
+      "usp_claims": [
+        "any_business",
+        "zero_config",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "We need software to automate customer onboarding for a forty-person team.",
+      "expected_service": "product-demo",
+      "expected_states": [
+        "NEEDS_HUMAN",
+        "QUALIFIED"
+      ],
+      "turns": [
+        {
+          "customer": "We need software to automate customer onboarding for a forty-person team.",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? How many people will use the software?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 415-555-0170",
+          "assistant": "What name should we use for the request?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Riley Park",
+          "assistant": "A team member needs to review your request and will follow up shortly.",
+          "state": "NEEDS_HUMAN",
+          "requires_human": true
+        }
+      ],
+      "final_state": "NEEDS_HUMAN",
+      "requires_human": true,
+      "service_requested": "product-demo",
+      "unresolved": [],
+      "has_booking": false,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": false,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 56
+    },
+    {
+      "scenario_id": "saas-greeting-stays-qualifying",
+      "business_id": "cloudnest",
+      "business_name": "CloudNest",
+      "industry": "SaaS sales",
+      "segment": "b2b",
+      "setup": "zero_config",
+      "usp_claims": [
+        "zero_config"
+      ],
+      "everyday_wording": true,
+      "first_message": "Hi, can you help me?",
+      "expected_service": null,
+      "expected_states": [
+        "QUALIFYING"
+      ],
+      "turns": [
+        {
+          "customer": "Hi, can you help me?",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? What kind of service do you need help with?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        }
+      ],
+      "final_state": "QUALIFYING",
+      "requires_human": false,
+      "service_requested": null,
+      "unresolved": [
+        "field:name",
+        "field:phone",
+        "field:service_id"
+      ],
+      "has_booking": false,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": false,
+        "reached_qualified_or_beyond": false,
+        "pass": true
+      },
+      "wall_latency_ms": 18
+    },
+    {
+      "scenario_id": "vet-dog-checkup",
+      "business_id": "pawside",
+      "business_name": "Pawside Veterinary Clinic",
+      "industry": "Veterinary services",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "My dog needs a routine checkup. We are in 80202.",
+      "expected_service": "veterinary-appointment",
+      "expected_states": [
+        "BOOKED"
+      ],
+      "turns": [
+        {
+          "customer": "My dog needs a routine checkup. We are in 80202.",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? What kind of pet is the appointment for?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 303-555-0171",
+          "assistant": "What name should we use for the request?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Cameron",
+          "assistant": "Choose an appointment time:\n1) Thursday, September 03 at 09:00 AM MDT\n2) Thursday, September 03 at 09:30 AM MDT\n3) Thursday, September 03 at 10:00 AM MDT",
+          "state": "QUALIFIED",
+          "requires_human": false
+        },
+        {
+          "customer": "The second option works",
+          "assistant": "Your appointment is confirmed for Thursday, September 03 at 09:30 AM MDT.",
+          "state": "BOOKED",
+          "requires_human": false
+        }
+      ],
+      "final_state": "BOOKED",
+      "requires_human": false,
+      "service_requested": "veterinary-appointment",
+      "unresolved": [],
+      "has_booking": true,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 69
+    },
+    {
+      "scenario_id": "solar-house-quote",
+      "business_id": "sunwell",
+      "business_name": "Sunwell Solar",
+      "industry": "Solar installation",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "I want to know if solar makes sense for my house in 85003.",
+      "expected_service": "solar-assessment",
+      "expected_states": [
+        "WON",
+        "FOLLOW_UP"
+      ],
+      "turns": [
+        {
+          "customer": "I want to know if solar makes sense for my house in 85003.",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? What type of property is this?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 602-555-0172",
+          "assistant": "What name should we use for the request?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Avery",
+          "assistant": "Your quote for Solar assessment is USD 4500.00, valid through 2026-09-17. Reply accept or decline.",
+          "state": "QUOTED",
+          "requires_human": false
+        },
+        {
+          "customer": "sounds good, lets do it",
+          "assistant": "Thank you — your quote is accepted. The business will coordinate the next step.",
+          "state": "WON",
+          "requires_human": false
+        }
+      ],
+      "final_state": "WON",
+      "requires_human": false,
+      "service_requested": "solar-assessment",
+      "unresolved": [],
+      "has_booking": false,
+      "has_quote": true,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 75
+    },
+    {
+      "scenario_id": "cleaning-move-out-quote",
+      "business_id": "tidyco",
+      "business_name": "TidyCo Cleaning",
+      "industry": "Cleaning services",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "We need a deep clean before moving out of our apartment in 94107.",
+      "expected_service": "cleaning-quote",
+      "expected_states": [
+        "WON",
+        "FOLLOW_UP"
+      ],
+      "turns": [
+        {
+          "customer": "We need a deep clean before moving out of our apartment in 94107.",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? What type of property is it?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 415-555-0173",
+          "assistant": "What name should we use for the request?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Emerson",
+          "assistant": "Your quote for Cleaning quote is USD 249.00, valid through 2026-09-17. Reply accept or decline.",
+          "state": "QUOTED",
+          "requires_human": false
+        },
+        {
+          "customer": "sounds good, lets do it",
+          "assistant": "Thank you — your quote is accepted. The business will coordinate the next step.",
+          "state": "WON",
+          "requires_human": false
+        }
+      ],
+      "final_state": "WON",
+      "requires_human": false,
+      "service_requested": "cleaning-quote",
+      "unresolved": [],
+      "has_booking": false,
+      "has_quote": true,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 75
+    },
+    {
+      "scenario_id": "wealth-insurance-review",
+      "business_id": "harbor-wealth",
+      "business_name": "Harbor Wealth Advisors",
+      "industry": "Financial planning",
+      "segment": "regulated",
+      "setup": "zero_config",
+      "usp_claims": [
+        "any_business",
+        "zero_config",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "I need life coverage reviewed for my family.",
+      "expected_service": "insurance-review",
+      "expected_states": [
+        "NEEDS_HUMAN",
+        "QUALIFIED"
+      ],
+      "turns": [
+        {
+          "customer": "I need life coverage reviewed for my family.",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? What type of coverage do you want reviewed?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 503-555-0174",
+          "assistant": "What name should we use for the request?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Blake",
+          "assistant": "A team member needs to review your request and will follow up shortly.",
+          "state": "NEEDS_HUMAN",
+          "requires_human": true
+        }
+      ],
+      "final_state": "NEEDS_HUMAN",
+      "requires_human": true,
+      "service_requested": "insurance-review",
+      "unresolved": [],
+      "has_booking": false,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": false,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 55
+    },
+    {
+      "scenario_id": "tutoring-sat",
+      "business_id": "brightpath-tutoring",
+      "business_name": "BrightPath Tutoring",
+      "industry": "Education",
+      "segment": "consumer services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "My son needs SAT practice starting next month.",
+      "expected_service": "test-prep",
+      "expected_states": [
+        "BOOKED"
+      ],
+      "turns": [
+        {
+          "customer": "My son needs SAT practice starting next month.",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? Which exam is this for?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 503-555-0175",
+          "assistant": "What name should we use for the request?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Harper",
+          "assistant": "Choose an appointment time:\n1) Thursday, September 03 at 09:00 AM EDT\n2) Thursday, September 03 at 09:30 AM EDT\n3) Thursday, September 03 at 10:00 AM EDT",
+          "state": "QUALIFIED",
+          "requires_human": false
+        },
+        {
+          "customer": "The second option works",
+          "assistant": "Your appointment is confirmed for Thursday, September 03 at 09:30 AM EDT.",
+          "state": "BOOKED",
+          "requires_human": false
+        }
+      ],
+      "final_state": "BOOKED",
+      "requires_human": false,
+      "service_requested": "test-prep",
+      "unresolved": [],
+      "has_booking": true,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 73
+    },
+    {
+      "scenario_id": "freight-carrier-sourcing",
+      "business_id": "packwright-freight",
+      "business_name": "Packwright Freight",
+      "industry": "Freight and logistics",
+      "segment": "b2b",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "We need a carrier for a recurring Dallas to Miami lane.",
+      "expected_service": "carrier-sourcing",
+      "expected_states": [
+        "NEEDS_HUMAN",
+        "QUALIFIED"
+      ],
+      "turns": [
+        {
+          "customer": "We need a carrier for a recurring Dallas to Miami lane.",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? How often do you ship?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 214-555-0176",
+          "assistant": "What name should we use for the request?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Jordan Hale",
+          "assistant": "A team member needs to review your request and will follow up shortly.",
+          "state": "NEEDS_HUMAN",
+          "requires_human": true
+        }
+      ],
+      "final_state": "NEEDS_HUMAN",
+      "requires_human": true,
+      "service_requested": "carrier-sourcing",
+      "unresolved": [],
+      "has_booking": false,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": false,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 58
+    },
+    {
+      "scenario_id": "pest-mice",
+      "business_id": "greenleaf-pest",
+      "business_name": "GreenLeaf Pest Control",
+      "industry": "Pest control",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "We have mice in the kitchen in 33109.",
+      "expected_service": "rodent-control",
+      "expected_states": [
+        "BOOKED"
+      ],
+      "turns": [
+        {
+          "customer": "We have mice in the kitchen in 33109.",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? Where have you seen activity?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 305-555-0177",
+          "assistant": "What name should we use for the request?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Finley",
+          "assistant": "Choose an appointment time:\n1) Thursday, September 03 at 09:00 AM EDT\n2) Thursday, September 03 at 09:30 AM EDT\n3) Thursday, September 03 at 10:00 AM EDT",
+          "state": "QUALIFIED",
+          "requires_human": false
+        },
+        {
+          "customer": "The second option works",
+          "assistant": "Your appointment is confirmed for Thursday, September 03 at 09:30 AM EDT.",
+          "state": "BOOKED",
+          "requires_human": false
+        }
+      ],
+      "final_state": "BOOKED",
+      "requires_human": false,
+      "service_requested": "rodent-control",
+      "unresolved": [],
+      "has_booking": true,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 75
+    },
+    {
+      "scenario_id": "photo-event",
+      "business_id": "lenslight",
+      "business_name": "Lens and Light Studio",
+      "industry": "Photography",
+      "segment": "local services",
+      "setup": "owner_settings",
+      "usp_claims": [
+        "any_business",
+        "to_deal",
+        "zero_config_wording"
+      ],
+      "everyday_wording": true,
+      "first_message": "We need coverage for a company dinner for 150 people in 90015.",
+      "expected_service": "event-photography",
+      "expected_states": [
+        "BOOKED"
+      ],
+      "turns": [
+        {
+          "customer": "We need coverage for a company dinner for 150 people in 90015.",
+          "assistant": "What name should we use for the request? What is the best phone number to reach you? How many guests do you expect?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My phone is +1 213-555-0178",
+          "assistant": "What name should we use for the request?",
+          "state": "QUALIFYING",
+          "requires_human": false
+        },
+        {
+          "customer": "My name is Rowan",
+          "assistant": "Choose an appointment time:\n1) Thursday, September 03 at 09:00 AM PDT\n2) Thursday, September 03 at 09:30 AM PDT\n3) Thursday, September 03 at 10:00 AM PDT",
+          "state": "QUALIFIED",
+          "requires_human": false
+        },
+        {
+          "customer": "The second option works",
+          "assistant": "Your appointment is confirmed for Thursday, September 03 at 09:30 AM PDT.",
+          "state": "BOOKED",
+          "requires_human": false
+        }
+      ],
+      "final_state": "BOOKED",
+      "requires_human": false,
+      "service_requested": "event-photography",
+      "unresolved": [],
+      "has_booking": true,
+      "has_quote": false,
+      "slot_count": 0,
+      "invented_prices": [],
+      "score": {
+        "service_match": true,
+        "state_match": true,
+        "human_match": true,
+        "lost_match": true,
+        "no_invented_price": true,
+        "to_deal": true,
+        "reached_qualified_or_beyond": true,
+        "pass": true
+      },
+      "wall_latency_ms": 71
+    }
+  ]
+}
