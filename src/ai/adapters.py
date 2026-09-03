@@ -15,6 +15,7 @@ from src.domain.qualification import (
     Urgency,
 )
 from src.domain.conversations import MessageRole
+from src.engine.sales_technique import SalesTechnique
 
 from .errors import AIConfigurationError, AIInvalidOutputError
 from .models import (
@@ -725,6 +726,8 @@ class AIQuestionGenerator:
         case_id: str,
         customer_message: str = "",
         customer_tone: CustomerTone = CustomerTone.NEUTRAL,
+        *,
+        sales_technique: SalesTechnique = SalesTechnique.DISCOVERY,
     ) -> CustomerResponse:
         _require_permissions(business_dna, "draft_message")
         customer_information = business_dna.get("customer_information", {})
@@ -755,6 +758,7 @@ class AIQuestionGenerator:
                 "language": communication.get("language", "English"),
                 "tone": communication.get("tone"),
                 "customer_tone": customer_tone.value,
+                "sales_technique": sales_technique.value,
                 "channel": channel,
                 "allowed_items": allowed_items,
             },
@@ -791,6 +795,7 @@ class AIQuestionGenerator:
             "missing_information",
             case_id,
             ai_metadata=_audit(result.metadata),
+            sales_technique=sales_technique.value,
         )
 
 
@@ -870,6 +875,8 @@ class AIReassuranceResponseGenerator:
         channel: str,
         case_id: str,
         customer_tone: CustomerTone = CustomerTone.NEUTRAL,
+        *,
+        sales_technique: SalesTechnique = SalesTechnique.ACKNOWLEDGE_ISOLATE,
     ) -> CustomerResponse:
         _require_permissions(business_dna, "draft_message")
         if not approved_responses:
@@ -889,6 +896,7 @@ class AIReassuranceResponseGenerator:
                 "language": communication.get("language", "English"),
                 "tone": communication.get("tone"),
                 "customer_tone": customer_tone.value,
+                "sales_technique": sales_technique.value,
                 "channel": channel,
             },
             customer_message=objection_phrase,
@@ -918,6 +926,7 @@ class AIReassuranceResponseGenerator:
             "objection_reassurance",
             case_id,
             ai_metadata=_audit(result.metadata),
+            sales_technique=sales_technique.value,
         )
 
 
@@ -945,6 +954,8 @@ class AIUniversalReassuranceResponseGenerator:
         case_id: str,
         service_id: str | None = None,
         customer_tone: CustomerTone = CustomerTone.NEUTRAL,
+        *,
+        sales_technique: SalesTechnique = SalesTechnique.ACKNOWLEDGE_ISOLATE,
     ) -> CustomerResponse:
         _require_permissions(business_dna, "draft_message")
         communication = _communication(business_dna)
@@ -955,6 +966,7 @@ class AIUniversalReassuranceResponseGenerator:
                 "language": communication.get("language", "English"),
                 "tone": communication.get("tone"),
                 "customer_tone": customer_tone.value,
+                "sales_technique": sales_technique.value,
                 "channel": channel,
                 "business": {
                     "industry": business.get("industry") if isinstance(business, Mapping) else None,
@@ -985,6 +997,7 @@ class AIUniversalReassuranceResponseGenerator:
             "objection_reassurance",
             case_id,
             ai_metadata=_audit(result.metadata),
+            sales_technique=sales_technique.value,
         )
 
     @staticmethod

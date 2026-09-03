@@ -43,6 +43,12 @@ from src.domain.events import EventType
 from src.domain.models import ProcessCase
 from src.domain.qualification import CustomerResponse, MissingInformationResult
 from src.domain.states import ProcessState
+from src.engine.sales_technique import (
+    ConversationKind,
+    SalesTechnique,
+    frame_with_technique,
+    select_sales_technique,
+)
 
 STALLED_STATES = frozenset({ProcessState.NEW_LEAD, ProcessState.CONTACTED, ProcessState.QUALIFYING})
 
@@ -54,6 +60,7 @@ class FollowUpDecision:
     # None when not due.
     attempt_number: int | None = None
     reason: str = ""
+    maximum_attempts: int | None = None
 
 
 def decide_follow_up(
@@ -87,7 +94,12 @@ def decide_follow_up(
     if now < due_at:
         return FollowUpDecision(False, reason="delay_not_elapsed")
 
-    return FollowUpDecision(True, attempt_number=attempts_sent + 1, reason="due")
+    return FollowUpDecision(
+        True,
+        attempt_number=attempts_sent + 1,
+        reason="due",
+        maximum_attempts=maximum_attempts,
+    )
 
 
 def record_follow_up_sent(case: ProcessCase) -> None:
@@ -166,6 +178,9 @@ class FollowUpMessageGenerator(Protocol):
         channel: str,
         case_id: str,
         attempt_number: int,
+        *,
+        maximum_attempts: int | None = None,
+        sales_technique: SalesTechnique | None = None,
     ) -> CustomerResponse: ...
 
 
@@ -185,12 +200,25 @@ class DeterministicFollowUpMessageGenerator:
         channel: str,
         case_id: str,
         attempt_number: int,
+        *,
+        maximum_attempts: int | None = None,
+        sales_technique: SalesTechnique | None = None,
     ) -> CustomerResponse:
+        technique = sales_technique or select_sales_technique(
+            kind=ConversationKind.FOLLOW_UP,
+            follow_up_attempt=attempt_number,
+            follow_up_maximum_attempts=maximum_attempts,
+        )
         business = business_dna.get("business", {})
         name = business.get("name") if isinstance(business, Mapping) else None
         greeting = f"Hi, this is {name.strip()}. " if isinstance(name, str) and name.strip() else "Hi -- "
         if missing.complete:
-            text = greeting + self._CHECK_IN
+            body = (
+                "I'll close this out on my side unless you'd still like help."
+                if technique is SalesTechnique.BREAKUP
+                else self._CHECK_IN
+            )
+            text = greeting + body
         else:
             customer_information = business_dna.get("customer_information", {})
             field_questions = (
@@ -204,11 +232,15 @@ class DeterministicFollowUpMessageGenerator:
                 if isinstance(prompt, str) and prompt.strip():
                     prompts.append(prompt.strip())
             prompts.extend(question.strip() for question in missing.unanswered_questions)
-            body = " ".join(prompts) if prompts else self._CHECK_IN
-            text = f"{greeting}just following up on your request -- {body}"
+            outstanding = " ".join(prompts) if prompts else self._CHECK_IN
+            if technique is SalesTechnique.BREAKUP:
+                text = greeting + frame_with_technique(technique, outstanding)
+            else:
+                text = f"{greeting}just following up on your request -- {outstanding}"
         return CustomerResponse(
             message_text=text,
             channel=channel,
             reason="follow_up",
             related_case_id=case_id,
+            sales_technique=technique.value,
         )

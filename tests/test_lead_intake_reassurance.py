@@ -139,7 +139,8 @@ def test_reassurance_is_capped_per_case() -> None:
             assert "\n\n" in result.response.message_text  # reassurance + question
         else:
             assert attempts == LeadIntakeService.MAX_REASSURANCE_ATTEMPTS
-            assert result.response.message_text == "What is the best phone number to reach you?"
+            assert "What is the best phone number to reach you?" in result.response.message_text
+            assert result.response.sales_technique == "trial_close"
 
 
 def test_universal_generator_falls_back_to_deterministic_on_invalid_ai_output() -> None:

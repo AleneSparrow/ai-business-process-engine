@@ -40,6 +40,11 @@ from .reassurance_response_generator import (
     ReassuranceResponseGenerator,
     UniversalReassuranceResponseGenerator,
 )
+from .sales_technique import (
+    ConversationKind,
+    objection_technique_for,
+    select_sales_technique,
+)
 
 # Not importing src.api.observability.log_event here for the same reason
 # QualificationService doesn't -- src/api/app.py imports engine modules, so a
@@ -259,6 +264,7 @@ class LeadIntakeService:
                     "channel": response.channel,
                     "reason": response.reason,
                     "requires_human": response.requires_human,
+                    "sales_technique": response.sales_technique,
                     "ai": response.ai_metadata,
                 },
             ))
@@ -379,6 +385,11 @@ class LeadIntakeService:
                 qualification.missing_fields,
                 qualification.unanswered_questions,
             )
+            question_technique = select_sales_technique(
+                kind=ConversationKind.QUALIFYING_QUESTION,
+                missing_item_count=len(missing.missing_fields) + len(missing.unanswered_questions),
+                already_qualifying=case.current_state is ProcessState.QUALIFYING,
+            )
             try:
                 question_response = self.question_generator.generate(
                     missing,
@@ -387,6 +398,7 @@ class LeadIntakeService:
                     case.case_id,
                     customer_message=message.raw_text,
                     customer_tone=intent.customer_tone,
+                    sales_technique=question_technique,
                 )
             except AIInvalidOutputError as exc:
                 # The AI generator (when configured) already resampled
@@ -407,7 +419,11 @@ class LeadIntakeService:
                     reason=str(exc),
                 )
                 question_response = self._fallback_question_generator.generate(
-                    missing, self.business_dna, message.channel, case.case_id,
+                    missing,
+                    self.business_dna,
+                    message.channel,
+                    case.case_id,
+                    sales_technique=question_technique,
                 )
             question_response = self._with_reassurance(case, message, qualification, intent, question_response)
             if intent.unintelligible:
@@ -472,6 +488,7 @@ class LeadIntakeService:
         attempts = int(case.metadata.get("reassurance_attempts", 0))
         if attempts >= self.MAX_REASSURANCE_ATTEMPTS:
             return question_response
+        _category, technique = objection_technique_for(objection_phrase)
         approved_responses = self.business_dna.get("qualification", {}).get("objection_responses", [])
         try:
             if approved_responses:
@@ -482,6 +499,7 @@ class LeadIntakeService:
                     message.channel,
                     case.case_id,
                     customer_tone=intent.customer_tone,
+                    sales_technique=technique,
                 )
             else:
                 reassurance_response = self.universal_reassurance_response_generator.generate(
@@ -491,6 +509,7 @@ class LeadIntakeService:
                     case.case_id,
                     qualification.service_id,
                     customer_tone=intent.customer_tone,
+                    sales_technique=technique,
                 )
         except AIInvalidOutputError as exc:
             # Same fallback shape as _create_response's question_generator
@@ -511,6 +530,7 @@ class LeadIntakeService:
                     self.business_dna,
                     message.channel,
                     case.case_id,
+                    sales_technique=technique,
                 )
             else:
                 reassurance_response = self._fallback_universal_reassurance_response_generator.generate(
@@ -519,6 +539,7 @@ class LeadIntakeService:
                     message.channel,
                     case.case_id,
                     qualification.service_id,
+                    sales_technique=technique,
                 )
         case.metadata["reassurance_attempts"] = attempts + 1
         combined_text = f"{reassurance_response.message_text.strip()}\n\n{question_response.message_text.strip()}"
@@ -528,9 +549,11 @@ class LeadIntakeService:
             reason="objection_reassurance_and_missing_information",
             related_case_id=case.case_id,
             requires_human=False,
+            sales_technique=technique.value,
             ai_metadata={
                 "reassurance": dict(reassurance_response.ai_metadata),
                 "question": dict(question_response.ai_metadata),
+                "sales_technique": technique.value,
             },
         )
 

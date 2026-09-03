@@ -30,6 +30,7 @@ from src.domain.qualification import (
 from src.engine.intent_extractor import DeterministicIntentExtractor
 from src.engine.lead_intake import LeadIntakeService
 from src.engine.question_generator import DeterministicQuestionGenerator
+from src.engine.sales_technique import SalesTechnique
 
 
 ROOT = Path(__file__).parents[1]
@@ -99,9 +100,23 @@ class _RecordingQuestionGenerator:
         case_id: str,
         customer_message: str = "",
         customer_tone: CustomerTone = CustomerTone.NEUTRAL,
+        *,
+        sales_technique: SalesTechnique = SalesTechnique.DISCOVERY,
     ) -> CustomerResponse:
-        self.calls.append({"customer_message": customer_message, "customer_tone": customer_tone})
-        return self._real.generate(missing, business_dna, channel, case_id, customer_message, customer_tone)
+        self.calls.append({
+            "customer_message": customer_message,
+            "customer_tone": customer_tone,
+            "sales_technique": sales_technique,
+        })
+        return self._real.generate(
+            missing,
+            business_dna,
+            channel,
+            case_id,
+            customer_message,
+            customer_tone,
+            sales_technique=sales_technique,
+        )
 
 
 class _RecordingUniversalReassuranceGenerator:
@@ -118,13 +133,16 @@ class _RecordingUniversalReassuranceGenerator:
         case_id: str,
         service_id: str | None = None,
         customer_tone: CustomerTone = CustomerTone.NEUTRAL,
+        *,
+        sales_technique: SalesTechnique = SalesTechnique.ACKNOWLEDGE_ISOLATE,
     ) -> CustomerResponse:
-        self.calls.append({"customer_tone": customer_tone})
+        self.calls.append({"customer_tone": customer_tone, "sales_technique": sales_technique})
         return CustomerResponse(
             message_text="Fair point.",
             channel=channel,
             reason="objection_reassurance",
             related_case_id=case_id,
+            sales_technique=sales_technique.value,
         )
 
 
@@ -190,6 +208,7 @@ def test_ai_question_generator_forwards_real_customer_message_and_tone() -> None
     request = provider.requests[0]
     assert "ugh fine, whatever, here" in request.user_prompt
     assert '"customer_tone":"irritated"' in request.user_prompt
+    assert '"sales_technique":"discovery"' in request.user_prompt
 
 
 def test_lead_intake_threads_customer_message_and_tone_to_question_generator() -> None:

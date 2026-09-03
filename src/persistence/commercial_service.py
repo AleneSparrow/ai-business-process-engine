@@ -38,6 +38,7 @@ from src.engine.commercial import (
 )
 from src.engine.decision_router import DecisionRequest
 from src.engine.process_engine import ProcessEngine
+from src.engine.sales_technique import quote_accept_prompt, slot_lead_in
 
 from .repositories import UnitOfWork
 
@@ -1483,7 +1484,7 @@ class CommercialWorkflowService:
             display_zone = cls._display_zone(case, dna, slot.timezone)
             local = slot.start_at.astimezone(display_zone)
             options.append(f"{index}) {local.strftime('%A, %B %d at %I:%M %p %Z')}")
-        lead_in = "Choose a new appointment time:" if reschedule else "Choose an appointment time:"
+        lead_in = slot_lead_in(reschedule=reschedule, slot_count=len(slots))
         return CommercialResponse(
             lead_in + "\n" + "\n".join(options),
             "reschedule_slots_proposed" if reschedule else "booking_slots_proposed",
@@ -1572,7 +1573,7 @@ class CommercialWorkflowService:
         description = ", ".join(line.description for line in quote.lines)
         return (
             f"Your quote for {description} is {quote.currency} {quote.total:.2f}, valid through "
-            f"{quote.valid_until.date().isoformat()}. Reply accept or decline."
+            f"{quote.valid_until.date().isoformat()}. {quote_accept_prompt()}"
         )
 
     @classmethod

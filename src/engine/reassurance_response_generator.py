@@ -23,10 +23,10 @@ LeadIntakeService._with_reassurance for how they're chosen):
   playbook, we do.
 """
 
-from hashlib import sha256
 from typing import Mapping, Protocol, Sequence
 
 from src.domain.qualification import CustomerResponse, CustomerTone
+from src.engine.sales_technique import SalesTechnique, frame_with_technique
 
 
 class ReassuranceResponseGenerator(Protocol):
@@ -38,6 +38,8 @@ class ReassuranceResponseGenerator(Protocol):
         channel: str,
         case_id: str,
         customer_tone: CustomerTone = CustomerTone.NEUTRAL,
+        *,
+        sales_technique: SalesTechnique = SalesTechnique.ACKNOWLEDGE_ISOLATE,
     ) -> CustomerResponse: ...
 
 
@@ -56,6 +58,8 @@ class DeterministicReassuranceResponseGenerator:
         channel: str,
         case_id: str,
         customer_tone: CustomerTone = CustomerTone.NEUTRAL,
+        *,
+        sales_technique: SalesTechnique = SalesTechnique.ACKNOWLEDGE_ISOLATE,
     ) -> CustomerResponse:
         if not approved_responses:
             raise ValueError("cannot generate a reassurance response without any configured entries")
@@ -68,6 +72,7 @@ class DeterministicReassuranceResponseGenerator:
             channel=channel,
             reason="objection_reassurance",
             related_case_id=case_id,
+            sales_technique=sales_technique.value,
         )
 
 
@@ -80,6 +85,8 @@ class UniversalReassuranceResponseGenerator(Protocol):
         case_id: str,
         service_id: str | None = None,
         customer_tone: CustomerTone = CustomerTone.NEUTRAL,
+        *,
+        sales_technique: SalesTechnique = SalesTechnique.ACKNOWLEDGE_ISOLATE,
     ) -> CustomerResponse: ...
 
 
@@ -89,22 +96,15 @@ class DeterministicUniversalReassuranceResponseGenerator:
     AI-backed universal generator (src.ai.adapters.
     AIUniversalReassuranceResponseGenerator) is unavailable or produced
     invalid output. No AI call, no per-business configuration required,
-    never raises. Acknowledgment wording is picked deterministically (a
-    stable hash of the objection phrase, not Python's randomized built-in
-    hash()) from a small rotating set so a real conversation doesn't see the
-    exact same line every time it objects -- and any added factual detail
-    comes only from structurally-true facts already in Business DNA
-    (fulfillment_type, booking_allowed), never a price or an invented
-    promise. customer_tone is accepted for protocol compatibility with
-    AIUniversalReassuranceResponseGenerator but intentionally unused here --
-    no AI call, so no tone-adaptive rewording to produce."""
-
-    _ACKNOWLEDGMENTS = (
-        "That's a completely fair thing to want to be sure about.",
-        "Good question to raise now rather than later.",
-        "Makes sense that you'd want to think that through.",
-        "I hear you -- that's worth addressing before we go further.",
-    )
+    never raises. Acknowledgment wording is the closed sales technique the
+    engine selected for this objection category (price -> value reframe,
+    timing -> soft pause, and so on) -- not a rotating generic platitude --
+    and any added factual detail comes only from structurally-true facts
+    already in Business DNA (fulfillment_type, booking_allowed), never a
+    price or an invented promise. customer_tone is accepted for protocol
+    compatibility with AIUniversalReassuranceResponseGenerator but
+    intentionally unused here -- no AI call, so no tone-adaptive rewording
+    to produce."""
 
     def generate(
         self,
@@ -114,16 +114,16 @@ class DeterministicUniversalReassuranceResponseGenerator:
         case_id: str,
         service_id: str | None = None,
         customer_tone: CustomerTone = CustomerTone.NEUTRAL,
+        *,
+        sales_technique: SalesTechnique = SalesTechnique.ACKNOWLEDGE_ISOLATE,
     ) -> CustomerResponse:
-        digest = sha256(objection_phrase.strip().casefold().encode("utf-8")).digest()
-        acknowledgment = self._ACKNOWLEDGMENTS[digest[0] % len(self._ACKNOWLEDGMENTS)]
         fact = self._structural_fact(business_dna, service_id)
-        message_text = f"{acknowledgment} {fact}" if fact else acknowledgment
         return CustomerResponse(
-            message_text=message_text,
+            message_text=frame_with_technique(sales_technique, "", fact=fact),
             channel=channel,
             reason="objection_reassurance",
             related_case_id=case_id,
+            sales_technique=sales_technique.value,
         )
 
     @staticmethod

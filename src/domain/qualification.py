@@ -272,6 +272,10 @@ class CustomerResponse:
     related_case_id: str
     requires_human: bool = False
     ai_metadata: Mapping[str, Any] = field(default_factory=dict)
+    # Closed SalesTechnique value chosen by the engine for THIS turn, or
+    # None when the response is a terminal decline/escalation that must not
+    # sell. Wording-only: never a decision. See src/engine/sales_technique.py.
+    sales_technique: str | None = None
 
     def __post_init__(self) -> None:
         for value, name in (
