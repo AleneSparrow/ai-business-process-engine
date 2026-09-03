@@ -1,0 +1,22 @@
+# Authors
+
+## Copyright holder and human author
+
+- **Alena Kulish** (Алена Кулиш) `<alenesparrowvn@gmail.com>`
+  - GitHub: [AleneSparrow](https://github.com/AleneSparrow)
+  - Role: sole founder, inventor, product owner, and copyright claimant.
+  - Git identities already used in this history, all the same person:
+    - `Алена Кулиш <alenakulish@Mac.lan>`
+    - `Алена Кулиш <alenakulish@MacBook-Pro-Alena.local>`
+    - `Alena <alenesparrowvn@gmail.com>`
+
+`.mailmap` maps those historical identities onto `Alena Kulish <alenesparrowvn@gmail.com>` for `git shortlog` and similar tools. History is not rewritten.
+
+## Tools, not authors
+
+Some commits show these names because the founder directed AI coding assistants that wrote drafts she then reviewed and accepted:
+
+- `Claude <noreply@anthropic.com>` — Anthropic Claude, used as an implementation tool
+- Cursor Agent / `cursoragent` — Cursor coding agent, used as an implementation tool
+
+Those tools are **not** joint authors and **not** copyright holders. See `AUTHORSHIP.md` and `NOTICE`.
