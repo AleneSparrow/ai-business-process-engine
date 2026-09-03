@@ -126,7 +126,6 @@ function MobileNav({
   onSelectBusiness: (businessId: string) => void;
   onLogout: () => void;
 }) {
-  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
   const go = (path: string) => {
@@ -201,16 +200,8 @@ function MobileNav({
                 <NavItem icon={CreditCard} label="Billing" active={view === "billing"} onClick={() => go("/app/billing")} />
                 <NavItem icon={Plus} label="Add another business" active={false} onClick={() => go("/onboarding")} />
                 <div className="border-t border-[#F0EFE9] mt-3 pt-3">
-                  <NavItem
-                    icon={User}
-                    label="Account"
-                    active={view === "account"}
-                    onClick={() => {
-                      setOpen(false);
-                      navigate({ pathname: "/app/account", hash: "" });
-                    }}
-                  />
-                  <NavItem icon={HelpCircle} label="FAQ" active={view === "faq"} onClick={() => go("/app/account#faq")} />
+                  <NavItem icon={User} label="Account" active={view === "account"} onClick={() => go("/app/account")} />
+                  <NavItem icon={HelpCircle} label="FAQ" active={view === "faq"} onClick={() => go("/app/faq")} />
                 </div>
               </nav>
             </div>
@@ -260,15 +251,15 @@ export function Sidebar() {
 
   const view = location.pathname.startsWith("/app/settings")
     ? "settings"
-    : location.pathname.startsWith("/app/account")
-      ? location.hash === "#faq"
-        ? "faq"
-        : "account"
-      : location.pathname.startsWith("/app/billing")
-        ? "billing"
-        : location.pathname.startsWith("/app/conversations")
-          ? "conversation"
-          : "dashboard";
+    : location.pathname.startsWith("/app/faq")
+      ? "faq"
+      : location.pathname.startsWith("/app/account")
+        ? "account"
+        : location.pathname.startsWith("/app/billing")
+          ? "billing"
+          : location.pathname.startsWith("/app/conversations")
+            ? "conversation"
+            : "dashboard";
 
   async function handleLogout() {
     await logout();
@@ -337,8 +328,8 @@ export function Sidebar() {
             <NavItem icon={CreditCard} label="Billing" active={view === "billing"} onClick={() => navigate("/app/billing")} />
             <NavItem icon={Plus} label="Add another business" active={false} onClick={() => navigate("/onboarding")} />
             <div className="border-t border-[#F0EFE9] mt-3 pt-3">
-              <NavItem icon={User} label="Account" active={view === "account"} onClick={() => navigate({ pathname: "/app/account", hash: "" })} />
-              <NavItem icon={HelpCircle} label="FAQ" active={view === "faq"} onClick={() => navigate("/app/account#faq")} />
+              <NavItem icon={User} label="Account" active={view === "account"} onClick={() => navigate("/app/account")} />
+              <NavItem icon={HelpCircle} label="FAQ" active={view === "faq"} onClick={() => navigate("/app/faq")} />
             </div>
           </nav>
         </div>

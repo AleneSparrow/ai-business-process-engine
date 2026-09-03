@@ -14,6 +14,7 @@ import Conversation from "./pages/Conversation";
 import Settings from "./pages/Settings";
 import Billing from "./pages/Billing";
 import Account from "./pages/Account";
+import AppFaq from "./pages/AppFaq";
 
 /** Shared layout element for every subscription-gated route (Overview,
  * Conversations). Previously /app and /app/conversations each had their
@@ -68,6 +69,14 @@ export default function App() {
             element={
               <RequireAuth>
                 <Account />
+              </RequireAuth>
+            }
+          />
+          <Route
+            path="/app/faq"
+            element={
+              <RequireAuth>
+                <AppFaq />
               </RequireAuth>
             }
           />

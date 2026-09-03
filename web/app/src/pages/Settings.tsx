@@ -1085,57 +1085,20 @@ export default function Settings() {
 
               {tab === "reporting" && (
                 <div>
-                  {/* Test mode moved to Install widget: you touch it while
-                      putting the widget on your site and again when going
-                      live, and both of those are that tab. What stays here is
-                      a read-only line, because Statistics is where you notice
-                      the numbers are empty and come looking for why. */}
-                  {reporting?.test_mode_enabled && (
-                    <div className="rounded-2xl border p-4 mb-5 flex flex-wrap items-center gap-x-3 gap-y-1" style={{ borderColor: "#E8CFAF", backgroundColor: "#FFF8EE" }}>
-                      <span className="text-sm font-medium text-[#8A561B]">Test mode is on.</span>
-                      <span className="text-sm text-[#6B6459]">New conversations are not counted here.</span>
-                      <button
-                        type="button"
-                        onClick={() => setTab("widget")}
-                        className="text-sm font-medium text-[#151515] underline"
-                      >
-                        Change it in Install widget
-                      </button>
-                    </div>
-                  )}
-
                   <div className="rounded-2xl border p-5" style={{ borderColor: "#E7E5DE" }}>
-                    <h2 className="text-base font-semibold">Statistics baseline</h2>
+                    <h2 className="text-base font-semibold">Statistics</h2>
                     <p className="text-sm text-[#6B6459] mt-1 leading-relaxed">
-                      Resetting starts dashboard metrics from now. It never deletes conversations, cases, or audit events, and you can restore the full history at any time.
+                      Reset and restore dashboard metrics from your personal account. Conversations, cases, and audit events are never deleted.
                     </p>
-                    <p className="text-xs text-[#6B6459] mt-3" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-                      {reporting?.stats_since ? `Counting cases created since ${new Date(reporting.stats_since).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}` : "Counting all retained history"}
-                    </p>
-                    <div className="flex flex-wrap gap-2 mt-4">
-                      <button
-                        onClick={() => updateReporting({ reset_statistics: true })}
-                        disabled={!reporting || reportingSaving}
-                        className="text-sm font-medium px-4 py-2.5 rounded-lg border border-[#E7E5DE] disabled:opacity-50"
-                      >
-                        Reset statistics
-                      </button>
-                      {reporting?.stats_since && (
-                        <button
-                          onClick={() => updateReporting({ clear_statistics_baseline: true })}
-                          disabled={reportingSaving}
-                          className="text-sm font-medium px-4 py-2.5 rounded-lg border border-[#E7E5DE] disabled:opacity-50"
-                        >
-                          Restore full history
-                        </button>
-                      )}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => navigate("/app/account")}
+                      className="mt-4 text-sm font-medium text-white px-4 py-2.5 rounded-lg"
+                      style={{ backgroundColor: "#151515" }}
+                    >
+                      Open statistics in Account
+                    </button>
                   </div>
-                  {reportingError && (
-                    <div className="mt-4 px-4 py-3 rounded-lg text-sm" style={{ backgroundColor: "#FBEBE9", color: "#8A3225" }}>
-                      {reportingError}
-                    </div>
-                  )}
                 </div>
               )}
 
