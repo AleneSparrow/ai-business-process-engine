@@ -48,8 +48,8 @@ Loyalty sends are not cold outreach. `ConsentRecord` is append-only. The latest 
 
 ## Handoff
 
-`InquiryHandoff.to_incoming_message()` is the contract. The process engine receives a normal `IncomingMessage` (`channel`, `external_message_id` prefixed `demand:`, raw inquiry text, identity, SMS consent). `DemandHandoffAdapter.deliver` calls `LeadIntakeService.receive`. Qualification and commercial work stay inside the process engine.
+`InquiryHandoff.to_intake_payload()` is the contract. Flywheel accepts that JSON at `POST /api/v1/businesses/{business_id}/demand/inquiries` (internal secret, Demand add-on must be active) and maps it to an ordinary `IncomingMessage`. Qualification and commercial work stay inside Flywheel. Demand never imports the process engine.
 
 ## Package boundary
 
-`src/demand` may import `src.domain` and `src.engine.lead_intake` at the adapter edge. `src.engine` and `src.api` must not import Demand in this milestone. That keeps Product 1's “inquiry-to-sale” story unchanged if Demand is absent.
+`src/demand` does not import Flywheel. Flywheel does not import Demand. The only coupling is the JSON handoff contract and the Flywheel Billing add-on that grants `has_demand_access`.

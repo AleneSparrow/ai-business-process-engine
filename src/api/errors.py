@@ -22,6 +22,10 @@ from src.persistence.errors import (
     ConversationNotLinkedError,
     ConversationTokenError,
     ConversationTokenExpiredError,
+    DemandAlreadyActiveError,
+    DemandProductNotConfiguredError,
+    DemandRequiresFlywheelSubscriptionError,
+    DemandSubscriptionRequiredError,
     IdempotencyCollisionError,
     IdempotencyInProgressError,
     InvalidPlanError,
@@ -326,6 +330,48 @@ def install_error_handlers(app: FastAPI) -> None:
         code = "billing_already_active"
         _log_error(request, code, 409, type(exc).__name__)
         return _response(request, 409, code, "This business already has an active subscription")
+
+    @app.exception_handler(DemandProductNotConfiguredError)
+    async def demand_product_not_configured_handler(
+        request: Request, exc: DemandProductNotConfiguredError
+    ) -> JSONResponse:
+        code = "demand_not_configured"
+        _log_error(request, code, 422, type(exc).__name__)
+        return _response(request, 422, code, "Demand isn't available for checkout on this deployment yet")
+
+    @app.exception_handler(DemandRequiresFlywheelSubscriptionError)
+    async def demand_requires_flywheel_handler(
+        request: Request, exc: DemandRequiresFlywheelSubscriptionError
+    ) -> JSONResponse:
+        code = "demand_requires_flywheel"
+        _log_error(request, code, 402, type(exc).__name__)
+        return _response(
+            request,
+            402,
+            code,
+            "Subscribe to Flywheel before adding Demand",
+        )
+
+    @app.exception_handler(DemandAlreadyActiveError)
+    async def demand_already_active_handler(
+        request: Request, exc: DemandAlreadyActiveError
+    ) -> JSONResponse:
+        code = "demand_already_active"
+        _log_error(request, code, 409, type(exc).__name__)
+        return _response(request, 409, code, "This business already has an active Demand subscription")
+
+    @app.exception_handler(DemandSubscriptionRequiredError)
+    async def demand_subscription_required_handler(
+        request: Request, exc: DemandSubscriptionRequiredError
+    ) -> JSONResponse:
+        code = "demand_subscription_inactive"
+        _log_error(request, code, 402, type(exc).__name__)
+        return _response(
+            request,
+            402,
+            code,
+            "This business's Demand subscription needs attention before inquiries are accepted",
+        )
 
     @app.exception_handler(WebhookSignatureError)
     async def webhook_signature_handler(request: Request, exc: WebhookSignatureError) -> JSONResponse:

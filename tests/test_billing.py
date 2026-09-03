@@ -31,6 +31,9 @@ from src.persistence.errors import (
     BillingAlreadyActiveError,
     BillingAccountNotFoundError,
     BillingNotConfiguredError,
+    DemandAlreadyActiveError,
+    DemandProductNotConfiguredError,
+    DemandRequiresFlywheelSubscriptionError,
     InvalidPlanError,
     WebhookSignatureError,
 )
@@ -40,6 +43,7 @@ from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork, create_database
 _STORE_ID = "store_fake_1"
 _VARIANT_STARTER = "variant_starter_fake"
 _VARIANT_PRO = "variant_pro_fake"
+_VARIANT_DEMAND = "variant_demand_fake"
 _WEBHOOK_SECRET = "whsec_test"
 
 
@@ -80,6 +84,7 @@ def _billing_settings(**overrides) -> Settings:
         lemonsqueezy_store_id=_STORE_ID,
         lemonsqueezy_variant_starter=_VARIANT_STARTER,
         lemonsqueezy_variant_pro=_VARIANT_PRO,
+        lemonsqueezy_variant_demand=_VARIANT_DEMAND,
         frontend_base_url="http://localhost:5173",
     )
     defaults.update(overrides)
@@ -948,3 +953,203 @@ def test_webhook_requires_signature_header(billing_app) -> None:
     client, _fake = billing_app
     response = client.post("/api/v1/billing/webhook", content=b"{}")
     assert response.status_code == 422
+
+
+def _activate_flywheel(uow_factory, business_id: str = "acme-co") -> None:
+    with uow_factory() as unit_of_work:
+        unit_of_work.businesses.update_billing(
+            business_id,
+            payment_customer_id="cus_existing",
+            payment_subscription_id="sub_existing",
+            plan="starter",
+            subscription_status="active",
+            trial_ends_at=None,
+            current_period_end=None,
+        )
+        unit_of_work.commit()
+
+
+def test_demand_checkout_requires_flywheel_subscription(uow_factory) -> None:
+    _make_business(uow_factory)
+    fake = FakeLemonSqueezyClient()
+    service = BillingService(uow_factory, _billing_settings(), client=fake)
+    with pytest.raises(DemandRequiresFlywheelSubscriptionError):
+        service.create_demand_checkout_session("acme-co", "owner@example.com")
+    assert fake.checkout_calls == []
+
+
+def test_demand_checkout_carries_product_custom_data(uow_factory) -> None:
+    _make_business(uow_factory)
+    _activate_flywheel(uow_factory)
+    fake = FakeLemonSqueezyClient()
+    service = BillingService(uow_factory, _billing_settings(), client=fake)
+
+    url = service.create_demand_checkout_session("acme-co", "owner@example.com")
+
+    assert url == "https://checkout.lemonsqueezy.test/session"
+    call = fake.checkout_calls[0]
+    assert call["variant_id"] == _VARIANT_DEMAND
+    assert call["custom_data"] == {"business_id": "acme-co", "product": "demand"}
+    assert call["redirect_url"] == "http://localhost:5173/app/billing?checkout=success"
+
+
+def test_demand_checkout_rejects_when_already_active(uow_factory) -> None:
+    _make_business(uow_factory)
+    _activate_flywheel(uow_factory)
+    fake = FakeLemonSqueezyClient()
+    service = BillingService(uow_factory, _billing_settings(), client=fake)
+    with uow_factory() as unit_of_work:
+        unit_of_work.businesses.update_demand_billing(
+            "acme-co",
+            payment_customer_id="cus_existing",
+            demand_payment_subscription_id="sub_demand",
+            demand_subscription_status="active",
+            demand_trial_ends_at=None,
+            demand_current_period_end=None,
+        )
+        unit_of_work.commit()
+
+    with pytest.raises(DemandAlreadyActiveError):
+        service.create_demand_checkout_session("acme-co", "owner@example.com")
+    assert fake.checkout_calls == []
+
+
+def test_demand_checkout_unconfigured_variant(uow_factory) -> None:
+    _make_business(uow_factory)
+    _activate_flywheel(uow_factory)
+    settings = _billing_settings(lemonsqueezy_variant_demand=None)
+    service = BillingService(uow_factory, settings, client=FakeLemonSqueezyClient())
+    with pytest.raises(DemandProductNotConfiguredError):
+        service.create_demand_checkout_session("acme-co", "owner@example.com")
+
+
+def test_settings_billing_does_not_require_demand_variant() -> None:
+    settings = Settings(
+        database_url="sqlite+pysqlite:///:memory:",
+        app_env="test",
+        lemonsqueezy_api_key="ls_test_fake",
+        lemonsqueezy_webhook_secret=_WEBHOOK_SECRET,
+        lemonsqueezy_store_id=_STORE_ID,
+        lemonsqueezy_variant_starter=_VARIANT_STARTER,
+        lemonsqueezy_variant_pro=_VARIANT_PRO,
+        frontend_base_url="http://localhost:5173",
+    )
+    assert settings.billing_configured is True
+    assert settings.lemonsqueezy_variant_demand is None
+
+
+def test_demand_webhook_does_not_overwrite_flywheel_plan(uow_factory) -> None:
+    _make_business(uow_factory)
+    _activate_flywheel(uow_factory)
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+    payload = _subscription_event(
+        "subscription_created",
+        subscription_id="sub_demand",
+        customer_id="cus_existing",
+        variant_id=_VARIANT_DEMAND,
+        status="on_trial",
+        trial_ends_at="2024-02-01T00:00:00.000000Z",
+        renews_at="2024-02-01T00:00:00.000000Z",
+        custom_data={"business_id": "acme-co", "product": "demand"},
+    )
+
+    service.handle_webhook(payload, _sign(payload))
+
+    business = service.get_status("acme-co")
+    assert business.plan == "starter"
+    assert business.subscription_status == "active"
+    assert business.has_billing_access is True
+    assert business.payment_subscription_id == "sub_existing"
+    assert business.demand_payment_subscription_id == "sub_demand"
+    assert business.demand_subscription_status == "on_trial"
+    assert business.has_demand_access is True
+
+
+def test_demand_payment_failed_does_not_mark_flywheel_past_due(uow_factory) -> None:
+    _make_business(uow_factory)
+    _activate_flywheel(uow_factory)
+    service = BillingService(uow_factory, _billing_settings(), client=FakeLemonSqueezyClient())
+    created = _subscription_event(
+        "subscription_created",
+        subscription_id="sub_demand",
+        customer_id="cus_existing",
+        variant_id=_VARIANT_DEMAND,
+        status="active",
+        custom_data={"business_id": "acme-co", "product": "demand"},
+    )
+    service.handle_webhook(created, _sign(created))
+
+    failed = _payment_failed_event(
+        subscription_id="sub_demand",
+        customer_id="cus_existing",
+        custom_data={"business_id": "acme-co", "product": "demand"},
+    )
+    service.handle_webhook(failed, _sign(failed))
+
+    business = service.get_status("acme-co")
+    assert business.subscription_status == "active"
+    assert business.has_billing_access is True
+    assert business.demand_subscription_status == "past_due"
+    assert business.has_demand_access is False
+
+
+def test_demand_checkout_http_after_flywheel(billing_app) -> None:
+    client, fake = billing_app
+    token, business_id = _signup_and_onboard(client)
+
+    before = client.post(
+        f"/api/v1/businesses/{business_id}/billing/demand-checkout-session",
+        json={},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert before.status_code == 402
+    assert before.json()["error"]["code"] == "demand_requires_flywheel"
+
+    flywheel = _subscription_event(
+        "subscription_created",
+        subscription_id="sub_http_flywheel",
+        customer_id="cus_http_test",
+        variant_id=_VARIANT_STARTER,
+        status="on_trial",
+        trial_ends_at="2024-01-08T00:00:00.000000Z",
+        renews_at="2024-01-08T00:00:00.000000Z",
+        custom_data={"business_id": business_id, "plan": "starter"},
+    )
+    assert client.post(
+        "/api/v1/billing/webhook",
+        content=flywheel,
+        headers={"X-Signature": _sign(flywheel)},
+    ).status_code == 200
+
+    checkout = client.post(
+        f"/api/v1/businesses/{business_id}/billing/demand-checkout-session",
+        json={},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert checkout.status_code == 200
+    assert fake.checkout_calls[-1]["custom_data"]["product"] == "demand"
+
+    demand = _subscription_event(
+        "subscription_created",
+        subscription_id="sub_http_demand",
+        customer_id="cus_http_test",
+        variant_id=_VARIANT_DEMAND,
+        status="on_trial",
+        custom_data={"business_id": business_id, "product": "demand"},
+    )
+    assert client.post(
+        "/api/v1/billing/webhook",
+        content=demand,
+        headers={"X-Signature": _sign(demand)},
+    ).status_code == 200
+
+    status_response = client.get(
+        f"/api/v1/businesses/{business_id}/billing", headers={"Authorization": f"Bearer {token}"}
+    )
+    body = status_response.json()
+    assert body["subscription_status"] == "on_trial"
+    assert body["has_billing_access"] is True
+    assert body["demand_subscription_status"] == "on_trial"
+    assert body["has_demand_access"] is True
+    assert body["plan"] == "starter"
+

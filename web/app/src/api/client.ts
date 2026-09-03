@@ -402,6 +402,10 @@ export interface BillingStatus {
   trial_ends_at: string | null;
   current_period_end: string | null;
   has_billing_access: boolean;
+  demand_subscription_status: "incomplete" | "on_trial" | "active" | "paused" | "past_due" | "unpaid" | "cancelled" | "expired";
+  demand_trial_ends_at: string | null;
+  demand_current_period_end: string | null;
+  has_demand_access: boolean;
 }
 
 export interface SmsStatus {
@@ -578,6 +582,13 @@ export const api = {
     request<CheckoutSessionResponse>(
       `/api/v1/businesses/${businessId}/billing/checkout-session`,
       { method: "POST", body: JSON.stringify({ plan }) },
+      token,
+    ),
+
+  createDemandCheckoutSession: (token: string, businessId: string) =>
+    request<CheckoutSessionResponse>(
+      `/api/v1/businesses/${businessId}/billing/demand-checkout-session`,
+      { method: "POST", body: JSON.stringify({}) },
       token,
     ),
 

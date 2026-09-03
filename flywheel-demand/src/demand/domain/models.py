@@ -6,14 +6,14 @@ from types import MappingProxyType
 from typing import Any, Mapping
 from uuid import uuid4
 
-from src.domain.models import _freeze, _require_aware, _require_text, utc_now
+from src.demand.domain.primitives import freeze, require_aware, require_text, utc_now
 
 from .consent import ConsentAction, ConsentChannel, ConsentRecord
 from .states import CampaignState, ProspectState
 
 
 def _require_id(value: str, field_name: str) -> None:
-    _require_text(value, field_name)
+    require_text(value, field_name)
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,10 +25,10 @@ class CampaignEvent:
     causation_id: str | None = None
 
     def __post_init__(self) -> None:
-        _require_text(self.event_type, "event_type")
-        _require_text(self.event_id, "event_id")
-        _require_aware(self.occurred_at, "occurred_at")
-        object.__setattr__(self, "payload", _freeze(self.payload))
+        require_text(self.event_type, "event_type")
+        require_text(self.event_id, "event_id")
+        require_aware(self.occurred_at, "occurred_at")
+        object.__setattr__(self, "payload", freeze(self.payload))
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,10 +40,10 @@ class ProspectEvent:
     causation_id: str | None = None
 
     def __post_init__(self) -> None:
-        _require_text(self.event_type, "event_type")
-        _require_text(self.event_id, "event_id")
-        _require_aware(self.occurred_at, "occurred_at")
-        object.__setattr__(self, "payload", _freeze(self.payload))
+        require_text(self.event_type, "event_type")
+        require_text(self.event_id, "event_id")
+        require_aware(self.occurred_at, "occurred_at")
+        object.__setattr__(self, "payload", freeze(self.payload))
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,7 +59,7 @@ class ContentBrief:
 
     def __post_init__(self) -> None:
         for name in ("brief_id", "stage", "format", "job", "summary", "cta", "channel"):
-            _require_text(getattr(self, name), name)
+            require_text(getattr(self, name), name)
         object.__setattr__(self, "allowed_claim_ids", tuple(self.allowed_claim_ids))
 
 
@@ -79,10 +79,10 @@ class SequenceStep:
             raise ValueError("sequence step index must be >= 1")
         if self.offset_hours < 0:
             raise ValueError("offset_hours must be >= 0")
-        _require_text(self.purpose, "purpose")
-        _require_text(self.channel, "channel")
-        _require_text(self.summary, "summary")
-        _require_text(self.cta, "cta")
+        require_text(self.purpose, "purpose")
+        require_text(self.channel, "channel")
+        require_text(self.summary, "summary")
+        require_text(self.cta, "cta")
         object.__setattr__(self, "allowed_claim_ids", tuple(self.allowed_claim_ids))
 
 
@@ -97,8 +97,8 @@ class OutboundMessage:
     brief_id: str | None = None
 
     def __post_init__(self) -> None:
-        _require_text(self.channel, "channel")
-        _require_text(self.body, "body")
+        require_text(self.channel, "channel")
+        require_text(self.body, "body")
         object.__setattr__(self, "claim_ids", tuple(self.claim_ids))
 
 
@@ -131,15 +131,15 @@ class Campaign:
         self.campaign_id = campaign_id
         self.business_id = business_id
         self._current_state = current_state
-        self.marketing_dna = MappingProxyType({key: _freeze(value) for key, value in dict(marketing_dna).items()})
+        self.marketing_dna = MappingProxyType({key: freeze(value) for key, value in dict(marketing_dna).items()})
         self.created_at = created_at or now
         self.updated_at = updated_at or now
         self.version = version
         self._event_history = []
         self._processed_event_ids = set()
         self._pending_transition = None
-        _require_aware(self.created_at, "created_at")
-        _require_aware(self.updated_at, "updated_at")
+        require_aware(self.created_at, "created_at")
+        require_aware(self.updated_at, "updated_at")
 
     @property
     def current_state(self) -> CampaignState:
@@ -229,20 +229,20 @@ class Prospect:
         self.created_at = created_at or now
         self.updated_at = updated_at or now
         self.version = version
-        self.attributes = MappingProxyType({key: _freeze(value) for key, value in dict(attributes or {}).items()})
+        self.attributes = MappingProxyType({key: freeze(value) for key, value in dict(attributes or {}).items()})
         self._consent = []
         self._event_history = []
         self._processed_event_ids = set()
         self._pending_transition = None
         self._handoff_id = None
-        _require_aware(self.created_at, "created_at")
-        _require_aware(self.updated_at, "updated_at")
+        require_aware(self.created_at, "created_at")
+        require_aware(self.updated_at, "updated_at")
         if self.name is not None:
-            _require_text(self.name, "name")
+            require_text(self.name, "name")
         if self.email is not None:
-            _require_text(self.email, "email")
+            require_text(self.email, "email")
         if self.phone is not None:
-            _require_text(self.phone, "phone")
+            require_text(self.phone, "phone")
 
     @property
     def current_state(self) -> ProspectState:
@@ -296,5 +296,5 @@ class Prospect:
         self.version += 1
 
     def mark_handed_off(self, handoff_id: str) -> None:
-        _require_text(handoff_id, "handoff_id")
+        require_text(handoff_id, "handoff_id")
         self._handoff_id = handoff_id

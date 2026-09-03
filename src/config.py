@@ -33,6 +33,9 @@ class Settings:
     lemonsqueezy_store_id: str | None = None
     lemonsqueezy_variant_starter: str | None = None
     lemonsqueezy_variant_pro: str | None = None
+    # Optional add-on. Existing deploys boot without it; Demand checkout
+    # is 422 until this variant exists in Lemon Squeezy.
+    lemonsqueezy_variant_demand: str | None = None
     billing_trial_days: int = 7
     frontend_base_url: str | None = None
     # SMS delivery runs through Twilio. The account itself is opened and
@@ -210,6 +213,7 @@ class Settings:
                 lemonsqueezy_store_id=os.getenv("LEMONSQUEEZY_STORE_ID"),
                 lemonsqueezy_variant_starter=os.getenv("LEMONSQUEEZY_VARIANT_STARTER"),
                 lemonsqueezy_variant_pro=os.getenv("LEMONSQUEEZY_VARIANT_PRO"),
+                lemonsqueezy_variant_demand=os.getenv("LEMONSQUEEZY_VARIANT_DEMAND"),
                 billing_trial_days=billing_trial_days,
                 frontend_base_url=frontend_base_url.rstrip("/") if frontend_base_url else None,
                 twilio_account_sid=os.getenv("TWILIO_ACCOUNT_SID"),

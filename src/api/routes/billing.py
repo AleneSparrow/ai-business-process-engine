@@ -55,6 +55,16 @@ def create_checkout_session(
     return CheckoutSessionResponse(checkout_url=url)
 
 
+@router.post("/demand-checkout-session", response_model=CheckoutSessionResponse)
+def create_demand_checkout_session(
+    business_id: BusinessIdPath,
+    user: Annotated[StaffUser, Depends(require_own_business)],
+    billing_service: Annotated[BillingService, Depends(get_billing_service)],
+) -> CheckoutSessionResponse:
+    url = billing_service.create_demand_checkout_session(business_id, user.email)
+    return CheckoutSessionResponse(checkout_url=url)
+
+
 @router.post("/portal-session", response_model=PortalSessionResponse)
 def create_portal_session(
     business_id: BusinessIdPath,

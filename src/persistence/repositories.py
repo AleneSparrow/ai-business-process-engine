@@ -55,6 +55,9 @@ class BusinessRepository(Protocol):
     def get(self, business_id: str) -> Business | None: ...
     def get_by_payment_customer_id(self, payment_customer_id: str) -> Business | None: ...
     def get_by_payment_subscription_id(self, payment_subscription_id: str) -> Business | None: ...
+    def get_by_demand_payment_subscription_id(
+        self, demand_payment_subscription_id: str
+    ) -> Business | None: ...
     def list_all(self) -> tuple[Business, ...]:
         """Every tenant, unfiltered -- for platform-wide sweeps (currently
         just PersistentFollowUpRunner) rather than anything scoped to a
@@ -80,6 +83,21 @@ class BusinessRepository(Protocol):
         resurrect a since-superseded billing state) and the business is
         returned unchanged. `None` applies only while no watermark exists;
         afterward it is rejected because it cannot prove its ordering."""
+        ...
+    def update_demand_billing(
+        self,
+        business_id: str,
+        *,
+        payment_customer_id: str | None,
+        demand_payment_subscription_id: str | None,
+        demand_subscription_status: str,
+        demand_trial_ends_at: datetime | None,
+        demand_current_period_end: datetime | None,
+        event_at: datetime | None = None,
+    ) -> Business:
+        """Same watermark rules as `update_billing`, against
+        `demand_billing_event_at`. Never writes Flywheel `plan` /
+        `subscription_status`."""
         ...
     def update_reporting_settings(
         self,

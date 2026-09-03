@@ -16,7 +16,7 @@ from src.demand.engine.claim_guard import assert_claims_allowed, assert_publisha
 from src.demand.engine.consent_gate import ConsentRequiredError, assert_can_send
 from src.demand.engine.sequence_planner import compile_welcome_sequence, render_step
 from src.demand.engine.strategy_service import require_live
-from src.domain.models import utc_now
+from src.demand.domain.primitives import utc_now
 
 
 _STATE_RANK = {
@@ -121,7 +121,7 @@ class AcquisitionEngine:
                 payload={
                     "handoff_id": handoff.handoff_id,
                     "external_message_id": handoff.external_message_id,
-                    "entry_state": handoff.entry_state.value,
+                    "entry_state": handoff.entry_state,
                 },
                 causation_id=event.event_id,
             ))

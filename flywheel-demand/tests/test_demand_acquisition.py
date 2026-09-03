@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta, timezone
+import json
+from pathlib import Path
 
 import pytest
 
@@ -10,15 +12,6 @@ from src.demand.domain.states import CampaignState, ProspectState
 from src.demand.engine.acquisition_engine import AcquisitionEngine
 from src.demand.engine.consent_gate import ConsentRequiredError
 from src.demand.engine.strategy_service import StrategyService
-from src.demand.engine.handoff_adapter import DemandHandoffAdapter
-from src.domain.qualification import IntentResult, Urgency
-from src.domain.states import ProcessState
-from src.engine.intent_extractor import DeterministicIntentExtractor
-from src.engine.lead_intake import LeadIntakeService
-from src.engine.question_generator import DeterministicQuestionGenerator
-
-import json
-from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 NOW = datetime(2026, 9, 3, 12, 0, tzinfo=timezone.utc)
@@ -80,24 +73,12 @@ def test_attract_path_from_view_to_process_engine_handoff() -> None:
     ))
     assert result.state is ProspectState.HANDED_OFF
     assert result.handoff is not None
-    assert result.handoff.entry_state is ProcessState.NEW_LEAD
+    assert result.handoff.entry_state == "NEW_LEAD"
     assert result.handoff.source == "flywheel_demand"
-
-    intake = LeadIntakeService(
-        business_dna(),
-        DeterministicIntentExtractor({
-            result.handoff.external_message_id: IntentResult(
-                service_requested="diagnostic-visit",
-                urgency=Urgency.NORMAL,
-                customer_location="60601",
-                confidence=0.95,
-            )
-        }),
-        DeterministicQuestionGenerator(),
-    )
-    handed = DemandHandoffAdapter(intake).deliver(result.handoff)
-    assert handed.current_state is ProcessState.QUALIFIED
-    assert handed.qualification.qualified
+    payload = result.handoff.to_intake_payload()
+    assert payload["external_message_id"].startswith("demand:")
+    assert payload["raw_text"] == "I need a diagnostic plumbing visit in 60601"
+    assert payload["source"] == "flywheel_demand"
 
 
 def test_loyalty_sequence_requires_opt_in_and_can_spam_footer() -> None:

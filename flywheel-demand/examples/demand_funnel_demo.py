@@ -1,4 +1,4 @@
-"""Run Attract and Loyalty Demand paths until the process engine takes over."""
+"""Run Attract and Loyalty Demand paths until an inquiry is ready for Flywheel."""
 
 import json
 import sys
@@ -12,12 +12,7 @@ from src.demand.domain.events import ProspectEventType  # noqa: E402
 from src.demand.domain.marketing_dna import MarketingOnboardingInput  # noqa: E402
 from src.demand.domain.models import Prospect, ProspectEvent  # noqa: E402
 from src.demand.engine.acquisition_engine import AcquisitionEngine  # noqa: E402
-from src.demand.engine.handoff_adapter import DemandHandoffAdapter  # noqa: E402
 from src.demand.engine.strategy_service import StrategyService  # noqa: E402
-from src.domain.qualification import IntentResult, Urgency  # noqa: E402
-from src.engine.intent_extractor import DeterministicIntentExtractor  # noqa: E402
-from src.engine.lead_intake import LeadIntakeService  # noqa: E402
-from src.engine.question_generator import DeterministicQuestionGenerator  # noqa: E402
 
 
 def main() -> None:
@@ -66,21 +61,10 @@ def main() -> None:
     ))
     print(f"Prospect after inquiry: {result.state.value}")
     assert result.handoff is not None
-    intake = LeadIntakeService(
-        business_dna,
-        DeterministicIntentExtractor({
-            result.handoff.external_message_id: IntentResult(
-                service_requested="diagnostic-visit",
-                urgency=Urgency.NORMAL,
-                customer_location="60601",
-                confidence=0.96,
-            )
-        }),
-        DeterministicQuestionGenerator(),
-    )
-    handed = DemandHandoffAdapter(intake).deliver(result.handoff)
-    print(f"Process engine state: {handed.current_state.value}")
-    print(f"Qualified: {handed.qualification.qualified}")
+    payload = result.handoff.to_intake_payload()
+    print(f"Handoff source: {payload['source']}")
+    print(f"Handoff entry: {payload['entry_state']}")
+    print("Flywheel receives this JSON at POST /api/v1/businesses/{id}/demand/inquiries")
 
 
 if __name__ == "__main__":

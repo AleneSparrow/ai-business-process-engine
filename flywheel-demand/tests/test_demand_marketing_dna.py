@@ -9,7 +9,6 @@ from src.demand.engine.claim_guard import UnsubstantiatedClaimError, assert_publ
 from src.demand.engine.content_planner import compile_content_plan, render_article
 from src.demand.engine.sequence_planner import compile_welcome_sequence
 from src.demand.engine.strategy_service import CampaignNotReadyError, StrategyService
-from src.domain.business_dna_builder import OnboardingInput, OnboardingService, build_business_dna
 from src.demand.domain.states import CampaignState
 
 
@@ -108,16 +107,21 @@ def test_builder_has_no_industry_branch_across_verticals() -> None:
         ("Wholesale sales", "Wholesale account"),
     )
     for industry, service in verticals:
-        business = build_business_dna(OnboardingInput(
-            business_id=f"biz-{industry.split()[0].casefold()}",
-            business_name=f"{industry} Co",
-            industry=industry,
-            tone="Friendly & direct",
-            services=(OnboardingService(name=service, description=service),),
-            service_zip_codes=("10001",),
-        ))
+        business = {
+            "business": {
+                "id": f"biz-{industry.split()[0].casefold()}",
+                "name": f"{industry} Co",
+                "industry": industry,
+                "description": "",
+                "timezone": "America/New_York",
+                "currency": "USD",
+            },
+            "services": [{"name": service, "description": service}],
+            "service_areas": [{"id": "primary", "type": "postal_codes", "values": ["10001"]}],
+            "communication": {"language": "English", "tone": "friendly, direct, and concise"},
+        }
         dna = build_marketing_dna(business)
         Draft202012Validator(SCHEMA).validate(dna)
         assert dna["handoff"]["entry_state"] == "NEW_LEAD"
-        assert industry.replace("_", " ").casefold() in dna["market"]["category"].casefold() or industry.casefold() in dna["market"]["category"].casefold()
+        assert industry.casefold() in dna["market"]["category"].casefold()
         assert service in dna["market"]["jobs"]

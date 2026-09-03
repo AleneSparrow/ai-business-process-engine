@@ -66,6 +66,57 @@ class IncomingMessageRequest(ApiModel):
         return LeadIntakeService._normalize_email(value)
 
 
+class DemandInquiryRequest(ApiModel):
+    """JSON posted by Flywheel Demand after a person inquires.
+
+    Matches `InquiryHandoff.to_intake_payload()` in the Demand product.
+    Flywheel maps this to a normal `IncomingMessage` and opens `NEW_LEAD`.
+    """
+
+    business_id: Annotated[str, Field(min_length=1, max_length=128)]
+    channel: Annotated[str, Field(min_length=1, max_length=64, pattern=r"^[A-Za-z][A-Za-z0-9_-]*$")]
+    external_message_id: Annotated[str, Field(min_length=1, max_length=255)]
+    raw_text: Annotated[str, Field(min_length=1, max_length=10_000)]
+    timestamp: AwareDatetime
+    customer_name: Annotated[str | None, Field(min_length=1, max_length=255)] = None
+    phone: Annotated[str | None, Field(min_length=1, max_length=64)] = None
+    email: Annotated[str | None, Field(min_length=1, max_length=320)] = None
+    sms_consent: bool = False
+    source: Literal["flywheel_demand"]
+    entry_state: Literal["NEW_LEAD"]
+    handoff_id: Annotated[str, Field(min_length=1, max_length=255)]
+    campaign_id: Annotated[str, Field(min_length=1, max_length=255)]
+    prospect_id: Annotated[str, Field(min_length=1, max_length=255)]
+    attribution: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("channel")
+    @classmethod
+    def normalize_channel(cls, value: str) -> str:
+        return value.casefold()
+
+    @field_validator("external_message_id")
+    @classmethod
+    def validate_external_message_id(cls, value: str) -> str:
+        if any(character.isspace() or ord(character) < 32 or ord(character) == 127 for character in value):
+            raise ValueError("external_message_id must not contain whitespace or control characters")
+        return value
+
+    @field_validator("phone")
+    @classmethod
+    def validate_phone(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if any(character not in "+-(). 0123456789" for character in value):
+            raise ValueError("phone contains unsupported characters")
+        LeadIntakeService._normalize_phone(value)
+        return value
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, value: str | None) -> str | None:
+        return LeadIntakeService._normalize_email(value)
+
+
 class CustomerResponseSchema(ApiModel):
     message_text: str
     channel: str
@@ -173,6 +224,10 @@ class BillingStatusResponse(ApiModel):
     trial_ends_at: datetime | None
     current_period_end: datetime | None
     has_billing_access: bool
+    demand_subscription_status: str
+    demand_trial_ends_at: datetime | None
+    demand_current_period_end: datetime | None
+    has_demand_access: bool
 
     @classmethod
     def from_domain(cls, business: Business) -> "BillingStatusResponse":
@@ -182,6 +237,10 @@ class BillingStatusResponse(ApiModel):
             trial_ends_at=business.trial_ends_at,
             current_period_end=business.current_period_end,
             has_billing_access=business.has_billing_access,
+            demand_subscription_status=business.demand_subscription_status,
+            demand_trial_ends_at=business.demand_trial_ends_at,
+            demand_current_period_end=business.demand_current_period_end,
+            has_demand_access=business.has_demand_access,
         )
 
 

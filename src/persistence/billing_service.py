@@ -54,12 +54,15 @@ from datetime import datetime, timezone
 from typing import Any
 
 from src.config import Settings
-from src.domain.tenancy import PLAN_IDS, Business
+from src.domain.tenancy import DEMAND_PRODUCT_ID, PLAN_IDS, Business
 
 from .errors import (
     BillingAlreadyActiveError,
     BillingAccountNotFoundError,
     BillingNotConfiguredError,
+    DemandAlreadyActiveError,
+    DemandProductNotConfiguredError,
+    DemandRequiresFlywheelSubscriptionError,
     InvalidPlanError,
     WebhookSignatureError,
 )
@@ -188,6 +191,38 @@ class BillingService:
         )
         return response["data"]["attributes"]["url"]
 
+    def create_demand_checkout_session(self, business_id: str, owner_email: str) -> str:
+        """Hosted Checkout for the Demand add-on. Requires an active Flywheel
+        subscription first. `product=demand` travels as custom_data so the
+        webhook never overwrites the Flywheel plan."""
+        self._require_configured()
+        variant_id = self._settings.lemonsqueezy_variant_demand
+        if not variant_id or not variant_id.strip():
+            raise DemandProductNotConfiguredError(
+                "Demand checkout is not configured on this deployment (no LEMONSQUEEZY_VARIANT_DEMAND)"
+            )
+        with self._unit_of_work_factory() as unit_of_work:
+            business = unit_of_work.businesses.get(business_id)
+        if business is None:
+            raise KeyError(f"unknown business_id: {business_id}")
+        if not business.has_billing_access:
+            raise DemandRequiresFlywheelSubscriptionError(
+                "Subscribe to Flywheel before adding Demand"
+            )
+        if business.has_demand_access:
+            raise DemandAlreadyActiveError(
+                "This business already has Demand access; use the customer portal to manage it"
+            )
+
+        response = self._client.create_checkout(
+            store_id=self._settings.lemonsqueezy_store_id,
+            variant_id=variant_id,
+            email=owner_email,
+            custom_data={"business_id": business_id, "product": DEMAND_PRODUCT_ID},
+            redirect_url=f"{self._settings.frontend_base_url}/app/billing?checkout=success",
+        )
+        return response["data"]["attributes"]["url"]
+
     def create_portal_session(self, business_id: str) -> str:
         """Returns a fresh Lemon Squeezy Customer Portal URL where the owner
         can update their card, change plan, or cancel -- entirely self-serve.
@@ -275,6 +310,11 @@ class BillingService:
             business = unit_of_work.businesses.get_by_payment_subscription_id(str(subscription_id))
             if business is not None:
                 return business.business_id
+            business = unit_of_work.businesses.get_by_demand_payment_subscription_id(
+                str(subscription_id)
+            )
+            if business is not None:
+                return business.business_id
         if customer_id is not None:
             business = unit_of_work.businesses.get_by_payment_customer_id(str(customer_id))
             if business is not None:
@@ -294,13 +334,31 @@ class BillingService:
             # event fired before any real business ever checked out).
             return
         event_at = _event_timestamp(attributes)
-        if self._missing_timestamp_after_watermark(unit_of_work, business_id, event_at):
+        demand_event = self._is_demand_event(
+            unit_of_work, event, subscription_id=subscription_id, variant_id=attributes.get("variant_id")
+        )
+        if self._missing_timestamp_after_watermark(
+            unit_of_work, business_id, event_at, demand=demand_event
+        ):
             return
         ends_at = attributes.get("ends_at")
         renews_at = attributes.get("renews_at")
+        period_end = _parse_timestamp(ends_at) or _parse_timestamp(renews_at)
+        customer = str(customer_id) if customer_id is not None else None
+        if demand_event:
+            unit_of_work.businesses.update_demand_billing(
+                business_id,
+                payment_customer_id=customer,
+                demand_payment_subscription_id=str(subscription_id),
+                demand_subscription_status=attributes.get("status", "incomplete"),
+                demand_trial_ends_at=_parse_timestamp(attributes.get("trial_ends_at")),
+                demand_current_period_end=period_end,
+                event_at=event_at,
+            )
+            return
         unit_of_work.businesses.update_billing(
             business_id,
-            payment_customer_id=str(customer_id) if customer_id is not None else None,
+            payment_customer_id=customer,
             payment_subscription_id=str(subscription_id),
             plan=self._plan_for_variant_id(attributes.get("variant_id")),
             subscription_status=attributes.get("status", "incomplete"),
@@ -308,7 +366,7 @@ class BillingService:
             # ends_at is set once cancelled/expired; renews_at is the "next
             # charge" date while on_trial/active -- either way this is "the
             # date through which access is paid for".
-            current_period_end=_parse_timestamp(ends_at) or _parse_timestamp(renews_at),
+            current_period_end=period_end,
             event_at=event_at,
         )
 
@@ -324,7 +382,23 @@ class BillingService:
         if business is None:
             return
         event_at = _event_timestamp(attributes)
-        if self._missing_timestamp_after_watermark(unit_of_work, business_id, event_at):
+        demand_event = self._is_demand_event(
+            unit_of_work, event, subscription_id=subscription_id, variant_id=None
+        )
+        if self._missing_timestamp_after_watermark(
+            unit_of_work, business_id, event_at, demand=demand_event
+        ):
+            return
+        if demand_event:
+            unit_of_work.businesses.update_demand_billing(
+                business_id,
+                payment_customer_id=business.payment_customer_id,
+                demand_payment_subscription_id=business.demand_payment_subscription_id,
+                demand_subscription_status="past_due",
+                demand_trial_ends_at=business.demand_trial_ends_at,
+                demand_current_period_end=business.demand_current_period_end,
+                event_at=event_at,
+            )
             return
         unit_of_work.businesses.update_billing(
             business_id,
@@ -337,14 +411,55 @@ class BillingService:
             event_at=event_at,
         )
 
+    def _is_demand_event(
+        self,
+        unit_of_work: UnitOfWork,
+        event: Mapping[str, Any],
+        *,
+        subscription_id: int | str | None,
+        variant_id: int | str | None,
+    ) -> bool:
+        custom_data = event.get("meta", {}).get("custom_data") or {}
+        if custom_data.get("product") == DEMAND_PRODUCT_ID:
+            return True
+        if custom_data.get("plan") in PLAN_IDS:
+            return False
+        variant = str(variant_id) if variant_id is not None else None
+        demand_variant = self._settings.lemonsqueezy_variant_demand
+        if variant and demand_variant and variant == demand_variant:
+            return True
+        if variant and variant in {
+            self._settings.lemonsqueezy_variant_starter,
+            self._settings.lemonsqueezy_variant_pro,
+        }:
+            return False
+        if subscription_id is not None:
+            linked = unit_of_work.businesses.get_by_demand_payment_subscription_id(
+                str(subscription_id)
+            )
+            if linked is not None:
+                return True
+        return False
+
     @staticmethod
     def _missing_timestamp_after_watermark(
-        unit_of_work: UnitOfWork, business_id: str, event_at: datetime | None
+        unit_of_work: UnitOfWork,
+        business_id: str,
+        event_at: datetime | None,
+        *,
+        demand: bool = False,
     ) -> bool:
         if event_at is not None:
             return False
         business = unit_of_work.businesses.get(business_id)
-        if business is None or business.billing_event_at is None:
+        watermark = None if business is None else (
+            business.demand_billing_event_at if demand else business.billing_event_at
+        )
+        if watermark is None:
             return False
-        LOGGER.warning("billing_webhook_missing_timestamp_ignored business_id=%s", business_id)
+        LOGGER.warning(
+            "%s business_id=%s",
+            "demand_billing_webhook_missing_timestamp_ignored" if demand else "billing_webhook_missing_timestamp_ignored",
+            business_id,
+        )
         return True

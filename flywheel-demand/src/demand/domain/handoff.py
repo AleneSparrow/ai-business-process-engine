@@ -1,4 +1,4 @@
-"""Handoff payload from Demand into the Business Process Engine."""
+"""Handoff payload from Demand into Flywheel. Demand stops here."""
 
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -6,22 +6,20 @@ from types import MappingProxyType
 from typing import Any, Mapping
 from uuid import uuid4
 
-from src.domain.models import _freeze, _require_aware, _require_text, utc_now
-from src.domain.qualification import IncomingMessage
-from src.domain.states import ProcessState
+from src.demand.domain.primitives import freeze, require_aware, require_text, utc_now
 
 HANDOFF_SOURCE = "flywheel_demand"
-HANDOFF_ENTRY_STATE = ProcessState.NEW_LEAD
+HANDOFF_ENTRY_STATE = "NEW_LEAD"
 EXTERNAL_ID_PREFIX = "demand"
 
 
 @dataclass(frozen=True, slots=True)
 class InquiryHandoff:
-    """A person reached out themselves. Product 1 owns the rest of the cycle.
+    """A person reached out themselves. Flywheel owns the rest of the cycle.
 
-    Demand stops here. Qualification, booking, quoting, and sale are not
-    Demand's job. The process engine must see this as ordinary inbound
-    intake — an ``IncomingMessage`` — so Product 1's boundary stays intact.
+    Demand does not qualify, book, quote, or sell. The payload is ordinary
+    inbound intake JSON. Flywheel maps it to ``IncomingMessage`` and opens
+    a case at ``NEW_LEAD``.
     """
 
     business_id: str
@@ -48,10 +46,10 @@ class InquiryHandoff:
             (self.event_id, "event_id"),
             (self.handoff_id, "handoff_id"),
         ):
-            _require_text(value, name)
-        _require_aware(self.occurred_at, "occurred_at")
+            require_text(value, name)
+        require_aware(self.occurred_at, "occurred_at")
         object.__setattr__(self, "attribution", MappingProxyType({
-            key: _freeze(value) for key, value in dict(self.attribution).items()
+            key: freeze(value) for key, value in dict(self.attribution).items()
         }))
 
     @property
@@ -59,22 +57,29 @@ class InquiryHandoff:
         return HANDOFF_SOURCE
 
     @property
-    def entry_state(self) -> ProcessState:
+    def entry_state(self) -> str:
         return HANDOFF_ENTRY_STATE
 
     @property
     def external_message_id(self) -> str:
         return f"{EXTERNAL_ID_PREFIX}:{self.prospect_id}:{self.event_id}"
 
-    def to_incoming_message(self) -> IncomingMessage:
-        return IncomingMessage(
-            business_id=self.business_id,
-            channel=self.channel,
-            external_message_id=self.external_message_id,
-            raw_text=self.inquiry_text,
-            timestamp=self.occurred_at,
-            customer_name=self.customer_name,
-            phone=self.phone,
-            email=self.email,
-            sms_consent=self.sms_consent,
-        )
+    def to_intake_payload(self) -> dict[str, Any]:
+        """JSON Flywheel accepts at POST .../demand/inquiries."""
+        return {
+            "business_id": self.business_id,
+            "channel": self.channel,
+            "external_message_id": self.external_message_id,
+            "raw_text": self.inquiry_text,
+            "timestamp": self.occurred_at.isoformat(),
+            "customer_name": self.customer_name,
+            "phone": self.phone,
+            "email": self.email,
+            "sms_consent": self.sms_consent,
+            "source": self.source,
+            "entry_state": self.entry_state,
+            "handoff_id": self.handoff_id,
+            "campaign_id": self.campaign_id,
+            "prospect_id": self.prospect_id,
+            "attribution": dict(self.attribution),
+        }

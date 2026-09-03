@@ -46,6 +46,11 @@ class BusinessRow(Base):
     billing_event_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     test_mode_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
     stats_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    demand_payment_subscription_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    demand_subscription_status: Mapped[str] = mapped_column(String(32), nullable=False, server_default="incomplete")
+    demand_trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    demand_current_period_end: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    demand_billing_event_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         # Not unique -- see migration 0009. The same real person/email can run
@@ -57,6 +62,7 @@ class BusinessRow(Base):
         # the fallback lookup (get_by_payment_customer_id) fast.
         Index("ix_businesses_payment_customer_id", "payment_customer_id"),
         Index("ix_businesses_payment_subscription_id", "payment_subscription_id"),
+        Index("ix_businesses_demand_payment_subscription_id", "demand_payment_subscription_id"),
     )
 
 

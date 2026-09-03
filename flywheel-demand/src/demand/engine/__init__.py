@@ -4,7 +4,7 @@ from .acquisition_engine import AcquisitionEngine, AcquisitionResult
 from .claim_guard import UnsubstantiatedClaimError, assert_publishable
 from .consent_gate import ComplianceFooterError, ConsentRequiredError
 from .content_planner import compile_content_plan, render_article
-from .handoff_adapter import DemandHandoffAdapter
+from .handoff_adapter import DemandHandoffError, FlywheelIntakeClient
 from .sequence_planner import compile_welcome_sequence, render_step
 from .strategy_service import CampaignNotReadyError, StrategyService
 
@@ -14,7 +14,8 @@ __all__ = [
     "CampaignNotReadyError",
     "ComplianceFooterError",
     "ConsentRequiredError",
-    "DemandHandoffAdapter",
+    "DemandHandoffError",
+    "FlywheelIntakeClient",
     "StrategyService",
     "UnsubstantiatedClaimError",
     "assert_publishable",

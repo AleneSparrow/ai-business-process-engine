@@ -21,6 +21,7 @@ SUBSCRIPTION_STATUSES = frozenset({
 # access should last until Lemon Squeezy actually fires `subscription_expired`.
 ACTIVE_SUBSCRIPTION_STATUSES = frozenset({"on_trial", "active", "cancelled"})
 PLAN_IDS = frozenset({"starter", "pro"})
+DEMAND_PRODUCT_ID = "demand"
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,14 +44,13 @@ class Business:
     # A reporting baseline hides earlier cases from aggregate metrics without
     # deleting cases, conversations, or their immutable event history.
     stats_since: datetime | None = None
-    """The Lemon Squeezy snapshot timestamp (subscription/invoice
-    `updated_at`, falling back to `created_at`) of the most recent webhook
-    event actually applied to the billing fields above. Used to reject an
-    out-of-order delivery -- e.g. a delayed `subscription_created` retry
-    arriving after a `subscription_cancelled` -- rather than letting it
-    resurrect access. None means no event carrying a usable timestamp has
-    been applied yet, so there is nothing to protect against overwriting.
-    See BillingService.handle_webhook / BusinessRepository.update_billing."""
+    # Flywheel Demand is a separate product. The owner subscribes to it on
+    # this Billing page; those fields never overwrite the Flywheel plan.
+    demand_payment_subscription_id: str | None = None
+    demand_subscription_status: str = "incomplete"
+    demand_trial_ends_at: datetime | None = None
+    demand_current_period_end: datetime | None = None
+    demand_billing_event_at: datetime | None = None
 
     def __post_init__(self) -> None:
         _require_text(self.business_id, "business_id")
@@ -59,6 +59,8 @@ class Business:
         _require_aware(self.updated_at, "updated_at")
         if self.subscription_status not in SUBSCRIPTION_STATUSES:
             raise ValueError(f"unknown subscription_status: {self.subscription_status!r}")
+        if self.demand_subscription_status not in SUBSCRIPTION_STATUSES:
+            raise ValueError(f"unknown demand_subscription_status: {self.demand_subscription_status!r}")
         if self.plan is not None and self.plan not in PLAN_IDS:
             raise ValueError(f"unknown plan: {self.plan!r}")
         if self.trial_ends_at is not None:
@@ -69,6 +71,12 @@ class Business:
             _require_aware(self.billing_event_at, "billing_event_at")
         if self.stats_since is not None:
             _require_aware(self.stats_since, "stats_since")
+        if self.demand_trial_ends_at is not None:
+            _require_aware(self.demand_trial_ends_at, "demand_trial_ends_at")
+        if self.demand_current_period_end is not None:
+            _require_aware(self.demand_current_period_end, "demand_current_period_end")
+        if self.demand_billing_event_at is not None:
+            _require_aware(self.demand_billing_event_at, "demand_billing_event_at")
 
     @property
     def has_billing_access(self) -> bool:
@@ -78,6 +86,16 @@ class Business:
         blocks the owner's own dashboard, not the automation their customers
         are already relying on."""
         return self.subscription_status in ACTIVE_SUBSCRIPTION_STATUSES
+
+    @property
+    def has_demand_access(self) -> bool:
+        """Whether the Flywheel Demand add-on is currently paid through.
+
+        Demand is a separate product. Inquiries from Demand are rejected
+        unless this is true. A lapsed Demand add-on does not revoke Flywheel
+        dashboard access.
+        """
+        return self.demand_subscription_status in ACTIVE_SUBSCRIPTION_STATUSES
 
 
 @dataclass(frozen=True, slots=True)

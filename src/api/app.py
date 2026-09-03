@@ -38,6 +38,7 @@ from .routes import (
     business_dna,
     businesses,
     dashboard,
+    demand,
     health,
     integrations,
     internal,
@@ -202,6 +203,7 @@ def create_app(
     application.include_router(billing.router)
     application.include_router(billing.webhook_router)
     application.include_router(lead_intake.router)
+    application.include_router(demand.router)
     application.include_router(public_conversations.router)
     application.include_router(sms.router)
     application.include_router(sms.public_router)

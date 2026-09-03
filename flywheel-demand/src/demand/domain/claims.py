@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
-from src.domain.models import _require_text
+from src.demand.domain.primitives import require_text
 
 
 class SubstantiationKind(StrEnum):
@@ -26,8 +26,8 @@ class Claim:
     evidence: str = ""
 
     def __post_init__(self) -> None:
-        _require_text(self.claim_id, "claim_id")
-        _require_text(self.text, "text")
+        require_text(self.claim_id, "claim_id")
+        require_text(self.text, "text")
         if self.substantiation is SubstantiationKind.NONE:
             object.__setattr__(self, "status", ClaimStatus.BLOCKED)
         elif self.substantiation is SubstantiationKind.OWNER_SUPPLIED and not (self.evidence or "").strip():

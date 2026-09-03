@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
-from src.domain.models import _require_text
+from src.demand.domain.primitives import require_text
 
 from .claims import Claim, ClaimStatus, SubstantiationKind
 
@@ -52,8 +52,8 @@ class ProofClaimInput:
     evidence: str
 
     def __post_init__(self) -> None:
-        _require_text(self.text, "text")
-        _require_text(self.evidence, "evidence")
+        require_text(self.text, "text")
+        require_text(self.evidence, "evidence")
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,9 +72,9 @@ class MarketingOnboardingInput:
         if not self.attract_enabled and not self.loyalty_enabled:
             raise ValueError("at least one motion (attract or loyalty) must be enabled")
         if self.physical_postal_address is not None:
-            _require_text(self.physical_postal_address, "physical_postal_address")
+            require_text(self.physical_postal_address, "physical_postal_address")
         if self.primary_segment_label is not None:
-            _require_text(self.primary_segment_label, "primary_segment_label")
+            require_text(self.primary_segment_label, "primary_segment_label")
 
 
 def _text(value: Any) -> str:

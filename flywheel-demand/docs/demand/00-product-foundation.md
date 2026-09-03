@@ -102,3 +102,4 @@ Demand отдаёт обычный inbound `IncomingMessage`. Движок пр�
 | Воронки | `workflows/campaign_setup.yaml`, `workflows/attract_to_inquiry.yaml` |
 | Демо | `examples/demand_funnel_demo.py` |
 | Спека | `docs/demand/` |
+| Подписка | **только в Flywheel** (Billing add-on). Этот репозиторий доступ не продаёт. |
