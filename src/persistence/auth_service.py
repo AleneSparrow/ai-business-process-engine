@@ -178,6 +178,19 @@ class AuthService:
             unit_of_work.commit()
         return session
 
+    def update_profile(self, user: StaffUser, name: str) -> StaffUser:
+        normalized_name = " ".join(name.split())
+        if not normalized_name or len(normalized_name) > 120:
+            raise ValueError("name must be between 1 and 120 characters")
+        with self._unit_of_work_factory() as unit_of_work:
+            persisted = unit_of_work.staff_users.get(user.user_id)
+            if persisted is None:
+                raise SessionInvalidError("User no longer exists")
+            updated = replace(persisted, name=normalized_name)
+            unit_of_work.staff_users.save(updated)
+            unit_of_work.commit()
+        return updated
+
     def request_password_reset(self, email: str, *, request_ip: str | None) -> None:
         """Always returns normally: callers must not reveal account existence."""
         normalized = normalize_email(email)

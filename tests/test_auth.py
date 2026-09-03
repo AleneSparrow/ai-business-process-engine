@@ -99,6 +99,40 @@ def test_me_requires_authentication(auth_environment: TestClient) -> None:
     assert response.json()["error"]["code"] == "unauthorized"
 
 
+def test_staff_profile_name_can_be_updated_and_is_returned_after_login(auth_environment: TestClient) -> None:
+    created = signup(auth_environment, email="profile@example.com", password="correct horse battery")
+    token = created.json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    updated = auth_environment.patch("/api/v1/auth/me", headers=headers, json={"name": "  Ada   Lovelace  "})
+    assert updated.status_code == 200
+    assert updated.json()["name"] == "Ada Lovelace"
+    assert updated.json()["email"] == "profile@example.com"
+
+    logged_in = auth_environment.post(
+        "/api/v1/auth/login",
+        json={"email": "profile@example.com", "password": "correct horse battery"},
+    )
+    assert logged_in.status_code == 200
+    assert logged_in.json()["user"]["name"] == "Ada Lovelace"
+
+
+def test_staff_profile_update_requires_authentication(auth_environment: TestClient) -> None:
+    response = auth_environment.patch("/api/v1/auth/me", json={"name": "Ada Lovelace"})
+    assert response.status_code == 401
+
+
+def test_staff_profile_rejects_blank_name(auth_environment: TestClient) -> None:
+    created = signup(auth_environment, email="blank-profile@example.com")
+    response = auth_environment.patch(
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {created.json()['token']}"},
+        json={"name": "   "},
+    )
+    assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
+
+
 def test_me_returns_current_user_with_valid_token(auth_environment: TestClient) -> None:
     token = signup(auth_environment, email="owner4@example.com").json()["token"]
     response = auth_environment.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"})

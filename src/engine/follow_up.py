@@ -26,6 +26,9 @@ Gating, all of which must hold before a follow-up is ever considered due:
 - The business has configured `sales.follow_up` (delays_hours,
   maximum_attempts) -- if missing or malformed, treated as "not configured",
   never as an error that could crash a sweep over other businesses' cases.
+- Persistence additionally skips a due case when any linked conversation is
+  `HUMAN_TAKEOVER_REQUESTED` or `HUMAN_TAKEOVER_ACTIVE` (staff already owns
+  the live channel; an automated nudge would cross that thread).
 - Fewer than `maximum_attempts` follow-ups already sent for this case.
 - Enough time has passed since the case's last activity (the later of its
   last inbound customer message and its last follow-up already sent) --

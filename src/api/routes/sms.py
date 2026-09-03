@@ -24,9 +24,18 @@ from fastapi.responses import Response
 from src.domain.auth import StaffUser
 from src.domain.models import utc_now
 from src.domain.qualification import IncomingMessage
+from src.domain.sms_commands import classify_inbound_sms
 from src.persistence.errors import WebhookSignatureError
 from src.persistence.lead_intake import PersistentLeadIntakeService
-from src.persistence.sms_service import INBOUND_SMS_WEBHOOK_PATH, SmsProvisioningError, SmsService
+from src.persistence.sms_service import (
+    HELP_ACK,
+    INBOUND_SMS_WEBHOOK_PATH,
+    START_ACK,
+    STOP_ACK,
+    SmsProvisioningError,
+    SmsService,
+)
+from src.persistence.sms_thread_service import SmsThreadService
 from src.persistence.twilio_client import validate_inbound_signature
 
 from ..dependencies import (
@@ -35,6 +44,7 @@ from ..dependencies import (
     get_container,
     get_intake_service,
     get_sms_service,
+    get_sms_thread_service,
     require_own_business,
 )
 from ..errors import PublicApiError, RequestDataError, ResourceNotFoundError
@@ -62,6 +72,7 @@ async def receive_inbound_sms(
     container: Annotated[ApplicationContainer, Depends(get_container)],
     sms_service: Annotated[SmsService, Depends(get_sms_service)],
     intake_service: Annotated[PersistentLeadIntakeService, Depends(get_intake_service)],
+    sms_threads: Annotated[SmsThreadService, Depends(get_sms_thread_service)],
     x_twilio_signature: Annotated[str | None, Header(alias="X-Twilio-Signature")] = None,
 ) -> Response:
     if not x_twilio_signature or not container.settings.twilio_auth_token:
@@ -95,6 +106,48 @@ async def receive_inbound_sms(
         # retry; there's no business-scoped error channel to report this to.
         return Response(content=_EMPTY_TWIML, media_type="application/xml")
 
+    command = classify_inbound_sms(body)
+    if command == "stop":
+        sms_service.opt_out(business_id, from_number, inbound_message_id=message_sid)
+        sms_threads.record_command(
+            business_id,
+            from_number,
+            body=body,
+            inbound_message_id=message_sid,
+            outbound_text=STOP_ACK,
+            pause=True,
+        )
+        return Response(content=_EMPTY_TWIML, media_type="application/xml")
+    if command == "start":
+        sms_service.opt_in(business_id, from_number, inbound_message_id=message_sid)
+        sms_threads.record_command(
+            business_id,
+            from_number,
+            body=body,
+            inbound_message_id=message_sid,
+            outbound_text=START_ACK,
+        )
+        return Response(content=_EMPTY_TWIML, media_type="application/xml")
+    if command == "help":
+        sms_service.send_help(business_id, from_number, inbound_message_id=message_sid)
+        sms_threads.record_command(
+            business_id,
+            from_number,
+            body=body,
+            inbound_message_id=message_sid,
+            outbound_text=HELP_ACK,
+        )
+        return Response(content=_EMPTY_TWIML, media_type="application/xml")
+
+    if sms_threads.is_paused(business_id, from_number):
+        sms_threads.append_customer_message(
+            business_id,
+            from_number,
+            body=body,
+            inbound_message_id=message_sid,
+        )
+        return Response(content=_EMPTY_TWIML, media_type="application/xml")
+
     message = IncomingMessage(
         business_id=business_id,
         channel="sms",
@@ -104,12 +157,22 @@ async def receive_inbound_sms(
         phone=from_number,
     )
     result = intake_service.receive(message)
+    sms_threads.sync_from_intake(
+        business_id,
+        from_number,
+        body=body,
+        inbound_message_id=message_sid,
+        intake=result,
+    )
     # Intake replays the stored logical result for a duplicate MessageSid.
     # That is correct for state/audit idempotency, but a customer-facing SMS
     # is an external side effect and must not be repeated on a Twilio retry.
     if result.response is not None and not result.duplicate:
-        sms_service.send_outbound(
-            business_id, to_number=from_number, body=result.response.message_text
+        sms_service.enqueue_reply(
+            business_id,
+            to_number=from_number,
+            body=result.response.message_text,
+            inbound_message_id=message_sid,
         )
     return Response(content=_EMPTY_TWIML, media_type="application/xml")
 

@@ -686,7 +686,27 @@ class LeadIntakeService:
         if current.customer_name and lead.name and current.customer_name.strip().casefold() != lead.name.strip().casefold():
             conflict = True
         return IntentResult(
-            service_requested=corrected_fact(current.service_requested, "service_requested"),
+            # Not corrected_fact() here: an unsupported-service mention is
+            # NOT silence -- the customer clearly asked for something this
+            # turn, just not something service_requested can hold (that
+            # field is a catalog id or nothing, see
+            # IntentResult.unsupported_service_name). corrected_fact()
+            # can't tell "said nothing" from "asked for something
+            # unsupported" apart, since both leave current.service_requested
+            # None; treating the latter as silence carried a stale prior
+            # service (e.g. "diagnostic-visit") into this turn's
+            # QUALIFICATION_EVALUATED/case.metadata even though the
+            # customer had just asked about something unrelated (a roof
+            # replacement) and been declined for it -- confusing for a
+            # human reading the case afterward, though the LOST decision
+            # itself was already correct either way (driven by
+            # unsupported_service_name below, not this field). Found live
+            # while QA-testing this exact "unsupported service" scenario
+            # across five business types, 2026-08-31.
+            service_requested=(
+                None if current.unsupported_service_name is not None
+                else corrected_fact(current.service_requested, "service_requested")
+            ),
             # One-turn-only, like objection_phrase/customer_tone below -- the
             # customer's own words for THIS turn's unsupported request, not a
             # fact to preserve silently across turns. Missing from this

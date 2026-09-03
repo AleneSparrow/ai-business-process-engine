@@ -79,6 +79,7 @@ _REQUALIFIABLE_NEEDS_HUMAN_REASONS = frozenset({
 _HUMAN_ESCALATION_FOLLOWUP_MESSAGES = (
     "Got it — I've added that to your request for the team to review.",
     "Thanks, that's noted on your request. Someone from the team will follow up as soon as possible.",
+    "I've passed that along with the rest of your request. The team still has it.",
 )
 
 
@@ -209,6 +210,7 @@ class ConversationService:
         correlation_id: str | None = None,
         conversation_token: str | None = None,
         sms_consent: bool = False,
+        customer_timezone: str | None = None,
     ) -> PublicConversation:
         if (message_text is None) != (external_message_id is None):
             raise ValueError("message_text and external_message_id must be supplied together")
@@ -264,6 +266,8 @@ class ConversationService:
                 last_activity_at=now,
                 token_expires_at=now + self.token_ttl,
             )
+            if customer_timezone:
+                conversation.metadata["customer_timezone"] = customer_timezone
             uow.conversations.add(conversation)
             duplicate = False
             if message_text is not None and external_message_id is not None:

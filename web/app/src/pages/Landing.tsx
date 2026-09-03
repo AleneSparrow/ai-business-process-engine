@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, MessageSquare, Workflow, ShieldCheck, Zap, ChevronRight, Check, Menu, X } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
+import { FaqSection } from "../components/FaqSection";
 import { FlywheelMark } from "../components/Shared";
 
 // Amber, not bronze -- this stepper visualizes a cycle in motion, and amber
@@ -125,7 +126,7 @@ export default function Landing() {
     <div style={{ backgroundColor: "#F5F1EA", fontFamily: "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif", color: "#151515" }} className="min-h-screen w-full">
       <header className="sticky top-0 z-20 backdrop-blur-sm" style={{ backgroundColor: "#F5F1EAEE", borderBottom: "1px solid #E7E5DE" }}>
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <button onClick={() => navigate("/lawyers")} className="flex items-center gap-2">
+          <button onClick={() => navigate("/")} className="flex items-center gap-2">
             <div
               className="w-7 h-7 rounded-lg flex items-center justify-center text-white"
               style={{ backgroundColor: "#B87333" }}
@@ -140,6 +141,7 @@ export default function Landing() {
             <a href="#how" className="hover:text-[#151515] transition-colors">How it works</a>
             <a href="#features" className="hover:text-[#151515] transition-colors">Features</a>
             <a href="#trust" className="hover:text-[#151515] transition-colors">Trust & audit</a>
+            <a href="/faq" className="hover:text-[#151515] transition-colors">FAQ</a>
           </nav>
           <div className="hidden md:flex items-center gap-3">
             {!user && (
@@ -164,6 +166,7 @@ export default function Landing() {
             <a href="#how">How it works</a>
             <a href="#features">Features</a>
             <a href="#trust">Trust & audit</a>
+            <a href="/faq">FAQ</a>
             {!user && (
               <button onClick={() => navigate("/login")} className="text-left">Sign in</button>
             )}
@@ -277,6 +280,8 @@ export default function Landing() {
         </div>
       </section>
 
+      <FaqSection />
+
       <section className="max-w-6xl mx-auto px-6 py-20 md:py-28 text-center">
         <h2 className="text-3xl md:text-4xl mb-4" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Your first customer is already messaging someone.</h2>
         <p className="text-[#6B6459] mb-8 max-w-md mx-auto">Set up your Business DNA in minutes and give every lead a same-minute answer.</p>
@@ -292,7 +297,7 @@ export default function Landing() {
       <footer className="border-t border-[#E7E5DE] py-8">
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between text-xs text-[#9C9488]">
           <span>© 2026 Flywheel</span>
-          <span>Deterministic by design</span>
+          <a href="/faq" className="hover:text-[#151515] transition-colors">FAQ</a>
         </div>
       </footer>
     </div>

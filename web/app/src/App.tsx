@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom
 import { AuthProvider } from "./auth/AuthContext";
 import { RequireActiveSubscription, RequireAuth, RequireBusiness } from "./components/RouteGuards";
 import Landing from "./pages/Landing";
+import Faq from "./pages/Faq";
 import LawyersLanding from "./pages/LawyersLanding";
 import Signup from "./pages/Signup";
 import Login from "./pages/Login";
@@ -12,6 +13,7 @@ import Dashboard from "./pages/Dashboard";
 import Conversation from "./pages/Conversation";
 import Settings from "./pages/Settings";
 import Billing from "./pages/Billing";
+import Account from "./pages/Account";
 
 /** Shared layout element for every subscription-gated route (Overview,
  * Conversations). Previously /app and /app/conversations each had their
@@ -40,6 +42,7 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/" element={<Landing />} />
+          <Route path="/faq" element={<Faq />} />
           <Route path="/lawyers" element={<LawyersLanding />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/login" element={<Login />} />
@@ -60,6 +63,14 @@ export default function App() {
             <Route path="/app" element={<Dashboard />} />
             <Route path="/app/conversations" element={<Conversation />} />
           </Route>
+          <Route
+            path="/app/account"
+            element={
+              <RequireAuth>
+                <Account />
+              </RequireAuth>
+            }
+          />
           <Route
             path="/app/settings"
             element={

@@ -117,6 +117,24 @@ def _audit(metadata: AIInvocationMetadata, *, confidence: float | None = None) -
     return metadata.as_audit_dict(confidence=confidence)
 
 
+def _log_usage(audit: Mapping[str, object], *, task: str) -> None:
+    _log_event(
+        logging.INFO,
+        "ai_usage",
+        task=task,
+        provider=audit.get("provider"),
+        model=audit.get("model"),
+        prompt_id=audit.get("prompt_id"),
+        input_tokens=audit.get("input_tokens"),
+        output_tokens=audit.get("output_tokens"),
+        total_tokens=audit.get("total_tokens"),
+        cache_read_tokens=audit.get("cache_read_tokens"),
+        cache_write_tokens=audit.get("cache_write_tokens"),
+        latency_ms=audit.get("latency_ms"),
+        success=audit.get("success"),
+    )
+
+
 def _invalid_metadata(metadata: AIInvocationMetadata) -> AIInvocationMetadata:
     return replace(metadata, success=False, category="invalid_output")
 
@@ -319,7 +337,7 @@ class AIIntentExtractor:
                 urgency_calibrated=calibrated_urgency is not output.urgency,
                 prompt_version=prompt.version,
             )
-            return IntentResult(
+            intent = IntentResult(
                 service_requested=service_requested,
                 unsupported_service_name=unsupported_service_name,
                 urgency=calibrated_urgency,
@@ -339,6 +357,8 @@ class AIIntentExtractor:
                 customer_tone=output.customer_tone,
                 unintelligible=unintelligible,
             )
+            _log_usage(intent.ai_metadata, task="intent_extraction")
+            return intent
         except AIInvalidOutputError as exc:
             # Same diagnostic as the success path above, for the collapse-to-
             # NEEDS_HUMAN case: `str(exc)` here is always one of this file's

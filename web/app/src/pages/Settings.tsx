@@ -3,9 +3,8 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Check, ChevronLeft, ChevronRight, Copy, ExternalLink, Globe, Loader2, MapPin, MessageSquare, Plus, RotateCcw, X } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { AreaOption, Field, formatRelativeTime, inputCls, ToneOption } from "../components/Shared";
-import { AccountSecurityPanel } from "../components/AccountSecurityPanel";
 import { useAuth, describeError } from "../auth/AuthContext";
-import { API_BASE, api, type BusinessDNASettings, type CommercialPath, type ReportingSettings, type SmsStatus } from "../api/client";
+import { API_BASE, api, type BusinessDNASettings, type CommercialPath, type CrmWebhookStatus, type ReportingSettings, type SmsStatus } from "../api/client";
 
 // Grouped by the task a business owner actually has, not by which Business
 // DNA schema section a field happens to live in -- "Services" and "Booking"
@@ -24,7 +23,7 @@ const SETTINGS_TABS = [
   // and "Statistics" says that where "Reporting" did not.
   { key: "reporting", label: "Statistics" },
   { key: "sms", label: "SMS" },
-  { key: "security", label: "Security" },
+  { key: "crm", label: "CRM" },
 ] as const;
 
 const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] as const;
@@ -92,6 +91,7 @@ interface DNAServiceState {
   key: string;
   id: string | null;
   name: string;
+  description: string;
   questions: string[];
   /** What happens once a lead qualifies for this service — see
    * BusinessDNASettingsService._apply. "booking" only actually offers a slot
@@ -103,6 +103,7 @@ interface DNAServiceState {
   quotePrice: string;
   /** Only used (and required) when commercialPath === "direct_step". */
   nextStepMessage: string;
+  intakeKeywords: string;
 }
 
 const QUOTE_PRICE_PATTERN = /^(0|[1-9][0-9]*)(\.[0-9]{1,2})?$/;
@@ -139,6 +140,8 @@ interface SettingsState {
    * qualification.objection_responses in the Business DNA schema. Empty
    * means the reassurance-response feature is off for this business. */
   objectionResponses: ObjectionResponseState[];
+  complianceDisclaimer: string;
+  aiDisclosureText: string;
 }
 
 /** Preset labels map to the exact copy `src/domain/business_dna_builder.py::_TONE_COPY`
@@ -181,10 +184,12 @@ function fromServer(dna: BusinessDNASettings): SettingsState {
       key: nextClientKey(),
       id: s.id,
       name: s.name,
+      description: s.description ?? "",
       questions: [...s.questions],
       commercialPath: s.commercial_path,
       quotePrice: s.quote_price ?? "",
       nextStepMessage: s.next_step_message ?? "",
+      intakeKeywords: (s.intake_keywords ?? []).join(", "),
     })),
     areaMode: dna.service_zip_codes.length === 0 ? "remote" : "local",
     zips: dna.service_zip_codes.join(", "),
@@ -214,6 +219,8 @@ function fromServer(dna: BusinessDNASettings): SettingsState {
       trigger: o.trigger_description,
       response: o.approved_response,
     })),
+    complianceDisclaimer: dna.compliance_disclaimer ?? "",
+    aiDisclosureText: dna.ai_disclosure_text ?? "",
   };
 }
 
@@ -256,6 +263,11 @@ export default function Settings() {
   const [smsLoading, setSmsLoading] = useState(true);
   const [smsError, setSmsError] = useState<string | null>(null);
   const [smsProvisioning, setSmsProvisioning] = useState(false);
+  const [crmStatus, setCrmStatus] = useState<CrmWebhookStatus | null>(null);
+  const [crmLoading, setCrmLoading] = useState(true);
+  const [crmError, setCrmError] = useState<string | null>(null);
+  const [crmUrl, setCrmUrl] = useState("");
+  const [crmSaving, setCrmSaving] = useState(false);
   const [reporting, setReporting] = useState<ReportingSettings | null>(null);
   const [reportingSaving, setReportingSaving] = useState(false);
   const [reportingError, setReportingError] = useState<string | null>(null);
@@ -311,6 +323,27 @@ export default function Settings() {
       })
       .finally(() => {
         if (!cancelled) setSmsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token, businessId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!token || !businessId) return;
+    setCrmLoading(true);
+    setCrmError(null);
+    api
+      .getCrmWebhookStatus(token, businessId)
+      .then((status) => {
+        if (!cancelled) setCrmStatus(status);
+      })
+      .catch((err) => {
+        if (!cancelled) setCrmError(describeError(err));
+      })
+      .finally(() => {
+        if (!cancelled) setCrmLoading(false);
       });
     return () => {
       cancelled = true;
@@ -381,7 +414,7 @@ export default function Settings() {
       ...state,
       services: [
         ...state.services,
-        { key: nextClientKey(), id: null, name: v, questions: [], commercialPath: "human_review", quotePrice: "", nextStepMessage: "" },
+        { key: nextClientKey(), id: null, name: v, description: "", questions: [], commercialPath: "human_review", quotePrice: "", nextStepMessage: "", intakeKeywords: "" },
       ],
     });
     setNewService("");
@@ -427,10 +460,12 @@ export default function Settings() {
         services: state.services.map((s) => ({
           id: s.id ?? undefined,
           name: s.name.trim(),
+          description: s.description.trim(),
           questions: s.questions.map((q) => q.trim()).filter(Boolean),
           commercial_path: s.commercialPath,
           quote_price: s.commercialPath === "quote" ? s.quotePrice.trim() : null,
           next_step_message: s.commercialPath === "direct_step" ? s.nextStepMessage.trim() : null,
+          intake_keywords: s.intakeKeywords.split(",").map((item) => item.trim()).filter(Boolean),
         })),
         service_zip_codes: state.areaMode === "local" ? zipList : [],
         escalate_on_high_urgency: state.escalation.highUrgency,
@@ -446,6 +481,8 @@ export default function Settings() {
           trigger_description: o.trigger.trim(),
           approved_response: o.response.trim(),
         })),
+        compliance_disclaimer: state.complianceDisclaimer.trim(),
+        ai_disclosure_text: state.aiDisclosureText.trim(),
       });
       const mapped = fromServer(dna);
       // Keep the client-only keys we already had (by position — the server returns
@@ -809,6 +846,37 @@ export default function Settings() {
                               )}
                             </div>
                           )}
+                          <div className="mt-3">
+                            <label className="text-xs text-[#6B6459] block mb-1">What this service is</label>
+                            <textarea
+                              className={inputCls}
+                              rows={2}
+                              maxLength={500}
+                              placeholder="Plain language the engine uses to match what a customer asked for"
+                              value={s.description}
+                              onChange={(e) => {
+                                const services = state.services.map((svc) =>
+                                  svc.key === s.key ? { ...svc, description: e.target.value } : svc,
+                                );
+                                setState({ ...state, services });
+                              }}
+                            />
+                          </div>
+                          <div className="mt-3">
+                            <label className="text-xs text-[#6B6459] block mb-1">Matching phrases</label>
+                            <input
+                              className={inputCls}
+                              placeholder="e.g. consult, intake, first meeting"
+                              value={s.intakeKeywords}
+                              onChange={(e) => {
+                                const services = state.services.map((svc) =>
+                                  svc.key === s.key ? { ...svc, intakeKeywords: e.target.value } : svc,
+                                );
+                                setState({ ...state, services });
+                              }}
+                            />
+                            <p className="text-xs text-[#9C9488] mt-1.5">Optional extra words the engine uses to match this service. The service name is always included.</p>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -876,6 +944,25 @@ export default function Settings() {
               {tab === "conversation" && (
                 <div>
                   <p className="text-sm text-[#6B6459] mb-6">Per service, the questions your engine confirms before booking.</p>
+                  <Field label="AI disclosure" hint="Shown in the chat header for the whole session. Required in CA/NY when the visitor is talking to AI.">
+                    <input
+                      className={inputCls}
+                      maxLength={200}
+                      placeholder="AI assistant, not a lawyer"
+                      value={state.aiDisclosureText}
+                      onChange={(e) => setState({ ...state, aiDisclosureText: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Compliance line" hint="Appended to every outbound customer message. Leave blank if you do not need one.">
+                    <textarea
+                      className={inputCls}
+                      rows={2}
+                      maxLength={1000}
+                      placeholder="I'm an AI assistant. This is not legal advice."
+                      value={state.complianceDisclaimer}
+                      onChange={(e) => setState({ ...state, complianceDisclaimer: e.target.value })}
+                    />
+                  </Field>
                   {state.services.length === 0 && <p className="text-sm text-[#9C9488]">Add a service on the Services & booking tab first.</p>}
                   {state.services.map((svc) => (
                     <div key={svc.key} className="mb-5 pb-5 border-b border-[#F0EFE9] last:border-0">
@@ -1106,7 +1193,83 @@ export default function Settings() {
                   )}
                 </div>
               )}
-              {tab === "security" && token && <AccountSecurityPanel token={token} />}
+
+              {tab === "crm" && (
+                <div>
+                  <p className="text-sm text-[#6B6459] mb-6">
+                    Send a public HTTPS ping to Zapier, Make, or your CRM when a conversation becomes qualified or won.
+                    The saved URL is treated as a secret and is never shown again after you save it.
+                  </p>
+                  {crmLoading && (
+                    <div className="flex items-center gap-2 text-sm text-[#6B6459] py-6">
+                      <Loader2 size={16} className="animate-spin" /> Checking status…
+                    </div>
+                  )}
+                  {!crmLoading && crmStatus?.configured && (
+                    <div className="px-4 py-3 rounded-lg text-sm mb-4" style={{ backgroundColor: "#E9F5EF", color: "#1E7B52" }}>
+                      A CRM webhook is configured. Enter a new URL below to replace it.
+                    </div>
+                  )}
+                  <Field label="Webhook URL" hint="Must be public HTTPS. Private or localhost addresses are rejected.">
+                    <input
+                      className={inputCls}
+                      type="url"
+                      placeholder="https://hooks.zapier.com/..."
+                      value={crmUrl}
+                      onChange={(e) => setCrmUrl(e.target.value)}
+                    />
+                  </Field>
+                  {crmError && (
+                    <div className="mt-4 px-4 py-3 rounded-lg text-sm" style={{ backgroundColor: "#FBEBE9", color: "#8A3225" }}>
+                      {crmError}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 mt-4">
+                    <button
+                      disabled={crmSaving || !crmUrl.trim()}
+                      onClick={async () => {
+                        if (!token || !businessId) return;
+                        setCrmSaving(true);
+                        setCrmError(null);
+                        try {
+                          const status = await api.configureCrmWebhook(token, businessId, crmUrl.trim());
+                          setCrmStatus(status);
+                          setCrmUrl("");
+                        } catch (err) {
+                          setCrmError(describeError(err));
+                        } finally {
+                          setCrmSaving(false);
+                        }
+                      }}
+                      className="text-sm font-medium text-white px-4 py-2.5 rounded-lg disabled:opacity-50"
+                      style={{ backgroundColor: "#151515" }}
+                    >
+                      {crmSaving ? "Saving…" : "Save webhook"}
+                    </button>
+                    {crmStatus?.configured && (
+                      <button
+                        disabled={crmSaving}
+                        onClick={async () => {
+                          if (!token || !businessId) return;
+                          setCrmSaving(true);
+                          setCrmError(null);
+                          try {
+                            const status = await api.removeCrmWebhook(token, businessId);
+                            setCrmStatus(status);
+                          } catch (err) {
+                            setCrmError(describeError(err));
+                          } finally {
+                            setCrmSaving(false);
+                          }
+                        }}
+                        className="text-sm font-medium px-4 py-2.5 rounded-lg border border-[#E7E5DE]"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {dirty && (

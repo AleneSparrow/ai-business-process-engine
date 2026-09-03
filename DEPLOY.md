@@ -193,6 +193,19 @@ yet; nothing else in the deploy depends on it.
    curl -X POST https://your-backend.up.railway.app/api/v1/internal/follow-up/run \
      -H "X-Internal-Task-Secret: <the same value as INTERNAL_TASK_SECRET>"
    ```
+   The same secret also gates two other sweeps added with migration `0020`.
+   Run them on the same hourly (or slower) cadence, or by hand:
+   ```
+   curl -X POST https://your-backend.up.railway.app/api/v1/internal/integrations/deliver \
+     -H "X-Internal-Task-Secret: <the same value as INTERNAL_TASK_SECRET>"
+
+   curl -X POST https://your-backend.up.railway.app/api/v1/internal/commercial/expire \
+     -H "X-Internal-Task-Secret: <the same value as INTERNAL_TASK_SECRET>"
+   ```
+   `integrations/deliver` retries CRM webhook outbox rows and conversational
+   SMS replies. `commercial/expire`
+   expires stale quotes and payment requests that nobody has messaged since
+   they became due.
 3. You can also just call it by hand any time (same curl command) to run a
    sweep immediately instead of waiting for the schedule.
 
@@ -204,25 +217,19 @@ one replica, without double-sending).
 **Not yet done, before this should carry real customer traffic:** the
 widget's consent checkbox text (`web/widget/widget.js`) is a placeholder
 shape, not reviewed by a lawyer -- see the delivery notes for this feature.
-Also, only the website chat widget captures consent right now; a lead that
-only ever came in over inbound SMS or the direct API has no consent-capture
-path yet and will simply never qualify for follow-up (safe by default, just
-incomplete coverage).
+Inbound SMS `STOP` / `START` / `HELP` are honored on the Twilio number.
+Also, only the website chat widget captures follow-up consent right now; a
+lead that only ever came in over inbound SMS or the direct API has no
+follow-up consent-capture path yet and will simply never qualify for
+proactive follow-up (safe by default, just incomplete coverage). Conversation
+replies to a number that texted in still go out until that person sends STOP.
 
 ## Known limitation carried over from local dev
 
-The in-memory rate limiter (`src/api/rate_limit.py`) is process-local — fine
-for a single Railway instance (the default), but if you ever scale the
-backend to more than one instance, it needs to be replaced with a shared
-limiter first (see the root `README.md`'s "What's still not wired" section).
-Not a blocker for launch, just don't turn on multiple replicas without
-revisiting this.
-
-This is now the **only** thing standing between here and a second replica.
-Migrations used to be the other one — they ran inside every container's start
-command, so N replicas raced to apply the same migration on boot. They now
-run once, as `preDeployCommand` in `railway.toml`. Two abuse-control notes
-about the limiter as it stands, both true today at one replica: its counters
-live in process memory, so every deploy resets them, and its budget is
-per-process, so with N replicas the effective limit on the public widget
-endpoint is N times what `PUBLIC_CHAT_RATE_LIMIT_REQUESTS` says.
+The public chat and account-security rate limiter (`src/api/rate_limit.py`)
+is shared across workers via the `rate_limit_hits` table (migration `0020`).
+A second Railway replica is therefore no longer blocked on abuse control.
+Calendar sync for the tenant's own Google/Outlook calendar, and collection
+of money from the tenant's end customer, remain deferred.
+Migrations used to race when they ran inside every container's start
+command. They now run once, as `preDeployCommand` in `railway.toml`.

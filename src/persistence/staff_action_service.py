@@ -11,6 +11,10 @@ before it needed a human (set by `DecisionRouter._escalation` and consumed by
 just a staff member approving that exact pending transition, submitted as a
 `DecisionType.HUMAN` decision with `approved_by` set to their email -- the
 same mechanism the engine already validates and audits, not a new one.
+
+A staff reply on an `AI_ACTIVE` thread is an explicit takeover: the
+conversation moves to `HUMAN_TAKEOVER_ACTIVE` so inbound SMS and the widget
+stop running the engine on that session.
 """
 
 from collections.abc import Callable
@@ -39,6 +43,7 @@ from .errors import (
     StaffConversationNotFoundError,
 )
 from .repositories import UnitOfWork
+from .sms_service import SmsService
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,9 +58,11 @@ class StaffActionService:
         unit_of_work_factory: Callable[[], UnitOfWork],
         *,
         process_engine: ProcessEngine | None = None,
+        sms_service: SmsService | None = None,
     ) -> None:
         self._unit_of_work_factory = unit_of_work_factory
         self.process_engine = process_engine or ProcessEngine()
+        self.sms_service = sms_service
 
     def reply(
         self,
@@ -85,7 +92,10 @@ class StaffActionService:
                 created_at=occurred_at,
                 metadata={"staff_user_id": staff_user.user_id},
             ))
-            if conversation.status is ConversationStatus.HUMAN_TAKEOVER_REQUESTED:
+            if conversation.status in {
+                ConversationStatus.AI_ACTIVE,
+                ConversationStatus.HUMAN_TAKEOVER_REQUESTED,
+            }:
                 conversation.set_status(ConversationStatus.HUMAN_TAKEOVER_ACTIVE, occurred_at)
             else:
                 conversation.touch(occurred_at)
@@ -112,7 +122,20 @@ class StaffActionService:
                     ))
 
             unit_of_work.commit()
-            return StaffActionResult(conversation=conversation, case=case)
+            result = StaffActionResult(conversation=conversation, case=case)
+
+        if (
+            self.sms_service is not None
+            and result.conversation.channel == "sms"
+            and result.conversation.external_session_id
+        ):
+            self.sms_service.enqueue_reply(
+                business_id,
+                to_number=result.conversation.external_session_id,
+                body=message_text,
+                inbound_message_id=f"staff:{result.conversation.conversation_id}:{sequence}",
+            )
+        return result
 
     def resolve(
         self,

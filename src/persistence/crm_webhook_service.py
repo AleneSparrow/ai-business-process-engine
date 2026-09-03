@@ -1,36 +1,28 @@
-"""CRM webhook configuration and best-effort delivery (e.g. a Clio/Zapier/
-Make catch hook, configured per business).
-
-The URL lives in its own table (`crm_webhook_connections`), not Business
-DNA -- see `CrmWebhookConnectionRow` for why. Delivery never raises and never
-blocks: a CRM sync failure must not surface to the customer or affect the
-lead-to-sale flow it's reporting on. Call `notify` only *after* the state
-transition it reports has already committed -- see its call sites in
-`src/api/routes/public_conversations.py`, not from inside the transactional
-engine/persistence layer itself.
-"""
+"""CRM webhook configuration and outbox-backed delivery."""
 
 from __future__ import annotations
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING
+from datetime import timedelta
+from typing import TYPE_CHECKING, Any
+from uuid import uuid4
+
+from sqlalchemy import select
 
 from src.domain.models import utc_now
 
 from .crm_webhook_client import post_json
+from .sqlalchemy_models import IntegrationOutboxRow
 from .webhook_url_security import validate_public_https_url
 
 if TYPE_CHECKING:
     from .repositories import UnitOfWorkFactory
 
 LOGGER = logging.getLogger("uvicorn.error")
-
-# States worth telling a CRM about -- a lead worth following up on, or a won
-# deal. Deliberately not every state (e.g. NEEDS_HUMAN, LOST) to keep this a
-# simple, predictable v1; widen this set later if a real Clio integration
-# needs more granularity.
 NOTIFIABLE_STATES = frozenset({"QUALIFIED", "WON"})
+_MAX_ATTEMPTS = 8
+_BACKOFF = timedelta(minutes=5)
 
 
 class CrmWebhookService:
@@ -62,37 +54,115 @@ class CrmWebhookService:
             return uow.crm_webhook_connections.get_url(business_id) is not None
 
     def notify_if_configured(self, business_id: str, *, conversation_id: str, state: str) -> None:
-        """Best-effort, never raises. Only fires for `NOTIFIABLE_STATES`.
+        """Enqueue a durable outbox row, then attempt one immediate delivery.
 
-        Keyed by conversation_id (not case_id/lead_id) deliberately -- the
-        public conversation API this is called from doesn't expose internal
-        case/lead identifiers to that layer, and conversation_id is enough
-        for a v1 "resync this case" ping. Widen the payload later if a real
-        Clio integration needs the full case detail inline."""
+        Never raises. A crash after commit and before HTTP still leaves a
+        PENDING row for POST /api/v1/internal/integrations/deliver.
+        """
         if state not in NOTIFIABLE_STATES:
             return
         try:
-            with self.unit_of_work_factory() as uow:
-                url = uow.crm_webhook_connections.get_url(business_id)
-            if url is None:
-                return
-            # Validate again at delivery time before the client opens a
-            # connection. This blocks a hostname that became private after it
-            # was configured; post_json repeats the check as defence in depth.
-            self._url_validator(url)
-            delivered = self._webhook_poster(url, {
+            now = utc_now()
+            payload = {
                 "business_id": business_id,
                 "conversation_id": conversation_id,
                 "state": state,
-                "occurred_at": utc_now().isoformat(),
-            })
-            if not delivered:
-                LOGGER.warning(
-                    "crm_webhook_delivery_failed business_id=%s conversation_id=%s state=%s",
-                    business_id, conversation_id, state,
+                "occurred_at": now.isoformat(),
+            }
+            with self.unit_of_work_factory() as uow:
+                url = uow.crm_webhook_connections.get_url(business_id)
+                if url is None:
+                    return
+                session = getattr(uow, "session", None)
+                if session is None:
+                    return
+                row = IntegrationOutboxRow(
+                    id=str(uuid4()),
+                    business_id=business_id,
+                    kind="crm_webhook",
+                    payload=payload,
+                    status="PENDING",
+                    attempt_count=0,
+                    next_attempt_at=now,
+                    last_error=None,
+                    created_at=now,
+                    updated_at=now,
                 )
-        except Exception:  # noqa: BLE001 -- best-effort by design, see module docstring
+                session.add(row)
+                uow.commit()
+                outbox_id = row.id
+            self.deliver_one(outbox_id)
+        except Exception:  # noqa: BLE001
             LOGGER.exception(
                 "crm_webhook_notify_error business_id=%s conversation_id=%s state=%s",
                 business_id, conversation_id, state,
             )
+
+    def deliver_due(self, *, limit: int = 50) -> dict[str, int]:
+        now = utc_now()
+        with self.unit_of_work_factory() as uow:
+            session = getattr(uow, "session", None)
+            if session is None:
+                return {"attempted": 0, "sent": 0, "failed": 0}
+            rows = session.scalars(
+                select(IntegrationOutboxRow)
+                .where(
+                    IntegrationOutboxRow.status == "PENDING",
+                    IntegrationOutboxRow.kind == "crm_webhook",
+                    IntegrationOutboxRow.next_attempt_at <= now,
+                )
+                .order_by(IntegrationOutboxRow.created_at.asc())
+                .limit(limit)
+            ).all()
+            ids = [row.id for row in rows]
+        attempted = sent = failed = 0
+        for outbox_id in ids:
+            attempted += 1
+            if self.deliver_one(outbox_id):
+                sent += 1
+            else:
+                failed += 1
+        return {"attempted": attempted, "sent": sent, "failed": failed}
+
+    def deliver_one(self, outbox_id: str) -> bool:
+        with self.unit_of_work_factory() as uow:
+            session = getattr(uow, "session", None)
+            if session is None:
+                return False
+            row = session.get(IntegrationOutboxRow, outbox_id)
+            if row is None or row.status != "PENDING":
+                return row is not None and row.status == "SENT"
+            url = uow.crm_webhook_connections.get_url(row.business_id)
+            payload: dict[str, Any] = dict(row.payload)
+            now = utc_now()
+            if url is None:
+                row.status = "FAILED"
+                row.last_error = "webhook_not_configured"
+                row.updated_at = now
+                uow.commit()
+                return False
+            try:
+                self._url_validator(url)
+                delivered = self._webhook_poster(url, payload)
+            except Exception as exc:  # noqa: BLE001
+                delivered = False
+                LOGGER.warning(
+                    "crm_webhook_delivery_failed outbox_id=%s error=%s",
+                    outbox_id,
+                    type(exc).__name__,
+                )
+            row.attempt_count += 1
+            row.updated_at = now
+            if delivered:
+                row.status = "SENT"
+                row.last_error = None
+                uow.commit()
+                return True
+            if row.attempt_count >= _MAX_ATTEMPTS:
+                row.status = "FAILED"
+                row.last_error = "delivery_exhausted"
+            else:
+                row.next_attempt_at = now + (_BACKOFF * row.attempt_count)
+                row.last_error = "delivery_failed"
+            uow.commit()
+            return False

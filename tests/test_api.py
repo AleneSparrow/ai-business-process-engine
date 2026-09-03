@@ -171,7 +171,7 @@ def test_direct_lead_intake_rejects_staff_user_from_another_tenant(api_environme
         ("valid", {}, "QUALIFIED", False),
         ("missing-phone", {"phone": None}, "QUALIFYING", False),
         ("unsupported", {"message": "I need a roof replacement"}, "LOST", False),
-        ("low-confidence", {"message": "I am not sure what I need"}, "NEEDS_HUMAN", True),
+        ("low-confidence", {"message": "I am not sure what I need"}, "QUALIFYING", False),
     ),
 )
 def test_lead_intake_outcomes(
@@ -192,7 +192,7 @@ def test_lead_intake_outcomes(
     assert body["business_id"] == "tenant-a"
     assert body["current_state"] == expected_state
     assert body["requires_human"] is requires_human
-    if expected_state == "QUALIFYING":
+    if expected_state == "QUALIFYING" and external_id == "missing-phone":
         assert body["qualification"]["missing_fields"] == ["phone"]
         assert "phone" in body["customer_response"]["message_text"].casefold()
 

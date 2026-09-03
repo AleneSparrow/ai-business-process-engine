@@ -226,7 +226,7 @@ export default function LawyersLanding() {
         <ul className="flex flex-col gap-3.5 max-w-lg">
           <DoesItem text="Answers inbound leads on your website, day or night" />
           <DoesItem text="Qualifies the case against the criteria you set — practice area, urgency, location" />
-          <DoesItem text="Books consultations directly onto your calendar" />
+          <DoesItem text="Books a consultation on Flywheel's calendar so you can take the meeting prepared" />
           <DoesItem text="Escalates to you exactly when your rules say to" />
           <DoesItem text="Never estimates case outcomes, gives legal advice, or promises a result — by design, not by request" />
         </ul>

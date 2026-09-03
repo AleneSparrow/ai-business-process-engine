@@ -232,6 +232,40 @@ def _summary(records: list[dict[str, Any]], provider: str, model: str) -> dict[s
     }
 
 
+def _multi_run_rates(run_records: list[list[dict[str, Any]]]) -> dict[str, Any]:
+    """Honest variance: never average a match rate across runs."""
+
+    keyed: dict[tuple[str, str], list[bool]] = {}
+    for batch in run_records:
+        for row in batch:
+            if row.get("case_type") != "normal":
+                continue
+            key = (str(row.get("industry")), str(row.get("expected_service")))
+            keyed.setdefault(key, []).append(bool(row.get("service_match")))
+    if not keyed:
+        return {
+            "all_runs_correct_rate": None,
+            "any_run_correct_rate": None,
+            "min_run_correct_rate": None,
+            "max_run_correct_rate": None,
+        }
+    all_correct = sum(all(flags) for flags in keyed.values()) / len(keyed)
+    any_correct = sum(any(flags) for flags in keyed.values()) / len(keyed)
+    per_run = [
+        (
+            sum(bool(row.get("service_match")) for row in batch if row.get("case_type") == "normal")
+            / max(1, sum(row.get("case_type") == "normal" for row in batch))
+        )
+        for batch in run_records
+    ]
+    return {
+        "all_runs_correct_rate": all_correct,
+        "any_run_correct_rate": any_correct,
+        "min_run_correct_rate": min(per_run),
+        "max_run_correct_rate": max(per_run),
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
@@ -240,6 +274,12 @@ def main() -> None:
         action="append",
         default=[],
         help="Run normal cases only for this exact industry label; repeat as needed.",
+    )
+    parser.add_argument(
+        "--runs",
+        type=int,
+        default=1,
+        help="Repeat the matrix N times and report all-runs / any-run rates. Do not average.",
     )
     parser.add_argument(
         "--skip-challenges",
@@ -260,17 +300,31 @@ def main() -> None:
     if args.only_industry and len(selected) != len(set(args.only_industry)):
         known = ", ".join(sorted(vertical.industry for vertical in matrix))
         raise SystemExit(f"Unknown or duplicate --only-industry value. Known values: {known}")
-    records = [
-        _normal_case(runtime, vertical, build_dna(vertical), index)
-        for index, vertical in enumerate(selected)
-    ]
-    if not args.skip_challenges:
-        for index, (vertical, message, expectation) in enumerate(_challenge_cases(matrix)):
-            records.append(_challenge_case(runtime, vertical, build_dna(vertical), message, expectation, index))
+    if args.runs < 1:
+        raise SystemExit("--runs must be at least 1")
+
+    def _collect() -> list[dict[str, Any]]:
+        batch = [
+            _normal_case(runtime, vertical, build_dna(vertical), index)
+            for index, vertical in enumerate(selected)
+        ]
+        if not args.skip_challenges:
+            for index, (vertical, message, expectation) in enumerate(_challenge_cases(matrix)):
+                batch.append(
+                    _challenge_case(runtime, vertical, build_dna(vertical), message, expectation, index)
+                )
+        return batch
+
+    run_records = [_collect() for _ in range(args.runs)]
+    records = [row for batch in run_records for row in batch]
+    summary = _summary(run_records[-1], runtime.provider_name, runtime.model_name)
+    if args.runs > 1:
+        summary["runs"] = args.runs
+        summary.update(_multi_run_rates(run_records))
 
     payload = {
-        "summary": _summary(records, runtime.provider_name, runtime.model_name),
-        "records": records,
+        "summary": summary,
+        "records": records if args.runs == 1 else run_records,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")

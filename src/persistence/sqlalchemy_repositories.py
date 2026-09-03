@@ -497,6 +497,7 @@ class SQLAlchemyStaffUserRepository:
             business_id=user.business_id,
             email=user.email,
             normalized_email=user.normalized_email,
+            name=user.name,
             password_hash=user.password_hash,
             created_at=user.created_at,
         ))
@@ -523,6 +524,7 @@ class SQLAlchemyStaffUserRepository:
             raise KeyError(f"unknown staff user_id: {user.user_id}")
         row.business_id = user.business_id
         row.email = user.email
+        row.name = user.name
         row.password_hash = user.password_hash
         # Add any businesses in user.business_ids not yet recorded as a
         # membership. Memberships are additive here -- nothing in the domain
@@ -556,7 +558,7 @@ class SQLAlchemyStaffUserRepository:
             business_ids = (*business_ids, row.business_id)
         return StaffUser(
             row.id, row.email, row.normalized_email, row.password_hash,
-            row.business_id, _aware(row.created_at), business_ids,
+            row.business_id, _aware(row.created_at), business_ids, row.name,
         )
 
 
@@ -946,12 +948,26 @@ class SQLAlchemyProcessCaseRepository:
             raise StaleCaseError(f"case version conflict: {case.case_id}")
         case.mark_persisted(new_version)
 
-    def list_for_business(self, business_id: str, *, limit: int | None = 200) -> tuple[ProcessCase, ...]:
+    def list_for_business(
+        self,
+        business_id: str,
+        *,
+        limit: int | None = 200,
+        created_at_from: datetime | None = None,
+        created_at_to: datetime | None = None,
+        include_test: bool = True,
+    ) -> tuple[ProcessCase, ...]:
         statement = (
             select(ProcessCaseRow)
             .where(ProcessCaseRow.business_id == business_id)
             .order_by(ProcessCaseRow.updated_at.desc())
         )
+        if created_at_from is not None:
+            statement = statement.where(ProcessCaseRow.created_at >= created_at_from)
+        if created_at_to is not None:
+            statement = statement.where(ProcessCaseRow.created_at < created_at_to)
+        if not include_test:
+            statement = statement.where(ProcessCaseRow.is_test.is_(False))
         if limit is not None:
             statement = statement.limit(limit)
         rows = self.session.scalars(statement)
@@ -1098,6 +1114,14 @@ class SQLAlchemyConversationRepository:
         lock_key = int.from_bytes(digest[:8], byteorder="big", signed=True)
         self.session.execute(select(func.pg_advisory_xact_lock(lock_key)))
 
+    def lock_session_identity(self, business_id: str, channel: str, external_session_id: str) -> None:
+        if self.session.get_bind().dialect.name != "postgresql":
+            return
+        identity = f"conversation-session\x1f{business_id}\x1f{channel}\x1f{external_session_id}"
+        digest = hashlib.sha256(identity.encode("utf-8")).digest()
+        lock_key = int.from_bytes(digest[:8], byteorder="big", signed=True)
+        self.session.execute(select(func.pg_advisory_xact_lock(lock_key)))
+
     def add(self, conversation: Conversation) -> None:
         self.session.add(ConversationRow(
             id=conversation.conversation_id,
@@ -1149,6 +1173,24 @@ class SQLAlchemyConversationRepository:
         row = self.session.scalar(statement)
         return self._to_domain(row) if row is not None else None
 
+    def get_by_channel_session(
+        self,
+        business_id: str,
+        channel: str,
+        external_session_id: str,
+        *,
+        for_update: bool = False,
+    ) -> Conversation | None:
+        statement = select(ConversationRow).where(
+            ConversationRow.business_id == business_id,
+            ConversationRow.channel == channel,
+            ConversationRow.external_session_id == external_session_id,
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        row = self.session.scalar(statement)
+        return self._to_domain(row) if row is not None else None
+
     def save(self, conversation: Conversation, expected_version: int) -> None:
         new_version = expected_version + 1
         result = self.session.execute(
@@ -1180,6 +1222,17 @@ class SQLAlchemyConversationRepository:
             .where(ConversationRow.business_id == business_id)
             .order_by(ConversationRow.last_activity_at.desc())
             .limit(limit)
+        )
+        return tuple(self._to_domain(row) for row in rows)
+
+    def list_for_case(self, business_id: str, case_id: str) -> tuple[Conversation, ...]:
+        rows = self.session.scalars(
+            select(ConversationRow)
+            .where(
+                ConversationRow.business_id == business_id,
+                ConversationRow.case_id == case_id,
+            )
+            .order_by(ConversationRow.last_activity_at.desc())
         )
         return tuple(self._to_domain(row) for row in rows)
 

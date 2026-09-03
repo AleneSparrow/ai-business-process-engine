@@ -25,10 +25,10 @@ The MVP provides:
 - a public multi-turn chat API plus a lightweight embeddable JavaScript widget;
 - bounded conversation context, deterministic fact merging, question tracking, and human handoff states;
 - deterministic commercial-path selection, timezone-safe availability, transactional bookings, Decimal quotes, and provider-neutral payment requests;
-- explicit CORS configuration, request limits, and a single-process abuse-control boundary;
+- explicit CORS configuration, request limits, and a PostgreSQL-backed abuse-control boundary;
 - tests for transitions, rejection, audit history, escalation, idempotency, and end-to-end progression.
 
-Qualified website conversations continue through booking or quoting. Business DNA—not AI—selects the commercial path, availability and price authority remain deterministic, PostgreSQL coordinates capacity and optimistic updates, and payment requests prepare state without collecting money. The product includes staff authentication, the React staff UI, Lemon Squeezy subscription billing, CRM webhooks, and optional Twilio delivery. Real customer payment collection, calendar synchronization, and a shared multi-worker rate limiter remain deferred.
+Qualified website conversations continue through booking or quoting. Business DNA—not AI—selects the commercial path, availability and price authority remain deterministic, PostgreSQL coordinates capacity and optimistic updates, and payment requests prepare state without collecting money. The product includes staff authentication, the React staff UI, Lemon Squeezy subscription billing, CRM webhooks, and optional Twilio delivery. Real customer payment collection and calendar synchronization remain deferred.
 
 ## Architecture
 
@@ -163,7 +163,7 @@ Run the provider-free booking and quote demonstration:
 PYTHONPATH=. python examples/commercial_workflow_demo.py
 ```
 
-Anonymous chat has no cookie or authenticated browser session, so conventional CSRF does not grant tenant authority; the opaque token is still bearer material and must not be shared. XSS remains relevant on the embedding site, so the widget uses DOM text nodes only. Production forbids wildcard CORS configuration. The in-memory sliding-window limiter covers an IP/business create key and IP/conversation message key, but it is process-local; a multi-worker production deployment must replace it with a shared limiter before public launch.
+Anonymous chat has no cookie or authenticated browser session, so conventional CSRF does not grant tenant authority; the opaque token is still bearer material and must not be shared. XSS remains relevant on the embedding site, so the widget uses DOM text nodes only. Production forbids wildcard CORS configuration. The sliding-window limiter covers an IP/business create key and IP/conversation message key and is shared across workers via PostgreSQL (`rate_limit_hits`).
 
 Uvicorn raw-path access logs are disabled because conversation tokens appear in route paths; structured application logs use route templates and internal conversation IDs instead. Any upstream proxy or CDN must apply equivalent URL redaction.
 
@@ -220,6 +220,6 @@ Every tenant-owned repository lookup requires `business_id`, and composite forei
 
 ## Next milestone
 
-Replace the process-local public rate limiter for multi-worker deployments and introduce an outbox-backed integration boundary. Real calendar synchronization, customer payment collection, and broader outbound/integration delivery remain deferred.
+The public rate limiter is shared across workers via PostgreSQL (`rate_limit_hits`). CRM webhook delivery and conversational SMS replies use a durable `integration_outbox` row plus `POST /api/v1/internal/integrations/deliver`. Inbound SMS threads show up on Conversations; a staff reply on an `sms` conversation is delivered through the same outbox. Real calendar synchronization and collection of a customer's payment remain deferred.
 
-SMS, CRM webhook, and follow-up delivery are currently best-effort side effects after the database transaction. They are not physically exactly-once: an outage or process failure can lose or duplicate an external delivery. The next integration sprint needs a transactional outbox plus provider idempotency keys and retry observability.
+SMS follow-up already has its own attempt table. Twilio's Messages API has no client-supplied idempotency key, so a crash between Twilio confirming dispatch and the outbox mark can still duplicate one message.

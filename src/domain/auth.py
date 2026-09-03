@@ -68,6 +68,7 @@ class StaffUser:
     business_id: str | None
     created_at: datetime
     business_ids: tuple[str, ...] = ()
+    name: str | None = None
     """Every business this account is linked to (see `with_business`). An
     account may own more than one business -- `business_id` is just its
     currently active one, always a member of this set (or None if the set
@@ -79,6 +80,8 @@ class StaffUser:
         _require_text(self.normalized_email, "normalized_email")
         _require_text(self.password_hash, "password_hash")
         _require_aware(self.created_at, "created_at")
+        if self.name is not None:
+            _require_text(self.name, "name")
         if self.business_id is not None and self.business_id not in self.business_ids:
             raise ValueError("business_id must be a member of business_ids")
 
@@ -93,7 +96,7 @@ class StaffUser:
         )
         return StaffUser(
             self.user_id, self.email, self.normalized_email, self.password_hash,
-            business_id, self.created_at, business_ids,
+            business_id, self.created_at, business_ids, self.name,
         )
 
 

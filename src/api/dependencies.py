@@ -26,6 +26,7 @@ from src.persistence.conversation_service import ConversationService
 from src.persistence.business_dna_settings_service import BusinessDNASettingsService
 from src.persistence.crm_webhook_service import CrmWebhookService
 from src.persistence.sms_service import SmsService
+from src.persistence.sms_thread_service import SmsThreadService
 from src.persistence.staff_action_service import StaffActionService
 from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork
 
@@ -158,12 +159,6 @@ def get_business_provisioning_service(
     return BusinessProvisioningService(container.unit_of_work_factory)
 
 
-def get_staff_action_service(
-    container: Annotated[ApplicationContainer, Depends(get_container)],
-) -> StaffActionService:
-    return StaffActionService(container.unit_of_work_factory)
-
-
 def get_business_dna_settings_service(
     container: Annotated[ApplicationContainer, Depends(get_container)],
 ) -> BusinessDNASettingsService:
@@ -185,6 +180,19 @@ def get_sms_service(
         auth_token=container.settings.twilio_auth_token,
         public_api_base_url=container.settings.public_api_base_url,
     )
+
+
+def get_sms_thread_service(
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+) -> SmsThreadService:
+    return SmsThreadService(container.unit_of_work_factory)
+
+
+def get_staff_action_service(
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    sms_service: Annotated[SmsService, Depends(get_sms_service)],
+) -> StaffActionService:
+    return StaffActionService(container.unit_of_work_factory, sms_service=sms_service)
 
 
 def get_billing_service(

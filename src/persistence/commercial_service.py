@@ -9,6 +9,7 @@ from typing import Any, Mapping, MutableMapping
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
+from src.domain.customer_timezone import sanitize_customer_timezone
 from src.domain.commercial import (
     Booking,
     BookingRequest,
@@ -55,6 +56,7 @@ def _log_event(level: int, event: str, **fields: Any) -> None:
 
 
 UTC = timezone.utc
+_PAYMENT_FOLLOW_UP = " The business will follow up about any payment due."
 _ACTIVE_BOOKING_STATUSES = {
     BookingStatus.PENDING,
     BookingStatus.CONFIRMED,
@@ -104,10 +106,13 @@ class CommercialWorkflowService:
         self._require_utc(occurred_at)
         if case.current_state is not ProcessState.QUALIFIED:
             raise ValueError("commercial initialization requires a QUALIFIED case")
+        self._remember_customer_timezone(case, conversation_metadata)
         commercial = self._commercial_metadata(conversation_metadata)
         existing_mode = commercial.get("mode")
         if existing_mode == "awaiting_slot":
-            return self._slot_response(case, self._stored_slots(commercial))
+            return self._slot_response(
+                case, self._stored_slots(commercial), business_dna, conversation_metadata
+            )
         if existing_mode == "awaiting_pricing_input":
             return self._pricing_question_response(case, business_dna, commercial)
         if existing_mode == "direct_next_step":
@@ -199,6 +204,7 @@ class CommercialWorkflowService:
         occurred_at: datetime,
     ) -> CommercialResponse:
         self._require_utc(occurred_at)
+        self._remember_customer_timezone(case, conversation_metadata)
         commercial = self._commercial_metadata(conversation_metadata)
         text = customer_text.strip().casefold()
         if case.current_state is ProcessState.QUALIFIED:
@@ -273,7 +279,7 @@ class CommercialWorkflowService:
             if booking is None:
                 raise RuntimeError("BOOKED case has no tenant booking")
             return CommercialResponse(
-                self._booking_confirmation(booking),
+                self._booking_confirmation(booking, business_dna, case),
                 "booking_already_confirmed",
                 case.current_state.value,
                 booking_id=booking.booking_id,
@@ -503,7 +509,7 @@ class CommercialWorkflowService:
                 "reschedule": reschedule,
             },
         )
-        return self._slot_response(case, slots, reschedule=reschedule)
+        return self._slot_response(case, slots, dna, commercial, reschedule=reschedule)
 
     def _select_slot(
         self,
@@ -550,7 +556,7 @@ class CommercialWorkflowService:
             persisted_case = uow.cases.get(case.business_id, case.case_id)
             current = persisted_case.current_state if persisted_case else case.current_state
             return CommercialResponse(
-                self._booking_confirmation(existing_for_case),
+                self._booking_confirmation(existing_for_case, dna, case),
                 "booking_duplicate",
                 current.value,
                 booking_id=existing_for_case.booking_id,
@@ -563,7 +569,7 @@ class CommercialWorkflowService:
             persisted_case = uow.cases.get(case.business_id, case.case_id)
             current = persisted_case.current_state if persisted_case else ProcessState.BOOKED
             return CommercialResponse(
-                self._booking_confirmation(existing_for_case),
+                self._booking_confirmation(existing_for_case, dna, case),
                 "booking_duplicate",
                 current.value,
                 booking_id=existing_for_case.booking_id,
@@ -644,9 +650,9 @@ class CommercialWorkflowService:
                 booking_id=booking.booking_id,
                 payment_request_id=payment.payment_request_id,
             )
-        message = self._booking_confirmation(booking)
+        message = self._booking_confirmation(booking, dna, case)
         if payment is not None:
-            message += " A payment link will be sent next; payment integration is not connected."
+            message += _PAYMENT_FOLLOW_UP
         return CommercialResponse(
             message,
             "booking_confirmed",
@@ -961,7 +967,7 @@ class CommercialWorkflowService:
                 )
             message = "Thank you — your quote is accepted. The business will coordinate the next step."
             if payment is not None:
-                message += " A payment link will be sent next; payment integration is not connected."
+                message += _PAYMENT_FOLLOW_UP
             return CommercialResponse(
                 message,
                 "quote_accepted",
@@ -1089,7 +1095,9 @@ class CommercialWorkflowService:
         commercial.pop("slots", None)
         commercial.pop("slots_expires_at", None)
         return CommercialResponse(
-            self._booking_confirmation(booking, prefix="Your appointment was rescheduled for"),
+            self._booking_confirmation(
+                booking, dna, case, prefix="Your appointment was rescheduled for"
+            ),
             "booking_rescheduled",
             case.current_state.value,
             booking_id=booking.booking_id,
@@ -1458,10 +1466,13 @@ class CommercialWorkflowService:
         cls._require_utc(expiry)
         return cls._stored_slots(commercial) if expiry > occurred_at else ()
 
-    @staticmethod
+    @classmethod
     def _slot_response(
+        cls,
         case: ProcessCase,
         slots: tuple[TimeSlot, ...],
+        dna: Mapping[str, Any] | None = None,
+        conversation_metadata: Mapping[str, Any] | None = None,
         *,
         reschedule: bool = False,
     ) -> CommercialResponse:
@@ -1469,7 +1480,8 @@ class CommercialWorkflowService:
             raise ValueError("slot response requires at least one slot")
         options = []
         for index, slot in enumerate(slots, start=1):
-            local = slot.start_at.astimezone(ZoneInfo(slot.timezone))
+            display_zone = cls._display_zone(case, dna, slot.timezone)
+            local = slot.start_at.astimezone(display_zone)
             options.append(f"{index}) {local.strftime('%A, %B %d at %I:%M %p %Z')}")
         lead_in = "Choose a new appointment time:" if reschedule else "Choose an appointment time:"
         return CommercialResponse(
@@ -1477,6 +1489,59 @@ class CommercialWorkflowService:
             "reschedule_slots_proposed" if reschedule else "booking_slots_proposed",
             case.current_state.value,
         )
+
+    @staticmethod
+    def _remember_customer_timezone(
+        case: ProcessCase,
+        conversation_metadata: Mapping[str, Any],
+    ) -> None:
+        # SMS has no browser timezone; guessing from a phone number is
+        # unreliable (VoIP, ported numbers, moves), so those conversations
+        # keep the business zone. A value already on the case is sticky.
+        existing = case.metadata.get("customer_timezone")
+        if isinstance(existing, str) and sanitize_customer_timezone(existing):
+            return
+        incoming = conversation_metadata.get("customer_timezone")
+        sanitized = sanitize_customer_timezone(incoming if isinstance(incoming, str) else None)
+        if sanitized is not None:
+            case.metadata["customer_timezone"] = sanitized
+
+    @classmethod
+    def _service_is_remote(cls, dna: Mapping[str, Any] | None, case: ProcessCase) -> bool:
+        if dna is None:
+            return False
+        try:
+            service = find_service(dna, cls._service_id(case))
+        except ValueError:
+            return False
+        area_ids = {
+            str(item) for item in service.get("service_area_ids", []) if item
+        }
+        for area in dna.get("service_areas", []):
+            if not isinstance(area, Mapping):
+                continue
+            if str(area.get("id")) not in area_ids:
+                continue
+            if area.get("type") == "remote":
+                return True
+        return False
+
+    @classmethod
+    def _display_zone(
+        cls,
+        case: ProcessCase,
+        dna: Mapping[str, Any] | None,
+        business_timezone: str,
+    ) -> ZoneInfo:
+        if cls._service_is_remote(dna, case):
+            customer = sanitize_customer_timezone(
+                case.metadata.get("customer_timezone")
+                if isinstance(case.metadata.get("customer_timezone"), str)
+                else None
+            )
+            if customer is not None:
+                return ZoneInfo(customer)
+        return ZoneInfo(business_timezone)
 
     @classmethod
     def _pricing_question_response(
@@ -1510,12 +1575,29 @@ class CommercialWorkflowService:
             f"{quote.valid_until.date().isoformat()}. Reply accept or decline."
         )
 
-    @staticmethod
+    @classmethod
     def _booking_confirmation(
-        booking: Booking, *, prefix: str = "Your appointment is confirmed for"
+        cls,
+        booking: Booking,
+        dna: Mapping[str, Any] | None = None,
+        case: ProcessCase | None = None,
+        *,
+        prefix: str = "Your appointment is confirmed for",
     ) -> str:
-        local = booking.start_at.astimezone(ZoneInfo(booking.timezone))
-        return f"{prefix} {local.strftime('%A, %B %d at %I:%M %p %Z')}."
+        business_zone = ZoneInfo(booking.timezone)
+        business_local = booking.start_at.astimezone(business_zone)
+        business_stamp = business_local.strftime("%A, %B %d at %I:%M %p %Z")
+        if case is None or not cls._service_is_remote(dna, case):
+            return f"{prefix} {business_stamp}."
+        display_zone = cls._display_zone(case, dna, booking.timezone)
+        customer_local = booking.start_at.astimezone(display_zone)
+        customer_stamp = customer_local.strftime("%A, %B %d at %I:%M %p %Z")
+        if display_zone.key == business_zone.key:
+            return f"{prefix} {customer_stamp}."
+        return (
+            f"{prefix} {customer_stamp} "
+            f"({business_stamp} {booking.timezone.replace('_', ' ')})."
+        )
 
     @staticmethod
     def _notice_satisfied(

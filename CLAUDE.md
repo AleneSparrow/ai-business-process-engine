@@ -64,8 +64,6 @@ AI не принимает решений — `decision_router` / `qualification
 - **География зашита под США**: извлечение почтового индекса — `\b\d{5}(?:-\d{4})?\b`.
   План предполагает Австралию/Канаду → UK, их форматы не распознаются.
 - **UPL-проверка CA/NY** юристом — блокер до первого платящего клиента.
-- Нет UI: `intake_keywords`, описание услуги в настройках, `compliance_disclaimer`,
-  `ai_disclosure_text`, настройка CRM-вебхука — только через прямой вызов API.
 
 ## Среда
 
@@ -74,8 +72,9 @@ AI не принимает решений — `decision_router` / `qualification
   `docker compose run --rm app pytest`.
 - Интеграционные тесты требуют `TEST_DATABASE_URL` на мигрированную базу; внутри сети
   Docker хост называется `postgres:5432`, снаружи — `localhost:5433`.
-- Раздел 8 требует переменную `INTERNAL_TASK_SECRET` на деплое, иначе внутренний
-  эндпоинт follow-up отказывает всем запросам (by design). Секрет задаёт Alena.
+- Внутренние sweep-эндпоинты (`follow-up/run`, `integrations/deliver`,
+  `commercial/expire`) требуют `INTERNAL_TASK_SECRET` на деплое, иначе отказывают
+  всем запросам (by design). Секрет задаёт Alena.
 - Облачная песочница Cowork **не имеет** pytest/fastapi/sqlalchemy и доступа к PyPI —
   если тесты там «проверены вручную», это значит самодельный раннер, а не pytest.
   В терминале и в Docker всё запускается по-настоящему; перепроверять стоит.

@@ -1021,11 +1021,10 @@ def test_configured_human_trigger_cannot_be_suppressed_by_ai_output() -> None:
     assert result.current_state is ProcessState.NEEDS_HUMAN
 
 
-def test_low_confidence_and_invalid_output_escalate_safely() -> None:
+def test_low_confidence_clarifies_while_invalid_output_escalates_safely() -> None:
     """A merely low-confidence, comprehensible message (not unintelligible)
-    still escalates immediately -- only intent.unintelligible gets the
-    bounded clarification retry (see QualificationService.evaluate and
-    MAX_CLARIFICATION_ATTEMPTS)."""
+    gets the same bounded clarification opportunity as unintelligible input;
+    structurally invalid AI output still escalates safely."""
     low_workflow, _ = ai_workflow([
         intent_output(service_id=None, customer_location=None, confidence=0.2),
         {
@@ -1044,7 +1043,7 @@ def test_low_confidence_and_invalid_output_escalate_safely() -> None:
     low = low_workflow.receive(incoming("low", raw_text="I am not sure what I need"))
     invalid = invalid_workflow.receive(incoming("invalid", raw_text="ambiguous request"))
 
-    assert low.current_state is ProcessState.NEEDS_HUMAN
+    assert low.current_state is ProcessState.QUALIFYING
     assert invalid.current_state is ProcessState.NEEDS_HUMAN
     intent_event = next(
         event for event in invalid_workflow.get_case(invalid.case_id).event_history

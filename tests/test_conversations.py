@@ -588,8 +588,8 @@ def test_needs_human_bounces_back_for_ai_uncertainty_reason(conversation_environ
     the very next message now gets a real, fresh qualification attempt
     instead. A bounded retry is not a guarantee of success -- this
     follow-up is itself low-confidence under the deterministic extractor,
-    so it correctly lands back on NEEDS_HUMAN -- what matters is that it
-    was actually re-evaluated (extractor.calls advances) rather than
+    so it gets a bounded clarification opportunity -- what matters is that
+    it was actually re-evaluated (extractor.calls advances) rather than
     silently discarded."""
     client, _, extractor = conversation_environment
     first = create_conversation(client, "This is ambiguous", "human-1")
@@ -600,8 +600,8 @@ def test_needs_human_bounces_back_for_ai_uncertainty_reason(conversation_environ
     assert first.json()["current_state"] == "NEEDS_HUMAN"
     assert follow_up.status_code == 200
     assert extractor.calls == 2
-    assert follow_up.json()["current_state"] == "NEEDS_HUMAN"
-    assert follow_up.json()["requires_human"] is True
+    assert follow_up.json()["current_state"] == "QUALIFYING"
+    assert follow_up.json()["requires_human"] is False
 
 
 def test_externally_terminal_case_does_not_restart_qualification(conversation_environment) -> None:
@@ -826,3 +826,22 @@ def test_cors_is_explicit_and_widget_assets_are_safe(conversation_environment) -
     assert "sessionStorage" in widget.text
     assert "data-business-id" in demo.text
     assert "acme-home-services" not in widget.text
+    assert "customerTimezone" in widget.text
+    assert "customer_timezone" in widget.text
+
+
+def test_garbage_customer_timezone_still_creates_conversation(conversation_environment) -> None:
+    client, factory, _ = conversation_environment
+    response = client.post(
+        "/api/v1/public/businesses/tenant-a/conversations",
+        json={"customer_timezone": "Not/A_Zone"},
+    )
+    assert response.status_code == 200
+    token = response.json()["conversation_token"]
+    with factory() as uow:
+        conversation = uow.conversations.get_by_token_hash(
+            "tenant-a",
+            hashlib.sha256(token.encode()).hexdigest(),
+        )
+        assert conversation is not None
+        assert conversation.metadata.get("customer_timezone") is None
