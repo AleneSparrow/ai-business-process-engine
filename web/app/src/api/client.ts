@@ -250,6 +250,7 @@ export interface ReportingScope {
   startDate?: string;
   endDate?: string;
   includeTest?: boolean;
+  ignoreBaseline?: boolean;
 }
 
 export interface DashboardEvent {
@@ -490,6 +491,7 @@ export const api = {
       params.set("end_date", options.endDate);
     }
     if (options?.includeTest) params.set("include_test", "true");
+    if (options?.ignoreBaseline) params.set("ignore_baseline", "true");
     const query = params.size ? `?${params}` : "";
     return request<DashboardCaseListResponse>(`/api/v1/businesses/${businessId}/cases${query}`, { method: "GET" }, token);
   },

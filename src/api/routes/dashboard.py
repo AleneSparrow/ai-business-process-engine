@@ -63,13 +63,17 @@ def list_cases(
     start_date: Annotated[date | None, Query(description="Inclusive UTC start date")] = None,
     end_date: Annotated[date | None, Query(description="Inclusive UTC end date")] = None,
     include_test: bool = False,
+    ignore_baseline: bool = False,
 ) -> DashboardCaseListResponse:
     _validate_reporting_range(start_date, end_date)
     with unit_of_work_factory() as unit_of_work:
         business = unit_of_work.businesses.get(business_id)
         if business is None:
             raise ResourceNotFoundError("business_not_found", "Business was not found")
-        period_start, period_end = _analytics_period(business.stats_since, start_date, end_date)
+        if ignore_baseline and start_date is None:
+            period_start, period_end = None, None
+        else:
+            period_start, period_end = _analytics_period(business.stats_since, start_date, end_date)
         cases = unit_of_work.cases.list_for_business(
             business_id,
             limit=None,

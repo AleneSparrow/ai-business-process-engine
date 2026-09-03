@@ -5,6 +5,7 @@ import { Sidebar } from "../components/Sidebar";
 import { AreaOption, Field, formatRelativeTime, inputCls, ToneOption } from "../components/Shared";
 import { useAuth, describeError } from "../auth/AuthContext";
 import { API_BASE, api, type BusinessDNASettings, type CommercialPath, type CrmWebhookStatus, type ReportingSettings, type SmsStatus } from "../api/client";
+import { StatisticsPanel } from "../components/StatisticsPanel";
 
 // Grouped by the task a business owner actually has, not by which Business
 // DNA schema section a field happens to live in -- "Services" and "Booking"
@@ -365,13 +366,15 @@ export default function Settings() {
   };
 
   const updateReporting = async (update: Parameters<typeof api.updateReportingSettings>[2]) => {
-    if (!token || !businessId) return;
+    if (!token || !businessId) return false;
     setReportingSaving(true);
     setReportingError(null);
     try {
       setReporting(await api.updateReportingSettings(token, businessId, update));
+      return true;
     } catch (err) {
       setReportingError(describeError(err));
+      return false;
     } finally {
       setReportingSaving(false);
     }
@@ -1085,20 +1088,29 @@ export default function Settings() {
 
               {tab === "reporting" && (
                 <div>
-                  <div className="rounded-2xl border p-5" style={{ borderColor: "#E7E5DE" }}>
-                    <h2 className="text-base font-semibold">Statistics</h2>
-                    <p className="text-sm text-[#6B6459] mt-1 leading-relaxed">
-                      Reset and restore dashboard metrics from your personal account. Conversations, cases, and audit events are never deleted.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => navigate("/app/account")}
-                      className="mt-4 text-sm font-medium text-white px-4 py-2.5 rounded-lg"
-                      style={{ backgroundColor: "#151515" }}
-                    >
-                      Open statistics in Account
-                    </button>
-                  </div>
+                  {reporting?.test_mode_enabled && (
+                    <div className="rounded-2xl border p-4 mb-5 flex flex-wrap items-center gap-x-3 gap-y-1" style={{ borderColor: "#E8CFAF", backgroundColor: "#FFF8EE" }}>
+                      <span className="text-sm font-medium text-[#8A561B]">Test mode is on.</span>
+                      <span className="text-sm text-[#6B6459]">New conversations are not counted here.</span>
+                      <button
+                        type="button"
+                        onClick={() => setTab("widget")}
+                        className="text-sm font-medium text-[#151515] underline"
+                      >
+                        Change it in Install widget
+                      </button>
+                    </div>
+                  )}
+                  {token && businessId && (
+                    <StatisticsPanel
+                      token={token}
+                      businessId={businessId}
+                      reporting={reporting}
+                      reportingSaving={reportingSaving}
+                      reportingError={reportingError}
+                      onUpdateReporting={updateReporting}
+                    />
+                  )}
                 </div>
               )}
 

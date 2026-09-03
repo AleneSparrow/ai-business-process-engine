@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Search, Bell, ArrowUpRight, Clock, Phone, Mail, Loader2, ArrowDown, ArrowUp } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { useAuth, describeError } from "../auth/AuthContext";
-import { api, type DashboardAnalytics, type DashboardCaseSummary } from "../api/client";
-import { isoToUs, usToIso } from "../lib/usDate";
+import { api, type DashboardCaseSummary } from "../api/client";
+import { ESCALATION_ACTIONS, ESCALATION_LABELS, ESCALATION_OUTCOMES } from "../lib/escalationCopy";
 import {
   STATE_META,
   Stepper,
@@ -20,102 +20,6 @@ const FILTERS: (CaseState | "ALL")[] = ["ALL", "NEEDS_HUMAN", "QUALIFYING", "BOO
 type SortKey = "date" | "name";
 type SortDirection = "asc" | "desc";
 
-/**
- * A month/day/year field in English, always.
- *
- * This is deliberately NOT <input type="date">. Chrome renders that control
- * in the BROWSER's locale, not the document's: on a Russian-language Chrome
- * the reporting period read "дд.мм.гггг" even though the app is English and
- * US-only. Verified on the live page that lang="en-US" on the input does not
- * change it -- the format is not the page's to choose. So the field is ours.
- */
-function UsDateField({ label, value, min, onChange }: {
-  label: string;
-  value: string;
-  min?: string;
-  onChange: (iso: string) => void;
-}) {
-  const [text, setText] = useState(() => isoToUs(value));
-  const [invalid, setInvalid] = useState(false);
-
-  useEffect(() => {
-    setText(isoToUs(value));
-    setInvalid(false);
-  }, [value]);
-
-  const commit = (raw: string) => {
-    const trimmed = raw.trim();
-    if (!trimmed) {
-      setInvalid(false);
-      onChange("");
-      return;
-    }
-    const iso = usToIso(trimmed);
-    if (!iso || (min && iso < min)) {
-      setInvalid(true);
-      return;
-    }
-    setInvalid(false);
-    onChange(iso);
-  };
-
-  return (
-    <label className="text-xs text-[#6B6459] flex flex-col gap-1">
-      {label}
-      <input
-        type="text"
-        inputMode="numeric"
-        lang="en-US"
-        autoComplete="off"
-        placeholder="MM/DD/YYYY"
-        aria-label={`${label} date, month slash day slash year`}
-        aria-invalid={invalid}
-        value={text}
-        onChange={(event) => { setText(event.target.value); setInvalid(false); }}
-        onBlur={(event) => commit(event.target.value)}
-        onKeyDown={(event) => { if (event.key === "Enter") commit((event.target as HTMLInputElement).value); }}
-        className="w-[118px] px-2.5 py-2 rounded-lg border text-sm text-[#151515] outline-none"
-        style={{ borderColor: invalid ? "#B4483A" : "#E7E5DE" }}
-      />
-    </label>
-  );
-}
-
-const ESCALATION_LABELS: Record<string, string> = {
-  safety_emergency: "Safety or emergency language",
-  urgent_request: "Customer requested urgent help",
-  low_confidence: "Low confidence in the request",
-  service_unclear: "Requested service was unclear",
-  ai_review: "AI requested human review",
-  service_area_uncertain: "Service area could not be confirmed",
-  policy_review: "Business policy requires review",
-  identity_conflict: "Contact details match another lead",
-  already_pending: "Already waiting for review",
-};
-
-const ESCALATION_ACTIONS: Record<string, string> = {
-  safety_emergency: "Call or reply immediately — do not leave a safety issue in the queue.",
-  urgent_request: "Reply today and confirm the next available option.",
-  low_confidence: "Read the last message and clarify the customer’s request.",
-  service_unclear: "Confirm which service the customer needs before proceeding.",
-  ai_review: "Review the conversation and choose the next safe step.",
-  service_area_uncertain: "Confirm the customer’s location before offering service.",
-  policy_review: "Check this request against your business policy.",
-  identity_conflict: "Verify the contact details before merging or continuing.",
-  already_pending: "A teammate has already been asked to review this case.",
-};
-
-/**
- * Only where the outcome is NOT the ordinary one. Every card used to carry
- * "After a staff decision, the permitted workflow can continue from the
- * verified next step" as a second line -- the same sentence, word for word,
- * on five of six cards -- which buried the one line that differs and
- * actually tells you what to do.
- */
-const ESCALATION_OUTCOMES: Record<string, string> = {
-  already_pending: "No automatic next step will happen until a teammate resolves it.",
-};
-
 function nextStep(state: CaseState): string {
   if (state === "NEEDS_HUMAN") return "Review the conversation and reply";
   if (state === "QUALIFYING") return "Collect the remaining qualification details";
@@ -125,88 +29,24 @@ function nextStep(state: CaseState): string {
   return "Open the conversation to review the next action";
 }
 
-/**
- * `compact` is the metrics variant: smaller type, and the sub-line moves
- * BELOW the value instead of sitting beside it. Side by side, "7%" next to
- * "8/113 leads" was the pair that overflowed and clipped as soon as the tile
- * narrowed; stacked, it wraps instead of disappearing.
- *
- * A tile that is not a button gets no hover treatment, so "this opens the
- * list" and "this is just a number" stop looking identical.
- */
-function StatCard({ label, value, sub, tone, onClick, emphasis = false, compact = false }: {
-  label: string;
-  value: string | number;
-  sub?: string;
-  tone?: string;
-  onClick?: () => void;
-  emphasis?: boolean;
-  compact?: boolean;
-}) {
-  const content = <>
-      <div className={`font-medium text-[#6B6459] ${compact ? "text-[11px] leading-tight mb-1" : "text-xs mb-1.5"}`}>{label}</div>
-      <div className={compact ? "" : "flex items-baseline gap-2 flex-wrap"}>
-        <span
-          className={compact ? "text-[20px] leading-none block" : "text-[26px] leading-none"}
-          style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}
-        >
-          {value}
-        </span>
-        {sub && (
-          <span
-            className={`font-medium ${compact ? "text-[11px] leading-tight block mt-1 break-words" : "text-xs"}`}
-            style={{ color: tone || "#6B6459" }}
-          >
-            {sub}
-          </span>
-        )}
-      </div>
-    </>;
-  const className = [
-    "rounded-2xl border text-left min-w-0",
-    compact ? "px-3 py-2.5" : "px-5 py-4",
-    emphasis ? "border-[#C97A1F] bg-[#FFF9F2]" : "border-[#E7E5DE] bg-white",
-    onClick ? "hover:border-[#B87333] transition-colors cursor-pointer" : "",
-  ].join(" ");
-  return onClick ? (
-    <button type="button" onClick={onClick} className={className}>{content}</button>
-  ) : <div className={className}>{content}</div>;
-}
-
 export default function Dashboard() {
   const navigate = useNavigate();
   const { token, businessId } = useAuth();
   const [cases, setCases] = useState<DashboardCaseSummary[] | null>(null);
-  const [analytics, setAnalytics] = useState<DashboardAnalytics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<CaseState | "ALL">("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortKey>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
-  const [confirmingReset, setConfirmingReset] = useState(false);
-  const [resettingStats, setResettingStats] = useState(false);
-  const [resetError, setResetError] = useState<string | null>(null);
-  // Bumped after a statistics reset so the two fetches below re-run against
-  // the new baseline without a page reload.
-  const [statsVersion, setStatsVersion] = useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [includeTestData, setIncludeTestData] = useState(false);
-  const [reasonFilter, setReasonFilter] = useState<string | null>(null);
-  const [followUpOnly, setFollowUpOnly] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     if (!token || !businessId) return;
     api
-      .listCases(token, businessId, {
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-        includeTest: includeTestData,
-      })
+      .listCases(token, businessId, { ignoreBaseline: true })
       .then((res) => {
         if (cancelled) return;
         setCases(res.cases);
@@ -215,22 +55,10 @@ export default function Dashboard() {
       .catch((err) => {
         if (!cancelled) setError(describeError(err));
       });
-    api
-      .getDashboardAnalytics(token, businessId, {
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
-        includeTest: includeTestData,
-      })
-      .then((result) => {
-        if (!cancelled) setAnalytics(result);
-      })
-      .catch((err) => {
-        if (!cancelled) setError(describeError(err));
-      });
     return () => {
       cancelled = true;
     };
-  }, [token, businessId, startDate, endDate, includeTestData, statsVersion]);
+  }, [token, businessId]);
 
   const decorated = useMemo(
     () =>
@@ -247,8 +75,6 @@ export default function Dashboard() {
   const filtered = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     const visible = (filter === "ALL" ? [...decorated] : decorated.filter((c) => c.caseState === filter)).filter((c) => {
-      if (followUpOnly && !c.followUpDue) return false;
-      if (reasonFilter !== null && c.escalation_reason !== reasonFilter) return false;
       if (!query) return true;
       return [c.lead.name, c.lead.phone, c.lead.email, c.category, c.case_id, c.lead.lead_id]
         .some((value) => value?.toLowerCase().includes(query));
@@ -266,7 +92,7 @@ export default function Dashboard() {
       const comparison = leftValue.localeCompare(rightValue, undefined, { sensitivity: "base" });
       return sortDirection === "asc" ? comparison : -comparison;
     });
-  }, [decorated, filter, followUpOnly, reasonFilter, searchQuery, sortBy, sortDirection]);
+  }, [decorated, filter, searchQuery, sortBy, sortDirection]);
 
   const changeSort = (nextSort: SortKey) => {
     setSortBy(nextSort);
@@ -280,14 +106,13 @@ export default function Dashboard() {
   );
 
   const counts = useMemo(() => {
-    const c = { needsHuman: 0, booked: 0, qualifying: 0, lost: 0, completed: 0, followUpDue: 0 };
+    const c = { needsHuman: 0, booked: 0, qualifying: 0, lost: 0, completed: 0 };
     decorated.forEach((x) => {
       if (x.caseState === "NEEDS_HUMAN") c.needsHuman++;
       if (x.caseState === "BOOKED") c.booked++;
       if (x.caseState === "QUALIFYING") c.qualifying++;
       if (x.caseState === "LOST") c.lost++;
       if (x.caseState === "COMPLETED") c.completed++;
-      if (x.followUpDue) c.followUpDue++;
     });
     return c;
   }, [decorated]);
@@ -296,40 +121,6 @@ export default function Dashboard() {
     ? sortDirection === "desc" ? "Newest first" : "Oldest first"
     : sortDirection === "asc" ? "A to Z" : "Z to A";
 
-  /**
-   * Starts the metrics from now. Lives here, next to the numbers it resets,
-   * rather than only in Settings -> Reporting: the owner looking at a figure
-   * they want cleared is looking at this screen.
-   */
-  const resetStatistics = async () => {
-    if (!token || !businessId) return;
-    setResettingStats(true);
-    setResetError(null);
-    try {
-      await api.updateReportingSettings(token, businessId, { reset_statistics: true });
-      setConfirmingReset(false);
-      setStatsVersion((current) => current + 1);
-    } catch (err) {
-      setResetError(describeError(err));
-    } finally {
-      setResettingStats(false);
-    }
-  };
-
-  const showAttention = (reason: string | null = null) => {
-    setFilter("NEEDS_HUMAN");
-    setFollowUpOnly(false);
-    setReasonFilter(reason);
-  };
-
-  /**
-   * The bell opens the conversations that need a person.
-   *
-   * It used to toggle a filter on the lead list 1173px further down the
-   * page -- the click worked and absolutely nothing changed within sight, so
-   * it read as a dead control. A notification badge has to take you to the
-   * notifications.
-   */
   const openAttentionQueue = () => {
     navigate("/app/conversations?attention=1");
   };
@@ -417,128 +208,6 @@ export default function Dashboard() {
             </div>
           )}
 
-          {/* One band instead of three stacked sections plus a separate
-              reporting card. Before this, Overview put 1173px of statistics
-              above the lead list -- 1.68 screens of scrolling before the
-              owner could touch a single lead, on nine tiles of which only
-              four were clickable and nothing said which. Action is now on
-              the left, numbers on the right, and the period + reset controls
-              sit top-right where you look for them rather than three clicks
-              deep in Settings. */}
-          <div className="bg-white rounded-2xl border border-[#E7E5DE] p-4 md:p-5">
-            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3 mb-4">
-              <div className="min-w-0">
-                <h2 className="text-sm font-semibold">Today</h2>
-                <p className="text-xs text-[#6B6459] mt-0.5">What needs you, and how the engine is doing.</p>
-              </div>
-              <div className="flex flex-wrap items-end gap-2">
-                <UsDateField label="From" value={startDate} onChange={setStartDate} />
-                <UsDateField label="To" value={endDate} min={startDate} onChange={setEndDate} />
-                {(startDate || endDate) && (
-                  <button
-                    type="button"
-                    onClick={() => { setStartDate(""); setEndDate(""); }}
-                    className="text-xs font-medium px-3 py-2 rounded-lg border border-[#E7E5DE] hover:border-[#B87333] transition-colors"
-                  >
-                    All time
-                  </button>
-                )}
-                {confirmingReset ? (
-                  <span className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={resetStatistics}
-                      disabled={resettingStats}
-                      className="text-xs font-medium px-3 py-2 rounded-lg border border-[#C97A1F] text-[#8A561B] bg-[#FFF9F2] disabled:opacity-50"
-                    >
-                      {resettingStats ? "Resetting…" : "Confirm reset"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmingReset(false)}
-                      className="text-xs font-medium px-3 py-2 rounded-lg border border-[#E7E5DE]"
-                    >
-                      Cancel
-                    </button>
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setConfirmingReset(true)}
-                    title="Start the metrics from now. Conversations, cases and audit history are never deleted."
-                    className="text-xs font-medium px-3 py-2 rounded-lg border border-[#E7E5DE] hover:border-[#B87333] transition-colors"
-                  >
-                    Reset statistics
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* min-[880px] rather than lg (1024). The breakpoint is measured
-                against the WINDOW, but this band lives inside main, which the
-                313px sidebar has already narrowed -- on a real 901px window
-                the split never engaged and everything stacked. 880 is where
-                260 + a two-up metrics grid still has room to breathe. */}
-            <div className="grid gap-3 min-[880px]:grid-cols-[minmax(0,240px)_minmax(0,1fr)]">
-              <div className="grid gap-3 sm:grid-cols-2 min-[880px]:grid-cols-1 min-[880px]:content-start">
-                <StatCard
-                  label="Needs your attention"
-                  value={counts.needsHuman}
-                  sub="review queue"
-                  tone="#C97A1F"
-                  onClick={() => showAttention()}
-                  emphasis
-                />
-                <StatCard
-                  label="Follow-up due"
-                  value={counts.followUpDue}
-                  sub="waiting 24h+"
-                  tone="#C97A1F"
-                  onClick={() => { setFilter("ALL"); setReasonFilter(null); setFollowUpOnly(true); }}
-                />
-              </div>
-
-              {/* Pairs must stay pairs. Row-major across three columns split
-                    "Booking rate" and "Lost rate" -- the two outcome rates --
-                    onto different rows and left Lost rate opening row two on
-                    the far left, reading as if it belonged to the action
-                    column. grid-flow-col with two fixed rows fills column by
-                    column instead, so each column is one pair: volume,
-                    outcome rates, engine health. Below 1024 the plain
-                    two-column row-major order gives the same pairs. */}
-              <div className="grid gap-2 grid-cols-2 min-[1024px]:grid-cols-3 min-[1024px]:grid-rows-2 min-[1024px]:grid-flow-col">
-                <StatCard compact label="Qualifying now" value={counts.qualifying} sub="active leads" tone="#B87333" onClick={() => { setFilter("QUALIFYING"); setReasonFilter(null); setFollowUpOnly(false); }} />
-                <StatCard compact label="Booked" value={counts.booked} sub="active cases" tone="#1E7B52" onClick={() => { setFilter("BOOKED"); setReasonFilter(null); setFollowUpOnly(false); }} />
-                {/* Deliberately not clickable, unlike "Booked" above: this
-                    counts cases that EVER booked, while the list filters on
-                    the state a case is in NOW. Linking it opened a list that
-                    disagreed with the number printed on it. */}
-                <StatCard compact label="Booking rate" value={analytics ? `${Math.round(analytics.booking_conversion_rate * 100)}%` : "—"} sub={analytics ? `${analytics.booked_cases}/${analytics.total_cases} leads` : undefined} tone="#1E7B52" />
-                <StatCard compact label="Lost rate" value={analytics ? `${Math.round(analytics.lost_rate * 100)}%` : "—"} sub={analytics ? `${analytics.lost_cases}/${analytics.total_cases} leads` : undefined} onClick={() => { setFilter("LOST"); setReasonFilter(null); setFollowUpOnly(false); }} />
-                <StatCard compact label="Escalation rate" value={analytics ? `${Math.round(analytics.escalation_rate * 100)}%` : "—"} sub={analytics ? `${analytics.escalated_cases}/${analytics.total_cases} leads` : undefined} tone="#C97A1F" />
-                <StatCard compact label="Median first response" value={analytics?.median_first_response_seconds != null ? `${Math.round(analytics.median_first_response_seconds)}s` : "—"} sub={analytics ? `${analytics.response_samples} samples` : undefined} tone="#1E7B52" />
-              </div>
-            </div>
-
-            {(resetError || (analytics && analytics.hidden_test_cases > 0) || (analytics?.stats_since && !startDate && !endDate)) && (
-              <div className="mt-3 pt-3 border-t border-[#E7E5DE] flex flex-wrap items-center gap-x-4 gap-y-2">
-                {resetError && <span className="text-xs text-[#8A3225]">{resetError}</span>}
-                {analytics && analytics.hidden_test_cases > 0 && (
-                  <label className="text-xs text-[#6B6459] flex items-center gap-2">
-                    <input type="checkbox" checked={includeTestData} onChange={(event) => setIncludeTestData(event.target.checked)} className="accent-[#B87333]" />
-                    {includeTestData
-                      ? "Including test data"
-                      : `Test data hidden · ${analytics.hidden_test_conversations} conversations / ${analytics.hidden_test_cases} cases`}
-                  </label>
-                )}
-                {analytics?.stats_since && !startDate && !endDate && (
-                  <span className="text-xs text-[#6B6459]">Metrics count from your statistics baseline.</span>
-                )}
-              </div>
-            )}
-          </div>
-
-
           {cases === null && !error ? (
             <div className="flex items-center gap-2 text-sm text-[#6B6459] py-12 justify-center">
               <Loader2 size={16} className="animate-spin" /> Loading your leads…
@@ -563,7 +232,7 @@ export default function Dashboard() {
                   {FILTERS.map((s) => (
                     <button
                       key={s}
-                      onClick={() => { setFilter(s); setReasonFilter(null); setFollowUpOnly(false); }}
+                      onClick={() => setFilter(s)}
                       className="px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors"
                       style={{ backgroundColor: filter === s ? "#151515" : "transparent", color: filter === s ? "#fff" : "#6B6459" }}
                     >
@@ -595,38 +264,10 @@ export default function Dashboard() {
                     <span className="hidden xl:inline min-w-[68px]">{sortDirectionLabel}</span>
                   </div>
                 </div>
-                {/* What the "Review queue" card used to be, in one line.
-                    That card was a third copy of this list's own filters: it
-                    repeated the 77, repeated "view all", and its six reason
-                    cards did what these chips do -- while taking most of a
-                    screen and pushing the leads below the fold. The per-lead
-                    guidance it carried now sits on the selected lead, where
-                    you act on it. */}
-                {filter === "NEEDS_HUMAN" && analytics && Object.keys(analytics.escalation_reasons).length > 0 && (
-                  <div className="flex flex-wrap items-center gap-1.5 px-5 py-2 border-b border-[#E7E5DE] bg-[#FDFCF9]">
-                    <span className="text-[11px] text-[#9C9488] mr-1">Why:</span>
-                    {Object.entries(analytics.escalation_reasons)
-                      .sort(([, left], [, right]) => right - left)
-                      .map(([reason, count]) => (
-                        <button
-                          key={reason}
-                          type="button"
-                          onClick={() => setReasonFilter(reasonFilter === reason ? null : reason)}
-                          className="px-2.5 py-1 rounded-full text-[11px] font-medium border transition-colors"
-                          style={{
-                            backgroundColor: reasonFilter === reason ? "#F5E7D6" : "#fff",
-                            borderColor: reasonFilter === reason ? "#B87333" : "#E7E5DE",
-                          }}
-                        >
-                          {ESCALATION_LABELS[reason] ?? "Human review"} {count}
-                        </button>
-                      ))}
-                  </div>
-                )}
-                {(filter !== "ALL" || reasonFilter !== null || followUpOnly) && (
+                {filter !== "ALL" && (
                   <div className="px-5 py-2 text-xs text-[#6B6459] bg-[#FFF9F2] border-b border-[#E7E5DE] flex items-center justify-between gap-3">
-                    <span>Showing {filtered.length} {reasonFilter ? `leads: ${ESCALATION_LABELS[reasonFilter] ?? "human review"}` : followUpOnly ? "follow-ups due" : "filtered leads"}.</span>
-                    <button type="button" onClick={() => { setFilter("ALL"); setReasonFilter(null); setFollowUpOnly(false); }} className="font-medium text-[#151515] underline">Clear filter</button>
+                    <span>Showing {filtered.length} filtered leads.</span>
+                    <button type="button" onClick={() => setFilter("ALL")} className="font-medium text-[#151515] underline">Clear filter</button>
                   </div>
                 )}
                 <ul>

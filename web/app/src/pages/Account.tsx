@@ -4,7 +4,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { api } from "../api/client";
 import { describeError, useAuth } from "../auth/AuthContext";
 import { AccountSecurityPanel } from "../components/AccountSecurityPanel";
-import { StatisticsManagement } from "../components/StatisticsManagement";
 import { Field, inputCls } from "../components/Shared";
 import { Sidebar } from "../components/Sidebar";
 
@@ -63,7 +62,7 @@ export default function Account() {
           <div className="mb-9">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#B87333]">Personal account</p>
             <h1 className="text-3xl font-semibold tracking-tight mt-2">Your account</h1>
-            <p className="text-sm text-[#6B6459] mt-2">Manage your profile, security, and dashboard statistics.</p>
+            <p className="text-sm text-[#6B6459] mt-2">Manage your personal details and account security.</p>
           </div>
 
           <form onSubmit={saveProfile} className="max-w-2xl border border-[#E7E5DE] bg-white rounded-xl p-5 sm:p-6 mb-10">
@@ -83,10 +82,6 @@ export default function Account() {
           </form>
 
           {token && <AccountSecurityPanel token={token} />}
-
-          <div className="mt-10">
-            <StatisticsManagement />
-          </div>
 
           <section className="max-w-2xl border-t border-[#E7E5DE] mt-10 pt-8">
             <h2 className="text-lg font-semibold">Sign out</h2>

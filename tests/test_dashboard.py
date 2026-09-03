@@ -420,6 +420,11 @@ def test_dashboard_statistics_baseline_filters_metrics_and_can_be_cleared(dashbo
         headers={"Authorization": f"Bearer {token}"},
     )
     assert {case["case_id"] for case in filtered_cases.json()["cases"]} == {"new-case"}
+    queue = client.get(
+        "/api/v1/businesses/biz-baseline/cases?ignore_baseline=true",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert {case["case_id"] for case in queue.json()["cases"]} == {"old-case", "new-case"}
     cleared = client.patch(
         "/api/v1/businesses/biz-baseline/analytics/settings",
         headers={"Authorization": f"Bearer {token}"},
