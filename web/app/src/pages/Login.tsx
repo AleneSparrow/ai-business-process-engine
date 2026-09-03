@@ -51,7 +51,7 @@ export default function Login() {
   return (
     <div style={{ backgroundColor: "#F5F1EA", fontFamily: "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif", color: "#151515" }} className="min-h-screen w-full flex items-center justify-center px-6">
       <div className="w-full max-w-sm">
-        <Link to="/lawyers" className="flex items-center gap-2 mb-8 justify-center">
+        <Link to="/" className="flex items-center gap-2 mb-8 justify-center">
           <div
             className="w-7 h-7 rounded-lg flex items-center justify-center text-white"
             style={{ backgroundColor: "#B87333" }}

@@ -1,75 +1,53 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { ArrowRight, MessageSquare, Workflow, ShieldCheck, Zap, ChevronRight, Check, Menu, X } from "lucide-react";
-import { useAuth } from "../auth/AuthContext";
-import { FlywheelMark } from "../components/Shared";
-
-// Amber, not bronze -- this stepper visualizes a cycle in motion, and amber
-// is the brand book's functional accent for "active, in motion" states.
-function Stepper({ stage, color = "#D97B29" }: { stage: number; color?: string }) {
-  const STAGES = ["Trigger", "Context", "Decision", "Action", "Result"];
-  return (
-    <div className="flex items-center gap-1.5">
-      {STAGES.map((label, i) => (
-        <div key={label} className="flex items-center gap-1.5">
-          <div
-            className="w-2 h-2 rounded-full"
-            style={{
-              backgroundColor: i <= stage ? color : "#DEDBD2",
-              boxShadow: i === stage ? `0 0 0 3px ${color}22` : "none",
-            }}
-            title={label}
-          />
-          {i < STAGES.length - 1 && (
-            <div className="h-px w-4" style={{ backgroundColor: i < stage ? color : "#DEDBD2" }} />
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
+import { ArrowRight, MessageSquare, Workflow, ShieldCheck, Zap, ChevronRight, Check } from "lucide-react";
+import {
+  DealCycle,
+  FaqItem,
+  MarketingShell,
+  MARKETING_DISPLAY,
+  usePrimaryCta,
+} from "../components/MarketingShell";
 
 function ChatBubble() {
   const [step, setStep] = useState(2);
   return (
     <div className="bg-white rounded-2xl border border-[#E7E5DE] shadow-[0_1px_2px_rgba(0,0,0,0.03)] p-5 w-full max-w-sm">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 gap-3">
         <span className="text-xs font-medium text-[#9C9488]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-          acme-co · web chat
+          your-site · web chat
         </span>
-        <Stepper stage={step} />
+        <span className="text-[11px] font-medium uppercase tracking-wide px-2 py-0.5 rounded-full shrink-0" style={{ backgroundColor: "#E9F5EF", color: "#1E7B52" }}>
+          {["New", "Qualifying", "Booked"][Math.min(step, 2)]}
+        </span>
       </div>
       <div className="flex flex-col gap-2.5">
         <div className="self-start bg-[#F1F1EF] rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm max-w-[85%]">
-          Hi, I saw your pricing page — can someone walk me through getting started?
+          Hi — can someone help me get started this week?
         </div>
         <div
           className="self-end text-white rounded-2xl rounded-br-sm px-3.5 py-2.5 text-sm max-w-[85%]"
           style={{ backgroundColor: "#B87333" }}
         >
-          Happy to help. What are you looking to get done, and what's your timeline?
+          Happy to help. What do you need done, and what's your timeline?
         </div>
         <div className="self-start bg-[#F1F1EF] rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm max-w-[85%]">
-          Onboarding automation for ~50 leads/month, ideally live this month
+          A consult this month, weekday afternoons work.
         </div>
+        {step >= 3 && (
+          <div
+            className="self-end text-white rounded-2xl rounded-br-sm px-3.5 py-2.5 text-sm max-w-[85%]"
+            style={{ backgroundColor: "#B87333" }}
+          >
+            Thursday 3:00pm is open. Want me to book that?
+          </div>
+        )}
       </div>
       <button
         onClick={() => setStep((s) => (s < 4 ? s + 1 : 2))}
         className="mt-4 text-xs font-medium text-[#B87333] flex items-center gap-1"
       >
-        Advance step <ChevronRight size={12} />
+        Advance the deal <ChevronRight size={12} />
       </button>
-    </div>
-  );
-}
-
-function StatBlock({ n, label }: { n: string; label: string }) {
-  return (
-    <div>
-      <div style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }} className="text-3xl mb-1">
-        {n}
-      </div>
-      <div className="text-sm text-[#6B6459]">{label}</div>
     </div>
   );
 }
@@ -100,7 +78,7 @@ function StepRow({ n, title, body, last }: { n: string; title: string; body: str
       <div className="flex flex-col items-center">
         <div
           className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold shrink-0"
-          style={{ backgroundColor: "#151515", color: "#fff", fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif" }}
+          style={{ backgroundColor: "#151515", color: "#fff", fontFamily: MARKETING_DISPLAY }}
         >
           {n}
         </div>
@@ -114,187 +92,254 @@ function StepRow({ n, title, body, last }: { n: string; title: string; body: str
   );
 }
 
-export default function Landing() {
-  const [menuOpen, setMenuOpen] = useState(false);
-  const navigate = useNavigate();
-  const { user } = useAuth();
+const INDUSTRIES = [
+  "Consulting",
+  "Home services",
+  "Coaching",
+  "Legal",
+  "Health & wellness",
+  "Education",
+  "Auto",
+  "Agencies",
+];
 
-  const primaryCtaTarget = user ? (user.business_ids.length > 0 ? "/app" : "/onboarding") : "/signup";
+export default function Landing() {
+  const { navigate, target } = usePrimaryCta();
 
   return (
-    <div style={{ backgroundColor: "#F5F1EA", fontFamily: "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif", color: "#151515" }} className="min-h-screen w-full">
-      <header className="sticky top-0 z-20 backdrop-blur-sm" style={{ backgroundColor: "#F5F1EAEE", borderBottom: "1px solid #E7E5DE" }}>
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <button onClick={() => navigate("/lawyers")} className="flex items-center gap-2">
-            <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-white"
-              style={{ backgroundColor: "#B87333" }}
-            >
-              <FlywheelMark size={16} />
-            </div>
-            <span className="font-semibold text-sm" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif" }}>
-              Flywheel
-            </span>
-          </button>
-          <nav className="hidden md:flex items-center gap-8 text-xs font-medium uppercase tracking-wider text-[#6B6459]">
-            <a href="#how" className="hover:text-[#151515] transition-colors">How it works</a>
-            <a href="#features" className="hover:text-[#151515] transition-colors">Features</a>
-            <a href="#trust" className="hover:text-[#151515] transition-colors">Trust & audit</a>
-          </nav>
-          <div className="hidden md:flex items-center gap-3">
-            {!user && (
-              <button onClick={() => navigate("/login")} className="text-sm font-medium text-[#6B6459]">
-                Sign in
-              </button>
-            )}
-            <button
-              onClick={() => navigate(primaryCtaTarget)}
-              className="text-xs font-bold uppercase tracking-wide px-4 py-2 rounded flex items-center gap-1.5"
-              style={{ backgroundColor: "#D97B29", color: "#1C1206" }}
-            >
-              {user ? "Go to dashboard" : "Get started"} <ArrowRight size={14} />
-            </button>
-          </div>
-          <button className="md:hidden" onClick={() => setMenuOpen(!menuOpen)}>
-            {menuOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
-        </div>
-        {menuOpen && (
-          <div className="md:hidden px-6 pb-4 flex flex-col gap-3 text-xs font-medium uppercase tracking-wider text-[#6B6459]">
-            <a href="#how">How it works</a>
-            <a href="#features">Features</a>
-            <a href="#trust">Trust & audit</a>
-            {!user && (
-              <button onClick={() => navigate("/login")} className="text-left">Sign in</button>
-            )}
-            <button onClick={() => navigate(primaryCtaTarget)} className="font-bold px-4 py-2 rounded mt-1" style={{ backgroundColor: "#D97B29", color: "#1C1206" }}>
-              {user ? "Go to dashboard" : "Get started"}
-            </button>
-          </div>
-        )}
-      </header>
-
+    <MarketingShell
+      variant="product"
+      title="Flywheel — from first message to a booked deal"
+      description="Flywheel qualifies, books, and follows up with every inbound lead — on any business, without a custom build. 7-day trial, $199/mo."
+    >
       <section className="max-w-6xl mx-auto px-6 pt-16 md:pt-24 pb-16 grid md:grid-cols-2 gap-12 items-center">
         <div>
-          <div className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full mb-6" style={{ backgroundColor: "#F5E7D6", color: "#B87333" }}>
-            <Zap size={12} /> Adaptive to any business
+          <div
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full mb-6"
+            style={{ backgroundColor: "#F5E7D6", color: "#B87333" }}
+          >
+            <Zap size={12} /> Any business. No custom setup.
           </div>
-          <h1 className="text-4xl md:text-5xl leading-[1.08] mb-5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
-            Every lead gets answered.<br />Every step gets logged.
+          <h1 className="text-4xl md:text-5xl leading-[1.08] mb-5" style={{ fontFamily: MARKETING_DISPLAY, fontWeight: 600 }}>
+            From first message to a booked deal.
           </h1>
-          <p className="text-base text-[#6B6459] leading-relaxed mb-8 max-w-md">
-            Flywheel qualifies, books, and follows up with your customers the moment they message —
-            then hands off to you the moment it should. Nothing happens off the record.
+          <p className="text-base text-[#6B6459] leading-relaxed mb-6 max-w-md">
+            Flywheel answers the people who already reached out — qualifies them, books or quotes, follows up, and hands off the moment your rules say so. You don't rebuild a bot for each company.
           </p>
-          <div className="flex flex-wrap items-center gap-3 mb-10">
+          <div className="mb-8">
+            <DealCycle />
+          </div>
+          <div className="flex flex-wrap items-center gap-3 mb-6">
             <button
-              onClick={() => navigate(primaryCtaTarget)}
+              onClick={() => navigate(target)}
               className="text-sm font-bold uppercase tracking-wide px-5 py-3 rounded flex items-center gap-2"
               style={{ backgroundColor: "#D97B29", color: "#1C1206" }}
             >
-              Set up your business <ArrowRight size={15} />
+              Start 7-day free trial <ArrowRight size={15} />
             </button>
-            <a href="#trust" className="text-sm font-medium px-5 py-3 rounded-lg border border-[#E7E5DE] bg-white">
-              See how it stays accountable
+            <a href="#how" className="text-sm font-medium px-5 py-3 rounded-lg border border-[#E7E5DE] bg-white">
+              See the cycle
             </a>
           </div>
-          <div className="flex gap-10">
-            <StatBlock n="38s" label="Avg. first reply" />
-            <StatBlock n="100%" label="Steps audited" />
-            <StatBlock n="0" label="Silent AI actions" />
-          </div>
+          <p className="text-xs text-[#9C9488]">$199/mo after trial · card on file, no charge until day 8 · cancel anytime</p>
         </div>
-        <div className="flex justify-center md:justify-end"><ChatBubble /></div>
+        <div className="flex justify-center md:justify-end">
+          <ChatBubble />
+        </div>
       </section>
 
       <section className="border-y border-[#E7E5DE] bg-white">
-        <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-center gap-3 text-sm text-[#9C9488]">
-          <ShieldCheck size={15} /> Every decision your engine makes is deterministic, reviewable, and reversible — never a black box.
+        <div className="max-w-6xl mx-auto px-6 py-5 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-[#6B6459]">
+          {INDUSTRIES.map((name) => (
+            <span key={name}>{name}</span>
+          ))}
         </div>
       </section>
 
       <section id="how" className="max-w-6xl mx-auto px-6 py-20 md:py-28">
         <div className="max-w-lg mb-14">
           <span className="text-xs font-medium text-[#B87333] uppercase tracking-wide">How it works</span>
-          <h2 className="text-3xl mt-2" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>One path, five steps, no surprises</h2>
+          <h2 className="text-3xl mt-2" style={{ fontFamily: MARKETING_DISPLAY, fontWeight: 600 }}>
+            One path from inquiry to deal
+          </h2>
+          <p className="text-sm text-[#6B6459] mt-3 leading-relaxed">
+            This is not a contact-capture widget. The engine keeps going until the lead is booked, won, lost — or you take over.
+          </p>
         </div>
         <div className="grid md:grid-cols-2 gap-x-16">
           <div>
-            <StepRow n="1" title="A customer messages your business" body="Through your website chat or a text — Flywheel picks it up the moment it arrives." />
-            <StepRow n="2" title="It qualifies against your rules" body="Your questions, required details, urgency — defined by you, applied every time, the same way." />
-            <StepRow n="3" title="It decides, or it asks you" body="Clear cases move forward on their own. Anything ambiguous escalates to you, in plain language." last />
+            <StepRow n="1" title="Someone writes in" body="Website chat today. The engine picks up the thread the moment it arrives — no one waiting on voicemail." />
+            <StepRow n="2" title="It qualifies against your rules" body="Your services, questions, area, and urgency. Same questions, every time. No industry-specific rebuild." />
+            <StepRow n="3" title="It books, quotes, or asks you" body="Clear cases move. Anything outside the script escalates in plain language — it never improvises a promise." last />
           </div>
           <div className="mt-2 md:mt-[52px]">
-            <StepRow n="4" title="It books, quotes, or follows up" body="The action your rules allow — never more, never assumed." />
-            <StepRow n="5" title="Every step stays on the record" body="You can open any case and see exactly what happened, in order, at any time." last />
+            <StepRow n="4" title="It follows up" body="If they go quiet after a quote or a booking, the cycle keeps turning until they convert, decline, or you step in." />
+            <StepRow n="5" title="Every step stays on the record" body="Open any case and see the exact trigger, decision, and reply. Nothing happens off the record." last />
           </div>
         </div>
       </section>
 
       <section id="features" className="max-w-6xl mx-auto px-6 pb-20 md:pb-28">
         <div className="grid md:grid-cols-3 gap-5">
-          <FeatureCard icon={MessageSquare} title="Answers instantly, in your voice" body="Configured tone, language, and channel per business — customers never feel handed to a machine." />
-          <FeatureCard icon={Workflow} title="Runs your process, not a generic script" body="Business DNA encodes your services, questions, and escalation rules — no two setups behave alike." />
-          <FeatureCard icon={ShieldCheck} title="Escalates instead of guessing" body="When something falls outside your rules, it stops and asks — it never improvises a commitment." />
+          <FeatureCard
+            icon={MessageSquare}
+            title="Answers in your voice"
+            body="Tone and questions come from your Business DNA — customers get a consistent reply, not a generic chatbot."
+          />
+          <FeatureCard
+            icon={Workflow}
+            title="Runs your process"
+            body="Services, qualification, booking, follow-up, and handoff are encoded once. Adaptive to the business — not a custom project per client."
+          />
+          <FeatureCard
+            icon={ShieldCheck}
+            title="Escalates instead of guessing"
+            body="When something falls outside your rules, it stops and asks you. AI only rewrites wording you already approved."
+          />
         </div>
       </section>
 
-      <section id="trust" className="bg-white border-y border-[#E7E5DE]">
-        <div className="max-w-6xl mx-auto px-6 py-20 md:py-24 grid md:grid-cols-2 gap-12 items-center">
-          <div>
-            <span className="text-xs font-medium text-[#B87333] uppercase tracking-wide">Trust & audit</span>
-            <h2 className="text-3xl mt-2 mb-5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Nothing your engine does is invisible</h2>
-            <ul className="flex flex-col gap-3.5">
-              {[
-                "Every trigger, decision, and action is written to an append-only history",
-                "AI drafts wording — it never bypasses your workflow or risk rules",
-                "You can trace any booking, quote, or reply back to the exact step that produced it",
-              ].map((t) => (
-                <li key={t} className="flex items-start gap-2.5 text-sm text-[#151515]">
-                  <Check size={16} className="mt-0.5 shrink-0" color="#1E7B52" /> {t}
-                </li>
-              ))}
-            </ul>
+      <section id="pricing" className="bg-white border-y border-[#E7E5DE]">
+        <div className="max-w-6xl mx-auto px-6 py-20 md:py-24">
+          <div className="max-w-lg mb-10">
+            <span className="text-xs font-medium text-[#B87333] uppercase tracking-wide">Pricing</span>
+            <h2 className="text-3xl mt-2" style={{ fontFamily: MARKETING_DISPLAY, fontWeight: 600 }}>
+              Start on Starter. Upgrade when you need the extras.
+            </h2>
           </div>
-          <div className="bg-[#F5F1EA] rounded-2xl border border-[#E7E5DE] p-5">
-            <div className="text-xs font-medium text-[#9C9488] mb-3" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>CS-1042 · audit trail</div>
-            <div className="flex flex-col gap-2.5 text-sm">
-              {[
-                ["09:41:02", "Trigger", "Inbound web chat message received"],
-                ["09:41:03", "Context", "Matched existing lead by email"],
-                ["09:41:04", "Decision", "Missing required field: project timeline"],
-                ["09:41:04", "Action", "Sent clarifying question"],
-                ["09:44:18", "Result", "Escalated — customer flagged this as urgent"],
-              ].map(([time, stage, desc]) => (
-                <div key={stage} className="flex gap-3">
-                  <span className="text-[#9C9488] shrink-0" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>{time}</span>
-                  <span className="font-medium shrink-0 w-16">{stage}</span>
-                  <span className="text-[#6B6459]">{desc}</span>
-                </div>
-              ))}
+          <div className="grid md:grid-cols-2 gap-5 max-w-3xl">
+            <div className="rounded-2xl border-2 p-7" style={{ borderColor: "#D97B29", backgroundColor: "#FFF9F2" }}>
+              <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: "#D97B29" }}>
+                Most new accounts
+              </div>
+              <div className="flex items-baseline justify-between mb-2">
+                <span className="font-semibold" style={{ fontFamily: MARKETING_DISPLAY }}>Starter</span>
+                <span className="text-3xl" style={{ fontFamily: MARKETING_DISPLAY, fontWeight: 600 }}>
+                  $199<span className="text-sm text-[#6B6459] font-normal">/mo</span>
+                </span>
+              </div>
+              <p className="text-sm text-[#6B6459] mb-5">7-day trial. The full inquiry-to-deal cycle for one business.</p>
+              <ul className="flex flex-col gap-2.5 mb-7 text-sm">
+                {[
+                  "Website chat, qualification, booking, follow-up",
+                  "Business DNA you set yourself — about 20 minutes",
+                  "Complete audit trail",
+                  "Human handoff when your rules say so",
+                ].map((t) => (
+                  <li key={t} className="flex items-start gap-2.5">
+                    <Check size={16} className="mt-0.5 shrink-0" color="#1E7B52" /> {t}
+                  </li>
+                ))}
+              </ul>
+              <button
+                onClick={() => navigate(target)}
+                className="w-full text-sm font-bold uppercase tracking-wide px-5 py-3 rounded"
+                style={{ backgroundColor: "#D97B29", color: "#1C1206" }}
+              >
+                Start free trial
+              </button>
+            </div>
+            <div className="rounded-2xl border border-[#E7E5DE] p-7 bg-[#F5F1EA]">
+              <div className="text-xs font-semibold uppercase tracking-wide text-[#6B6459] mb-2">Optional</div>
+              <div className="flex items-baseline justify-between mb-2">
+                <span className="font-semibold" style={{ fontFamily: MARKETING_DISPLAY }}>Pro</span>
+                <span className="text-3xl" style={{ fontFamily: MARKETING_DISPLAY, fontWeight: 600 }}>
+                  $499<span className="text-sm text-[#6B6459] font-normal">/mo</span>
+                </span>
+              </div>
+              <p className="text-sm text-[#6B6459] mb-5">
+                Same engine as Starter, plus priority support and early access to upcoming team features. Multi-staff routing is not live yet — don't buy Pro for that today.
+              </p>
+              <p className="text-xs text-[#9C9488]">You can stay on Starter. Most businesses should.</p>
             </div>
           </div>
         </div>
       </section>
 
+      <section id="trust" className="max-w-6xl mx-auto px-6 py-20 md:py-24 grid md:grid-cols-2 gap-12 items-center">
+        <div>
+          <span className="text-xs font-medium text-[#B87333] uppercase tracking-wide">Trust & audit</span>
+          <h2 className="text-3xl mt-2 mb-5" style={{ fontFamily: MARKETING_DISPLAY, fontWeight: 600 }}>
+            Nothing the engine does is invisible
+          </h2>
+          <ul className="flex flex-col gap-3.5">
+            {[
+              "Every trigger, decision, and action is written to an append-only history",
+              "AI drafts wording — it never bypasses your workflow or risk rules",
+              "You can trace any booking, quote, or reply back to the exact step that produced it",
+            ].map((t) => (
+              <li key={t} className="flex items-start gap-2.5 text-sm text-[#151515]">
+                <Check size={16} className="mt-0.5 shrink-0" color="#1E7B52" /> {t}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="bg-white rounded-2xl border border-[#E7E5DE] p-5">
+          <div className="text-xs font-medium text-[#9C9488] mb-3" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+            CS-1042 · audit trail
+          </div>
+          <div className="flex flex-col gap-2.5 text-sm">
+            {[
+              ["09:41:02", "New", "Inbound web chat received"],
+              ["09:41:03", "Context", "Matched existing lead by email"],
+              ["09:41:04", "Decision", "Missing required field: timeline"],
+              ["09:41:04", "Action", "Sent clarifying question"],
+              ["09:44:18", "Booked", "Thursday 3:00pm confirmed"],
+            ].map(([time, stage, desc]) => (
+              <div key={time + stage} className="flex gap-3">
+                <span className="text-[#9C9488] shrink-0" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: 12 }}>
+                  {time}
+                </span>
+                <span className="font-medium shrink-0 w-16">{stage}</span>
+                <span className="text-[#6B6459]">{desc}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="faq" className="bg-white border-y border-[#E7E5DE]">
+        <div className="max-w-2xl mx-auto px-6 py-16 md:py-20">
+          <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "#B87333" }}>
+            FAQ
+          </span>
+          <h2 className="text-2xl md:text-3xl mt-2 mb-6" style={{ fontFamily: MARKETING_DISPLAY, fontWeight: 600 }}>
+            Before you start
+          </h2>
+          <FaqItem
+            q="Does this work for my kind of business?"
+            a="Yes — there is no industry switch in the product. You describe services, questions, and who you can serve. The same engine runs a consultancy, a shop, or a practice. Solo attorneys in California and New York have a dedicated page because that's our first outbound wave, not because the product is legal-only."
+          />
+          <FaqItem
+            q="Do you generate new leads for me?"
+            a="No. Flywheel starts when someone has already reached out — a chat on your site today. It carries that person to a booked deal. Lead generation is a separate product, later."
+          />
+          <FaqItem
+            q="How long does setup take?"
+            a="About 20 minutes: business basics, services, area, questions, and when to hand off to you. Then paste one snippet on your website."
+          />
+          <FaqItem
+            q="Can the AI promise something I wouldn't?"
+            a="It only rewrites wording inside the script you approve. If a request falls outside that script, it escalates to you instead of inventing an answer."
+          />
+        </div>
+      </section>
+
       <section className="max-w-6xl mx-auto px-6 py-20 md:py-28 text-center">
-        <h2 className="text-3xl md:text-4xl mb-4" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Your first customer is already messaging someone.</h2>
-        <p className="text-[#6B6459] mb-8 max-w-md mx-auto">Set up your Business DNA in minutes and give every lead a same-minute answer.</p>
+        <h2 className="text-3xl md:text-4xl mb-4" style={{ fontFamily: MARKETING_DISPLAY, fontWeight: 600 }}>
+          Someone already wrote in. Don't leave them waiting.
+        </h2>
+        <p className="text-[#6B6459] mb-8 max-w-md mx-auto">
+          Set Business DNA in minutes. Put the widget on your site. Watch the first conversation hit the dashboard.
+        </p>
         <button
-          onClick={() => navigate(primaryCtaTarget)}
+          onClick={() => navigate(target)}
           className="text-sm font-bold uppercase tracking-wide px-6 py-3.5 rounded inline-flex items-center gap-2"
           style={{ backgroundColor: "#D97B29", color: "#1C1206" }}
         >
-          Set up your business <ArrowRight size={15} />
+          Start 7-day free trial <ArrowRight size={15} />
         </button>
       </section>
-
-      <footer className="border-t border-[#E7E5DE] py-8">
-        <div className="max-w-6xl mx-auto px-6 flex items-center justify-between text-xs text-[#9C9488]">
-          <span>© 2026 Flywheel</span>
-          <span>Deterministic by design</span>
-        </div>
-      </footer>
-    </div>
+    </MarketingShell>
   );
 }
