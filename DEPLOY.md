@@ -121,6 +121,14 @@ handle tax compliance yourself.
    read the trial length back from Lemon Squeezy, it's copy-only there.
    Copy each variant's **Variant ID** (visible in the product's URL or via
    **Store → Products → (product) → Variants**) — you'll need both in step 3.
+
+   Optional third product: **Flywheel Demand**, a separate subscription sold
+   only from the Flywheel Billing page after Starter/Pro is active. Do **not**
+   copy the Starter/Pro prices onto it; set Demand's price in Lemon Squeezy
+   when you decide it. Copy that variant ID to `LEMONSQUEEZY_VARIANT_DEMAND`.
+   Existing deploys boot without this variable; Demand checkout returns 422
+   until it is set. The webhook already on this store must receive Demand
+   events too (same eight subscription events as below).
 3. On the Railway backend service, add these Variables:
    - `LEMONSQUEEZY_API_KEY` — **Settings → API** in Lemon Squeezy → **Create
      API key**. Goes directly into Railway, same as `OPENAI_API_KEY`.
@@ -128,6 +136,8 @@ handle tax compliance yourself.
      store name.
    - `LEMONSQUEEZY_VARIANT_STARTER` / `LEMONSQUEEZY_VARIANT_PRO` — the two
      Variant IDs from step 2.
+   - `LEMONSQUEEZY_VARIANT_DEMAND` — optional. The Demand product's Variant
+     ID. Leave unset until that Lemon Squeezy product exists.
    - `FRONTEND_BASE_URL` — your deployed frontend's exact origin (e.g.
      `https://your-app.vercel.app`, no trailing slash) — Lemon Squeezy
      Checkout redirects back here after payment.

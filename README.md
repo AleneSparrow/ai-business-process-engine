@@ -30,6 +30,16 @@ The MVP provides:
 
 Qualified website conversations continue through booking or quoting. Business DNA—not AI—selects the commercial path, availability and price authority remain deterministic, PostgreSQL coordinates capacity and optimistic updates, and payment requests prepare state without collecting money. The product includes staff authentication, the React staff UI, Lemon Squeezy subscription billing, CRM webhooks, and optional Twilio delivery. Real customer payment collection and calendar synchronization remain deferred.
 
+## Product 2 — Flywheel Demand
+
+Flywheel Demand is a separate attract-to-inquiry product in [`flywheel-demand/`](flywheel-demand/). It compiles **Marketing DNA** from Business DNA, runs a prospect until that person inquires, and posts inbound JSON to this process engine at `NEW_LEAD`. It does not qualify, book, quote, or sell, and it does not send cold outreach.
+
+Subscribe to Demand on this product's **Billing** page after Flywheel is active. The engine itself is not in `src/`. See [the Demand pointer](docs/demand/README.md) and [the Demand product docs](flywheel-demand/docs/demand/00-product-foundation.md).
+
+```bash
+cd flywheel-demand && PYTHONPATH=. python examples/demand_funnel_demo.py
+```
+
 ## Architecture
 
 Each step follows:
@@ -41,18 +51,20 @@ Each step follows:
 ## Repository structure
 
 ```text
-config/       Business DNA example and schema
-docs/         Product and architecture documentation
-migrations/   Reproducible Alembic database migrations
-src/api/      FastAPI application, contracts, dependencies, and routes
-src/ai/       Provider-neutral AI contracts, prompts, adapters, and providers
-src/domain/   Domain types and state-transition rules
-src/engine/   Decision routing and process orchestration
-src/persistence/ Repository protocols and SQLAlchemy adapters
-tests/        Executable behavior specifications
-workflows/    Reusable workflow definitions
-examples/     Local executable workflow demonstrations
-web/widget/   Framework-free embeddable chat widget and demo page
+config/            Business DNA examples and schemas
+docs/              Product and architecture documentation
+docs/demand/       Pointer to the sibling Demand product
+flywheel-demand/   Product 2: attract-to-inquiry engine (separate product)
+migrations/        Reproducible Alembic database migrations
+src/api/           FastAPI application, contracts, dependencies, and routes
+src/ai/            Provider-neutral AI contracts, prompts, adapters, and providers
+src/domain/        Domain types and state-transition rules
+src/engine/        Decision routing and process orchestration
+src/persistence/   Repository protocols and SQLAlchemy adapters
+tests/             Executable behavior specifications
+workflows/         Reusable workflow definitions
+examples/          Local executable workflow demonstrations
+web/widget/        Framework-free embeddable chat widget and demo page
 ```
 
 ## Run the tests

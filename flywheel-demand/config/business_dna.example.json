@@ -1,0 +1,147 @@
+{
+  "schema_version": "1.1",
+  "business": {
+    "id": "acme-home-services",
+    "name": "Acme Home Services",
+    "industry": "home_services",
+    "description": "Residential plumbing and maintenance",
+    "timezone": "America/Chicago",
+    "currency": "USD"
+  },
+  "services": [
+    {
+      "id": "diagnostic-visit",
+      "name": "Diagnostic visit",
+      "description": "On-site diagnosis",
+      "duration_minutes": 60,
+      "fulfillment_type": "bookable",
+      "pricing": {"model": "fixed", "amount": 129, "tax_included": false},
+      "service_area_ids": ["metro"],
+      "intake_keywords": ["diagnostic", "diagnosis", "plumbing visit", "AC"],
+      "booking_allowed": true,
+      "qualification_questions": []
+    },
+    {
+      "id": "equipment-replacement",
+      "name": "Equipment replacement",
+      "description": "Replacement project quoted from configured project size",
+      "duration_minutes": 120,
+      "fulfillment_type": "quote_required",
+      "pricing": {"model": "custom_quote", "tax_included": false},
+      "quoting": {
+        "pricing_type": "formula",
+        "automatic_quote_allowed": true,
+        "quote_validity_days": 14,
+        "required_pricing_inputs": ["equipment_units"],
+        "pricing_input_questions": {
+          "equipment_units": "How many equipment units should the quote include?"
+        },
+        "formula": {
+          "base_amount": "500.00",
+          "components": [
+            {"input": "equipment_units", "unit_price": "2500.00"}
+          ]
+        },
+        "human_approval_threshold": "10000.00"
+      },
+      "service_area_ids": ["metro"],
+      "intake_keywords": ["equipment replacement", "replace equipment", "replacement"],
+      "booking_allowed": false,
+      "qualification_questions": []
+    }
+  ],
+  "service_areas": [
+    {"id": "metro", "type": "postal_codes", "values": ["60601", "60602"]}
+  ],
+  "business_hours": {
+    "monday": [{"opens": "08:00", "closes": "17:00"}],
+    "tuesday": [{"opens": "08:00", "closes": "17:00"}],
+    "wednesday": [{"opens": "08:00", "closes": "17:00"}],
+    "thursday": [{"opens": "08:00", "closes": "17:00"}],
+    "friday": [{"opens": "08:00", "closes": "17:00"}]
+  },
+  "customer_information": {
+    "required_fields": ["name", "phone", "service_address", "service_id"],
+    "optional_fields": ["email", "preferred_time", "notes"],
+    "field_questions": {
+      "name": "What name should we use for the request?",
+      "phone": "What is the best phone number to reach you?",
+      "service_address": "What is the service ZIP code?",
+      "service_id": "Which service do you need?"
+    }
+  },
+  "qualification": {
+    "rules": [
+      {"field": "service_area_id", "operator": "in", "value": ["metro"], "outcome": "qualified"}
+    ],
+    "default_outcome": "needs_human",
+    "enforce_service_area": true,
+    "lost_message": "Sorry, this request is outside the services or area we currently support."
+  },
+  "booking": {
+    "enabled": true,
+    "timezone": "America/Chicago",
+    "minimum_notice_minutes": 120,
+    "maximum_advance_days": 60,
+    "slot_interval_minutes": 30,
+    "buffer_before_minutes": 15,
+    "buffer_after_minutes": 15,
+    "allowed_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+    "allowed_times": [{"starts": "09:00", "ends": "16:00"}],
+    "capacity": 1,
+    "proposal_count": 3,
+    "proposal_ttl_minutes": 30,
+    "requires_confirmation": true,
+    "cancellation_notice_hours": 24,
+    "rescheduling": {"allowed": true, "minimum_notice_hours": 24},
+    "cancellation": {"allowed": true, "minimum_notice_hours": 24}
+  },
+  "sales": {
+    "quote_expiry_days": 14,
+    "follow_up": {"delays_hours": [24, 72, 168], "maximum_attempts": 3}
+  },
+  "payment": {
+    "currency": "USD",
+    "timing": "before_service",
+    "accepted_methods": ["card", "bank_transfer"],
+    "deposit": {
+      "required": true,
+      "type": "percentage",
+      "percentage": "20.00",
+      "fixed_amount": null
+    },
+    "request_expiry_hours": 72,
+    "human_approval_above": "10000.00"
+  },
+  "communication": {
+    "channels": ["sms", "email", "webchat"],
+    "default_channel": "sms",
+    "language": "English",
+    "tone": "friendly, concise, and professional",
+    "quiet_hours": {"starts": "20:00", "ends": "08:00"}
+  },
+  "chat_widget": {
+    "enabled": true,
+    "title": "Chat with Acme Home Services",
+    "welcome_message": "Hi! Tell us what you need help with.",
+    "qualified_message": "Thanks — we have the information we need. Our team will review the next step with you.",
+    "closed_message": "This conversation is complete. Please contact us if you need more help."
+  },
+  "ai_permissions": {
+    "allowed": ["classify_intent", "extract_customer_details", "draft_message", "recommend_next_step"],
+    "forbidden": ["issue_refund", "change_price", "capture_payment", "make_legal_commitment"],
+    "minimum_confidence": 0.8
+  },
+  "human_escalation": {
+    "triggers": ["low_confidence", "customer_request", "complaint", "high_value", "policy_exception"],
+    "queue": "operations",
+    "response_target_minutes": 30,
+    "customer_message": "A team member needs to review your request and will follow up shortly."
+  },
+  "integrations": {
+    "crm": {"provider": null, "connection_reference": null},
+    "calendar": {"provider": null, "connection_reference": null},
+    "payments": {"provider": null, "connection_reference": null},
+    "messaging": {"provider": null, "connection_reference": null}
+  }
+}

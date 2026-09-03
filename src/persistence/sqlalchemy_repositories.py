@@ -101,6 +101,11 @@ def _business_from_row(row: BusinessRow) -> Business:
         billing_event_at=_aware(row.billing_event_at) if row.billing_event_at else None,
         test_mode_enabled=row.test_mode_enabled,
         stats_since=_aware(row.stats_since) if row.stats_since else None,
+        demand_payment_subscription_id=row.demand_payment_subscription_id,
+        demand_subscription_status=row.demand_subscription_status,
+        demand_trial_ends_at=_aware(row.demand_trial_ends_at) if row.demand_trial_ends_at else None,
+        demand_current_period_end=_aware(row.demand_current_period_end) if row.demand_current_period_end else None,
+        demand_billing_event_at=_aware(row.demand_billing_event_at) if row.demand_billing_event_at else None,
     )
 
 
@@ -123,6 +128,11 @@ class SQLAlchemyBusinessRepository:
             billing_event_at=business.billing_event_at,
             test_mode_enabled=business.test_mode_enabled,
             stats_since=business.stats_since,
+            demand_payment_subscription_id=business.demand_payment_subscription_id,
+            demand_subscription_status=business.demand_subscription_status,
+            demand_trial_ends_at=business.demand_trial_ends_at,
+            demand_current_period_end=business.demand_current_period_end,
+            demand_billing_event_at=business.demand_billing_event_at,
         ))
 
     def get(self, business_id: str) -> Business | None:
@@ -154,6 +164,21 @@ class SQLAlchemyBusinessRepository:
         rows = self.session.scalars(
             select(BusinessRow)
             .where(BusinessRow.payment_subscription_id == payment_subscription_id)
+            .limit(2)
+        ).all()
+        if len(rows) != 1:
+            return None
+        return _business_from_row(rows[0])
+
+    def get_by_demand_payment_subscription_id(
+        self, demand_payment_subscription_id: str
+    ) -> Business | None:
+        rows = self.session.scalars(
+            select(BusinessRow)
+            .where(
+                BusinessRow.demand_payment_subscription_id
+                == demand_payment_subscription_id
+            )
             .limit(2)
         ).all()
         if len(rows) != 1:
@@ -199,6 +224,38 @@ class SQLAlchemyBusinessRepository:
         row.current_period_end = current_period_end
         if event_at is not None:
             row.billing_event_at = event_at
+        row.updated_at = utc_now()
+        self.session.flush()
+        return _business_from_row(row)
+
+    def update_demand_billing(
+        self,
+        business_id: str,
+        *,
+        payment_customer_id: str | None,
+        demand_payment_subscription_id: str | None,
+        demand_subscription_status: str,
+        demand_trial_ends_at: datetime | None,
+        demand_current_period_end: datetime | None,
+        event_at: datetime | None = None,
+    ) -> Business:
+        row = self.session.scalar(
+            select(BusinessRow).where(BusinessRow.id == business_id).with_for_update()
+        )
+        if row is None:
+            raise KeyError(f"unknown business_id: {business_id}")
+        stored_event_at = _aware(row.demand_billing_event_at) if row.demand_billing_event_at else None
+        if stored_event_at is not None and (event_at is None or event_at < stored_event_at):
+            return _business_from_row(row)
+        if payment_customer_id is not None:
+            row.payment_customer_id = payment_customer_id
+        if demand_payment_subscription_id is not None:
+            row.demand_payment_subscription_id = demand_payment_subscription_id
+        row.demand_subscription_status = demand_subscription_status
+        row.demand_trial_ends_at = demand_trial_ends_at
+        row.demand_current_period_end = demand_current_period_end
+        if event_at is not None:
+            row.demand_billing_event_at = event_at
         row.updated_at = utc_now()
         self.session.flush()
         return _business_from_row(row)

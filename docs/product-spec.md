@@ -4,6 +4,8 @@
 
 AI Business Process Engine is a multi-tenant SaaS foundation for reusable customer-facing workflows. It serves SMBs whose operational journeys share a common structure but differ in policy, language, service catalog, and integrations.
 
+A sibling product, Flywheel Demand, sits upstream: it attracts people and hands an inbound inquiry to this engine at `NEW_LEAD`. Demand lives in `flywheel-demand/`; this repository sells the add-on on Billing and receives the inquiry JSON. Demand is not part of this document.
+
 ## Problem and approach
 
 Businesses repeatedly implement the same coordination logic across inboxes, calendars, spreadsheets, and staff. The engine separates that reusable process logic from tenant-specific **Business DNA**. A business can configure identity, services, prices, geography, hours, customer-data requirements, qualification, booking, sales, payment, communications, AI permissions, escalation, and integration references without changing Python code.

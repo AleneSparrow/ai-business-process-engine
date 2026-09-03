@@ -33,6 +33,10 @@ function needsPlanSelection(status: BillingStatus): boolean {
   return status.subscription_status === "incomplete" || status.subscription_status === "expired";
 }
 
+function needsDemandSelection(status: BillingStatus): boolean {
+  return status.demand_subscription_status === "incomplete" || status.demand_subscription_status === "expired";
+}
+
 // on_trial deliberately uses the brand's functional accent (amber, not the
 // bronze brand accent) -- per the brand book, amber marks "active, in
 // motion" product states, and a running trial is exactly that.
@@ -60,6 +64,7 @@ export default function Billing() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingPlan, setPendingPlan] = useState<BillingPlan | null>(null);
+  const [pendingDemand, setPendingDemand] = useState(false);
   const [openingPortal, setOpeningPortal] = useState(false);
 
   const checkoutResult = searchParams.get("checkout"); // "success" | null
@@ -101,6 +106,19 @@ export default function Billing() {
     }
   };
 
+  const startDemandCheckout = async () => {
+    if (!token || !businessId) return;
+    setPendingDemand(true);
+    setActionError(null);
+    try {
+      const { checkout_url } = await api.createDemandCheckoutSession(token, businessId);
+      window.location.href = checkout_url;
+    } catch (err) {
+      setActionError(describeError(err));
+      setPendingDemand(false);
+    }
+  };
+
   const openPortal = async () => {
     if (!token || !businessId) return;
     setOpeningPortal(true);
@@ -120,7 +138,7 @@ export default function Billing() {
       <main className="flex-1 min-w-0 flex flex-col pt-14 md:pt-0">
         <header className="px-6 md:px-8 py-4 border-b border-[#E7E5DE]">
           <h1 className="text-xl" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Billing</h1>
-          <p className="text-sm text-[#6B6459] mt-0.5">Your Flywheel subscription — manage it yourself, any time.</p>
+          <p className="text-sm text-[#6B6459] mt-0.5">Your Flywheel subscription, and Demand if you add it — manage it yourself, any time.</p>
         </header>
 
         <div className="flex-1 px-6 md:px-8 py-8 max-w-3xl w-full">
@@ -229,6 +247,67 @@ export default function Billing() {
                     Your card is charged automatically after the trial unless you cancel first — no separate reminder, cancel any time from this page.
                   </p>
                 </>
+              )}
+
+              {status.has_billing_access && (
+                <div className="bg-white rounded-2xl border border-[#E7E5DE] p-6 mt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <div className="text-sm text-[#6B6459] mb-1">Separate product</div>
+                      <div className="text-lg font-semibold">Flywheel Demand</div>
+                    </div>
+                    <span
+                      className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full"
+                      style={{ color: STATUS_COPY[status.demand_subscription_status].color, backgroundColor: STATUS_COPY[status.demand_subscription_status].bg }}
+                    >
+                      {status.demand_subscription_status === "active" && <Check size={12} />}
+                      {(status.demand_subscription_status === "past_due" || status.demand_subscription_status === "unpaid") && <AlertTriangle size={12} />}
+                      {STATUS_COPY[status.demand_subscription_status].label}
+                    </span>
+                  </div>
+                  <p className="text-sm text-[#6B6459] mb-4 leading-relaxed">
+                    Attracts people with content or permission-based mailings until they inquire, then hands the inquiry to Flywheel at NEW_LEAD. Subscribe here; checkout shows the price.
+                  </p>
+                  {status.demand_subscription_status === "on_trial" && status.demand_trial_ends_at && (
+                    <p className="text-sm text-[#6B6459] mb-4">
+                      Demand trial ends {formatDate(status.demand_trial_ends_at)}.
+                    </p>
+                  )}
+                  {status.demand_subscription_status === "active" && status.demand_current_period_end && (
+                    <p className="text-sm text-[#6B6459] mb-4">Next Demand charge {formatDate(status.demand_current_period_end)}.</p>
+                  )}
+                  {status.demand_subscription_status === "cancelled" && status.demand_current_period_end && (
+                    <p className="text-sm text-[#6B6459] mb-4">
+                      Demand is cancelled — inquiries stay accepted until {formatDate(status.demand_current_period_end)}.
+                    </p>
+                  )}
+                  {(status.demand_subscription_status === "past_due" || status.demand_subscription_status === "unpaid") && (
+                    <p className="text-sm mb-4" style={{ color: "#8A5A17" }}>
+                      The last Demand payment didn't go through. Update the card below to keep inquiry handoff available.
+                    </p>
+                  )}
+                  {needsDemandSelection(status) ? (
+                    <button
+                      onClick={startDemandCheckout}
+                      disabled={pendingDemand || pendingPlan !== null}
+                      className="text-sm font-medium text-white px-4 py-2.5 rounded-lg flex items-center gap-2 disabled:opacity-60"
+                      style={{ backgroundColor: "#151515" }}
+                    >
+                      {pendingDemand && <Loader2 size={14} className="animate-spin" />}
+                      Subscribe to Demand
+                    </button>
+                  ) : (
+                    <button
+                      onClick={openPortal}
+                      disabled={openingPortal}
+                      className="text-sm font-medium text-white px-4 py-2.5 rounded-lg flex items-center gap-2 disabled:opacity-60"
+                      style={{ backgroundColor: "#151515" }}
+                    >
+                      {openingPortal ? <Loader2 size={14} className="animate-spin" /> : <ExternalLink size={14} />}
+                      Manage Demand
+                    </button>
+                  )}
+                </div>
               )}
             </>
           )}

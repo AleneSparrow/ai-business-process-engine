@@ -80,6 +80,27 @@ class BillingAlreadyActiveError(PersistenceError):
     """A business with current billing access must use the provider portal."""
 
 
+class DemandProductNotConfiguredError(PersistenceError):
+    """Demand checkout was requested but LEMONSQUEEZY_VARIANT_DEMAND is unset.
+
+    Optional on purpose: existing Flywheel deploys must still boot. The
+    Billing page returns 422 until Alena creates the Lemon Squeezy product
+    and sets the variant id.
+    """
+
+
+class DemandRequiresFlywheelSubscriptionError(PersistenceError):
+    """Demand is an add-on: the business must already have Flywheel access."""
+
+
+class DemandAlreadyActiveError(PersistenceError):
+    """Demand is already paid through; manage it in the customer portal."""
+
+
+class DemandSubscriptionRequiredError(PersistenceError):
+    """Demand handed off an inquiry, but this business has no Demand add-on."""
+
+
 class WebhookSignatureError(PersistenceError):
     """A request to the Lemon Squeezy webhook endpoint failed signature
     verification -- either not actually from Lemon Squeezy, or signed with a

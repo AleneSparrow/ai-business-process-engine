@@ -1,0 +1,199 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/marketing-dna-1.0.json",
+  "title": "Marketing DNA",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "business_id",
+    "market",
+    "segments",
+    "targeting",
+    "positioning",
+    "motions",
+    "content_plan",
+    "sequences",
+    "scoring",
+    "communication",
+    "compliance",
+    "handoff",
+    "approved_claim_ids",
+    "proof_claim_ids"
+  ],
+  "$defs": {
+    "nonempty": { "type": "string", "minLength": 1 },
+    "claim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "text", "substantiation", "status", "evidence"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonempty" },
+        "text": { "$ref": "#/$defs/nonempty" },
+        "substantiation": { "enum": ["business_dna", "owner_supplied", "none"] },
+        "status": { "enum": ["approved", "blocked"] },
+        "evidence": { "type": "string" }
+      }
+    },
+    "pillar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "stage", "format", "job", "cta", "allowed_claim_ids"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonempty" },
+        "stage": { "enum": ["aware", "engaged", "intent"] },
+        "format": { "enum": ["explainer", "comparison", "proof", "next_step"] },
+        "job": { "$ref": "#/$defs/nonempty" },
+        "cta": { "enum": ["none", "subscribe", "inquire"] },
+        "allowed_claim_ids": { "type": "array", "items": { "$ref": "#/$defs/nonempty" } }
+      }
+    }
+  },
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "business_id": { "$ref": "#/$defs/nonempty" },
+    "market": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["geography", "category", "jobs", "pains", "gains", "alternatives"],
+      "properties": {
+        "geography": { "$ref": "#/$defs/nonempty" },
+        "category": { "$ref": "#/$defs/nonempty" },
+        "jobs": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonempty" } },
+        "pains": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonempty" } },
+        "gains": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonempty" } },
+        "alternatives": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonempty" } }
+      }
+    },
+    "segments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "jobs", "pains"],
+        "properties": {
+          "id": { "$ref": "#/$defs/nonempty" },
+          "label": { "$ref": "#/$defs/nonempty" },
+          "jobs": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonempty" } },
+          "pains": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonempty" } }
+        }
+      }
+    },
+    "targeting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary_segment_id", "strategy"],
+      "properties": {
+        "primary_segment_id": { "$ref": "#/$defs/nonempty" },
+        "strategy": { "enum": ["concentrated", "differentiated", "undifferentiated"] }
+      }
+    },
+    "positioning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "competitive_alternatives",
+        "unique_attributes",
+        "value_themes",
+        "best_fit_customers",
+        "market_category",
+        "statement",
+        "claims"
+      ],
+      "properties": {
+        "competitive_alternatives": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonempty" } },
+        "unique_attributes": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonempty" } },
+        "value_themes": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/nonempty" } },
+        "best_fit_customers": { "$ref": "#/$defs/nonempty" },
+        "market_category": { "$ref": "#/$defs/nonempty" },
+        "statement": { "$ref": "#/$defs/nonempty" },
+        "claims": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/claim" } }
+      }
+    },
+    "motions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attract", "loyalty"],
+      "properties": {
+        "attract": { "type": "boolean" },
+        "loyalty": { "type": "boolean" }
+      }
+    },
+    "content_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pillars"],
+      "properties": {
+        "pillars": { "type": "array", "items": { "$ref": "#/$defs/pillar" } }
+      }
+    },
+    "sequences": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["welcome"],
+      "properties": {
+        "welcome": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["channel", "include_proof_step"],
+          "properties": {
+            "channel": { "enum": ["email", "sms"] },
+            "include_proof_step": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "scoring": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["aware_min", "engaged_min", "intent_min"],
+      "properties": {
+        "aware_min": { "type": "integer", "minimum": 0 },
+        "engaged_min": { "type": "integer", "minimum": 0 },
+        "intent_min": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "communication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["language", "tone"],
+      "properties": {
+        "language": { "$ref": "#/$defs/nonempty" },
+        "tone": { "$ref": "#/$defs/nonempty" }
+      }
+    },
+    "compliance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ai_disclosure_required",
+        "can_spam",
+        "tcpa_sms",
+        "physical_postal_address",
+        "unsubscribe_required",
+        "opt_in_required_for_loyalty"
+      ],
+      "properties": {
+        "ai_disclosure_required": { "type": "boolean" },
+        "can_spam": { "type": "boolean" },
+        "tcpa_sms": { "type": "boolean" },
+        "physical_postal_address": { "type": ["string", "null"] },
+        "unsubscribe_required": { "type": "boolean" },
+        "opt_in_required_for_loyalty": { "type": "boolean" }
+      }
+    },
+    "handoff": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["target", "entry_state", "source"],
+      "properties": {
+        "target": { "const": "business_process_engine" },
+        "entry_state": { "const": "NEW_LEAD" },
+        "source": { "const": "flywheel_demand" }
+      }
+    },
+    "approved_claim_ids": { "type": "array", "items": { "$ref": "#/$defs/nonempty" } },
+    "proof_claim_ids": { "type": "array", "items": { "$ref": "#/$defs/nonempty" } }
+  }
+}
