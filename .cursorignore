@@ -1,0 +1,3 @@
+# Restrict Cursor indexing and agent access to archived, out-of-scope material.
+# See archive/README.md. Move an item out of archive/ to work on it again.
+archive/
