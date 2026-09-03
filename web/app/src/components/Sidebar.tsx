@@ -126,6 +126,7 @@ function MobileNav({
   onSelectBusiness: (businessId: string) => void;
   onLogout: () => void;
 }) {
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
   const go = (path: string) => {
@@ -200,7 +201,15 @@ function MobileNav({
                 <NavItem icon={CreditCard} label="Billing" active={view === "billing"} onClick={() => go("/app/billing")} />
                 <NavItem icon={Plus} label="Add another business" active={false} onClick={() => go("/onboarding")} />
                 <div className="border-t border-[#F0EFE9] mt-3 pt-3">
-                  <NavItem icon={User} label="Account" active={view === "account"} onClick={() => go("/app/account")} />
+                  <NavItem
+                    icon={User}
+                    label="Account"
+                    active={view === "account"}
+                    onClick={() => {
+                      setOpen(false);
+                      navigate({ pathname: "/app/account", hash: "" });
+                    }}
+                  />
                   <NavItem icon={HelpCircle} label="FAQ" active={view === "faq"} onClick={() => go("/app/account#faq")} />
                 </div>
               </nav>
