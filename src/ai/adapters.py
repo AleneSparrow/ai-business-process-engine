@@ -15,6 +15,13 @@ from src.domain.qualification import (
     Urgency,
 )
 from src.domain.conversations import MessageRole
+from src.domain.risk_cues import (
+    ADVICE_OR_COMMITMENT_CUE as _ADVICE_OR_COMMITMENT_CUE,
+    HIGH_URGENCY_CUE as _HIGH_URGENCY_CUE,
+    HOSTILE_CUE as _HOSTILE_CUE,
+    HUMAN_REQUEST_CUE as _HUMAN_REQUEST_CUE,
+    SAFETY_CUE as _SAFETY_CUE,
+)
 
 from .errors import AIConfigurationError, AIInvalidOutputError
 from .models import (
@@ -75,37 +82,11 @@ _UNSAFE_CUSTOMER_COMMITMENT = re.compile(
 _EMAIL = re.compile(r"\b[^@\s]+@[^@\s]+\.[^@\s]+\b")
 _PHONE = re.compile(r"(?<!\w)(?:\+?\d[\d .()\-]{5,}\d)(?!\w)")
 
-# A provider occasionally over-escalates an otherwise clear sales inquiry
-# because the subject merely sounds sensitive ("my daughter needs algebra
-# help") or because a problem is unpleasant but not explicitly time-critical
-# ("the ceiling leaked after the storm").  These expressions are a narrow
-# deterministic backstop for that live failure mode.  They do not attempt to
-# classify the whole message; they only decide whether it is safe to override
-# an unexplained provider flag on a high-confidence, catalog-resolved request.
-_HIGH_URGENCY_CUE = re.compile(
-    r"\b(?:urgent(?:ly)?|asap|right away|immediately|today|tonight|now|"
-    r"cannot wait|can't wait|time[- ]sensitive)\b",
-    re.IGNORECASE,
-)
-_SAFETY_CUE = re.compile(
-    r"\b(?:emergency|cannot breathe|can't breathe|trouble breathing|chest pain|"
-    r"hurt myself|kill myself|suicid\w*|unconscious|severe bleeding|gas leak|"
-    r"on fire|electrical sparks?|in danger|unsafe)\b",
-    re.IGNORECASE,
-)
-_ADVICE_OR_COMMITMENT_CUE = re.compile(
-    r"\b(?:tell me exactly|what should i|should i|advise me|legal advice|"
-    r"medical advice|diagnose me|decide for me|guarantee|promise|invest it)\b",
-    re.IGNORECASE,
-)
-_HOSTILE_CUE = re.compile(
-    r"\b(?:fuck(?:ing)?|bullshit|idiot|moron|stupid|scam(?:mer)?|fraud)\b",
-    re.IGNORECASE,
-)
-_HUMAN_REQUEST_CUE = re.compile(
-    r"\b(?:human|real person|live person|someone|representative|operator|agent|manager|supervisor)\b",
-    re.IGNORECASE,
-)
+# Cue regexes live in src.domain.risk_cues so the deterministic fallback
+# extractor uses the same backstop as this calibrator. They do not classify
+# the whole message; they only decide whether it is safe to override an
+# unexplained provider flag, or whether a provider-down fallback must still
+# escalate an explicit emergency or advice request.
 
 
 def _communication(business_dna: Mapping[str, object]) -> Mapping[str, object]:
