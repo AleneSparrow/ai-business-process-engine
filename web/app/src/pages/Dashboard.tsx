@@ -205,7 +205,11 @@ export default function Dashboard() {
       .listCases(token, businessId, {
         startDate: startDate || undefined,
         endDate: endDate || undefined,
-        includeTest: includeTestData,
+        // Test-mode conversations stay in the lead list. Settings copy says
+        // they remain visible in the audit trail and only drop out of
+        // statistics until the owner goes live — hiding them here made a
+        // fresh trial look empty after a successful widget chat.
+        includeTest: true,
       })
       .then((res) => {
         if (cancelled) return;
@@ -527,8 +531,8 @@ export default function Dashboard() {
                   <label className="text-xs text-[#6B6459] flex items-center gap-2">
                     <input type="checkbox" checked={includeTestData} onChange={(event) => setIncludeTestData(event.target.checked)} className="accent-[#B87333]" />
                     {includeTestData
-                      ? "Including test data"
-                      : `Test data hidden · ${analytics.hidden_test_conversations} conversations / ${analytics.hidden_test_cases} cases`}
+                      ? "Statistics include test data"
+                      : `Statistics hide test data · ${analytics.hidden_test_conversations} conversations / ${analytics.hidden_test_cases} cases`}
                   </label>
                 )}
                 {analytics?.stats_since && !startDate && !endDate && (
