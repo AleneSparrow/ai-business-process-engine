@@ -136,7 +136,8 @@ def _unintelligible_exhausted():
 @_case("low_confidence")
 def _low_confidence():
     intent = IntentResult(confidence=0.1)
-    return _base_dna(), intent, {}, ProcessState.NEEDS_HUMAN, QualificationReasonCode.LOW_CONFIDENCE
+    case_metadata = {"clarification_attempts": QualificationService.MAX_CLARIFICATION_ATTEMPTS}
+    return _base_dna(), intent, case_metadata, ProcessState.NEEDS_HUMAN, QualificationReasonCode.LOW_CONFIDENCE
 
 
 @_case("safety_emergency")

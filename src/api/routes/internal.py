@@ -17,6 +17,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Header
 
 from src.domain.models import utc_now
+from src.persistence.commercial_expiry import CommercialExpirySweep
+from src.persistence.crm_webhook_service import CrmWebhookService
 from src.persistence.follow_up_service import FollowUpSweepResult, PersistentFollowUpRunner
 from src.persistence.sms_service import SmsService
 
@@ -57,3 +59,27 @@ def run_follow_up_sweep(
         "follow_ups_sent": result.follow_ups_sent,
         "follow_ups_skipped_stale": result.follow_ups_skipped_stale,
     }
+
+
+@router.post(
+    "/integrations/deliver",
+    summary="Deliver due CRM outbox rows",
+)
+def deliver_integration_outbox(
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    x_internal_task_secret: Annotated[str | None, Header()] = None,
+) -> dict[str, int]:
+    _require_task_secret(container, x_internal_task_secret)
+    return CrmWebhookService(container.unit_of_work_factory).deliver_due()
+
+
+@router.post(
+    "/commercial/expire",
+    summary="Expire due quotes and payment requests across tenants",
+)
+def expire_due_commercial_items(
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    x_internal_task_secret: Annotated[str | None, Header()] = None,
+) -> dict[str, int]:
+    _require_task_secret(container, x_internal_task_secret)
+    return CommercialExpirySweep(container.unit_of_work_factory).run(utc_now())

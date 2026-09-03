@@ -71,6 +71,7 @@ def update_settings(
                     commercial_path=item.commercial_path,
                     quote_price=item.quote_price,
                     next_step_message=item.next_step_message,
+                    intake_keywords=item.intake_keywords,
                 )
                 for item in body.services
             ),
@@ -90,6 +91,8 @@ def update_settings(
                 )
                 for item in body.objection_responses
             ),
+            compliance_disclaimer=body.compliance_disclaimer,
+            ai_disclosure_text=body.ai_disclosure_text,
         )
         dna = service.update(business_id, update)
     except BusinessDNANotConfiguredError as exc:

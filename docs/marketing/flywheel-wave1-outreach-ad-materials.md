@@ -16,7 +16,7 @@ Two variants, both under LinkedIn's 300-character limit.
 
 **Variant A — the gap, stated plainly:**
 
-> Hi [First Name] — came across your practice in [City]. Most intake tools take a message and hand it to you. I'm building one that qualifies the caller and books the consultation on your calendar, then hands you a prepared matter. Worth a look?
+> Hi [First Name] — came across your practice in [City]. Most intake tools take a message and hand it to you. I'm building one that qualifies the caller and books the consultation in Flywheel, then hands you a prepared matter. Worth a look?
 
 **Variant B — with the number:**
 
@@ -30,7 +30,7 @@ Two variants, both under LinkedIn's 300-character limit.
 >
 > Quick context. Cost per lead in legal services runs around $649, and solo practices lose a real share of inbound calls to after-hours voicemail that never gets returned. That is marketing money already spent, walking away.
 >
-> Most tools built for this stop at capture — they take a name and a number and put it in your inbox, and the work of qualifying and scheduling still lands on you. Flywheel goes the rest of the way: it answers around the clock, asks your qualifying questions, handles the "how much is this going to cost me" hesitation using only facts you approved, and books the consultation on your calendar. You get a prepared matter, not a message to return.
+> Most tools built for this stop at capture — they take a name and a number and put it in your inbox, and the work of qualifying and scheduling still lands on you. Flywheel goes the rest of the way: it answers around the clock, asks your qualifying questions, handles the "how much is this going to cost me" hesitation using only facts you approved, and books the consultation in Flywheel. You get a prepared matter, not a message to return.
 >
 > The part that makes it safe to put in front of your clients: the AI never decides what to say. It rewords content you already approved, inside a script you control, so it cannot estimate odds, promise an outcome, or drift into advice. That is how the message pipeline is built, not a line in a prompt. And it identifies itself as AI in every conversation — the disclosure California SB 243 and New York Article 47 already require.
 >
@@ -54,7 +54,7 @@ Two variants, both under LinkedIn's 300-character limit.
 >
 > Most tools sold to firms for this stop at capture. They take a name and a number and drop it in your inbox. The qualifying, the follow-up, the scheduling — that still lands on you or your assistant, usually the next business day.
 >
-> **Flywheel goes the rest of the way.** It answers every inquiry 24/7, asks the qualifying questions you defined, addresses the cost and "do I even need a lawyer" hesitation using only facts you approved, follows up with people who go quiet, and books the consultation on your calendar. What reaches you is a prepared matter with the details already collected.
+> **Flywheel goes the rest of the way.** It answers every inquiry 24/7, asks the qualifying questions you defined, addresses the cost and "do I even need a lawyer" hesitation using only facts you approved, follows up with people who go quiet, and books the consultation in Flywheel. What reaches you is a prepared matter with the details already collected.
 >
 > Two things make it safe to put in front of your clients:
 >
@@ -77,7 +77,7 @@ For LinkedIn and search ads pointing at the Wave 1 landing page. Specifics-first
 **Ad set 1 — the category gap (primary):**
 
 - **Headline:** Most intake tools stop at "we'll get back to you."
-- **Body:** Flywheel qualifies the caller, answers the cost question, and books the consultation on your calendar. You get a prepared matter, not a message to return.
+- **Body:** Flywheel qualifies the caller, answers the cost question, and books the consultation in Flywheel. You get a prepared matter, not a message to return.
 - **CTA:** Start free trial
 
 **Ad set 2 — cost angle:**
@@ -106,7 +106,7 @@ For directory listings, LinkedIn company bio, PR mentions, Clio marketplace copy
 
 **One line:** Flywheel is an AI engine that carries an inquiry through to a booked consultation — answering, qualifying, following up, and scheduling on a script the attorney approves, which the AI can reword but never improvise past.
 
-**Two lines (bio length):** Flywheel is an AI engine for solo law practices that carries an inquiry all the way to a booked consultation: it answers around the clock, asks your qualifying questions, addresses cost and fit objections using only facts you approved, follows up with people who go quiet, and schedules the consult on your calendar. The AI never decides what to say — it rewords approved content inside a script you control, so it cannot give legal advice, estimate odds, or promise an outcome, and it identifies itself as AI in every conversation.
+**Two lines (bio length):** Flywheel is an AI engine for solo law practices that carries an inquiry all the way to a booked consultation: it answers around the clock, asks your qualifying questions, addresses cost and fit objections using only facts you approved, follows up with people who go quiet, and schedules the consult in Flywheel. The AI never decides what to say — it rewords approved content inside a script you control, so it cannot give legal advice, estimate odds, or promise an outcome, and it identifies itself as AI in every conversation.
 
 ---
 

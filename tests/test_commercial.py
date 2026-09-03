@@ -24,6 +24,7 @@ from src.engine.commercial import (
     CommercialPathSelector,
     DeterministicAvailabilityEngine,
     DeterministicPricingEngine,
+    DeterministicQuoteReplyInterpreter,
     DeterministicSlotPreferenceInterpreter,
     payment_amount,
 )
@@ -645,3 +646,61 @@ def test_get_proposed_slots_ignores_case_metadata() -> None:
         real_conversation_metadata, occurred_at=NOW
     )
     assert [slot.slot_id for slot in slots] == ["slot-1"]
+
+
+def test_quote_accept_phrases_and_conditions(tmp_path) -> None:
+    engine, factory, dna, case_id = make_factory(tmp_path, "equipment-replacement")
+    interpreter = DeterministicQuoteReplyInterpreter()
+    assert interpreter.interpret("sounds good, lets do it").decision == "accept"
+    assert interpreter.interpret("works for me").decision == "accept"
+    assert interpreter.interpret("no thanks").decision == "decline"
+    assert interpreter.interpret("not right now").decision == "unclear"
+    assert interpreter.interpret("only if it's under 200").decision == "unclear"
+    service = CommercialWorkflowService()
+    metadata: dict = {}
+    with factory() as uow:
+        case = uow.cases.get(dna["business"]["id"], case_id)
+        service.initialize(uow, case, dna, metadata, occurred_at=NOW)
+        service.handle_message(uow, case, dna, metadata, "1", occurred_at=NOW)
+        response = service.handle_message(
+            uow, case, dna, metadata, "sounds good, lets do it", occurred_at=NOW
+        )
+        assert response.reason == "quote_accepted"
+        uow.commit()
+    engine.dispose()
+
+
+def test_option_two_please_books_second_slot(tmp_path) -> None:
+    engine, factory, dna, case_id = make_factory(tmp_path, "diagnostic-visit")
+    service = CommercialWorkflowService()
+    metadata: dict = {}
+    with factory() as uow:
+        case = uow.cases.get(dna["business"]["id"], case_id)
+        first = service.initialize(uow, case, dna, metadata, occurred_at=NOW)
+        assert first.reason == "booking_slots_proposed"
+        response = service.handle_message(
+            uow, case, dna, metadata, "Option 2 please", occurred_at=NOW
+        )
+        assert response.reason == "booking_confirmed"
+        assert case.current_state is ProcessState.BOOKED
+        uow.commit()
+    engine.dispose()
+
+
+def test_remote_slots_use_customer_timezone_without_changing_availability(tmp_path) -> None:
+    engine, factory, dna, case_id = make_factory(tmp_path, "diagnostic-visit")
+    dna["service_areas"] = [{"id": "metro", "type": "remote", "values": ["everywhere"]}]
+    service = CommercialWorkflowService()
+    remote_meta: dict = {"customer_timezone": "America/Los_Angeles"}
+    onsite_meta: dict = {}
+    with factory() as uow:
+        case = uow.cases.get(dna["business"]["id"], case_id)
+        onsite = service.initialize(uow, case, load_dna(), onsite_meta, occurred_at=NOW)
+        remote = service.initialize(uow, case, dna, remote_meta, occurred_at=NOW)
+        uow.commit()
+    remote_ids = [slot["slot_id"] for slot in remote_meta["commercial"]["slots"]]
+    onsite_ids = [slot["slot_id"] for slot in onsite_meta["commercial"]["slots"]]
+    assert remote_ids == onsite_ids
+    assert "PDT" in remote.message_text or "PST" in remote.message_text
+    assert "CDT" in onsite.message_text or "CST" in onsite.message_text
+    engine.dispose()

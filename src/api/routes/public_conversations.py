@@ -160,6 +160,7 @@ def create_conversation(
         correlation_id=getattr(request.state, "request_id", None),
         conversation_token=payload.conversation_token,
         sms_consent=payload.sms_consent,
+        customer_timezone=payload.customer_timezone,
     )
     request.state.conversation_id = result.internal_conversation_id
     request.state.resulting_state = result.current_state.value if result.current_state else None

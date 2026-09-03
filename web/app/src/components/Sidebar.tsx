@@ -117,7 +117,7 @@ function MobileNav({
   onSelectBusiness,
   onLogout,
 }: {
-  view: "dashboard" | "conversation" | "settings" | "billing";
+  view: "dashboard" | "conversation" | "settings" | "billing" | "account";
   businesses: OwnedBusiness[];
   businessId: string | null;
   businessName: string | null;
@@ -165,23 +165,30 @@ function MobileNav({
           <div className="absolute inset-0 bg-black/30" onClick={() => setOpen(false)} />
           <div className="relative w-64 max-w-[80%] h-full bg-white px-4 py-5 flex flex-col justify-between shadow-xl">
             <div>
-              <div className="flex items-center justify-between mb-6 px-2 gap-2">
-                {businesses.length > 1 ? (
-                  <BusinessSwitcher
-                    businesses={businesses}
-                    activeId={businessId}
-                    onSelect={(id) => {
-                      setOpen(false);
-                      onSelectBusiness(id);
-                    }}
-                    onAddBusiness={() => go("/onboarding")}
-                  />
-                ) : (
-                  <div className="min-w-0">
+              <div className="flex items-start justify-between mb-6 px-2 gap-2">
+                <div className="min-w-0 flex-1">
+                  {businesses.length > 1 ? (
+                    <BusinessSwitcher
+                      businesses={businesses}
+                      activeId={businessId}
+                      onSelect={(id) => {
+                        setOpen(false);
+                        onSelectBusiness(id);
+                      }}
+                      onAddBusiness={() => go("/onboarding")}
+                    />
+                  ) : (
                     <div className="text-sm font-semibold leading-tight truncate">{businessName ?? "Your business"}</div>
-                    <div className="text-[11px] text-[#6B6459] leading-tight truncate">{email}</div>
-                  </div>
-                )}
+                  )}
+                  <button
+                    type="button"
+                    aria-label="Open personal account"
+                    onClick={() => go("/app/account")}
+                    className="block max-w-full text-[11px] text-[#6B6459] leading-tight truncate rounded-sm hover:text-[#B87333] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B87333] focus-visible:ring-offset-2 transition-colors"
+                  >
+                    {email}
+                  </button>
+                </div>
                 <button onClick={() => setOpen(false)} aria-label="Close menu" className="p-1 shrink-0" style={{ color: "#6B6459" }}>
                   <X size={18} />
                 </button>
@@ -240,11 +247,13 @@ export function Sidebar() {
 
   const view = location.pathname.startsWith("/app/settings")
     ? "settings"
-    : location.pathname.startsWith("/app/billing")
-      ? "billing"
-      : location.pathname.startsWith("/app/conversations")
-        ? "conversation"
-        : "dashboard";
+    : location.pathname.startsWith("/app/account")
+      ? "account"
+      : location.pathname.startsWith("/app/billing")
+        ? "billing"
+        : location.pathname.startsWith("/app/conversations")
+          ? "conversation"
+          : "dashboard";
 
   async function handleLogout() {
     await logout();
@@ -286,7 +295,14 @@ export function Sidebar() {
                   <div className="text-sm font-semibold leading-tight truncate">{businessName ?? "Your business"}</div>
                 </button>
               )}
-              <div className="text-[11px] text-[#6B6459] leading-tight truncate">{user?.email}</div>
+              <button
+                type="button"
+                aria-label="Open personal account"
+                onClick={() => navigate("/app/account")}
+                className="block max-w-full text-[11px] text-[#6B6459] leading-tight truncate rounded-sm hover:text-[#B87333] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B87333] focus-visible:ring-offset-2 transition-colors"
+              >
+                {user?.email}
+              </button>
             </div>
           </div>
           <nav className="flex flex-col gap-1">

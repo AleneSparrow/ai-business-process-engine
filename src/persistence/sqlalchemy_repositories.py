@@ -497,6 +497,7 @@ class SQLAlchemyStaffUserRepository:
             business_id=user.business_id,
             email=user.email,
             normalized_email=user.normalized_email,
+            name=user.name,
             password_hash=user.password_hash,
             created_at=user.created_at,
         ))
@@ -523,6 +524,7 @@ class SQLAlchemyStaffUserRepository:
             raise KeyError(f"unknown staff user_id: {user.user_id}")
         row.business_id = user.business_id
         row.email = user.email
+        row.name = user.name
         row.password_hash = user.password_hash
         # Add any businesses in user.business_ids not yet recorded as a
         # membership. Memberships are additive here -- nothing in the domain
@@ -556,7 +558,7 @@ class SQLAlchemyStaffUserRepository:
             business_ids = (*business_ids, row.business_id)
         return StaffUser(
             row.id, row.email, row.normalized_email, row.password_hash,
-            row.business_id, _aware(row.created_at), business_ids,
+            row.business_id, _aware(row.created_at), business_ids, row.name,
         )
 
 
@@ -946,12 +948,26 @@ class SQLAlchemyProcessCaseRepository:
             raise StaleCaseError(f"case version conflict: {case.case_id}")
         case.mark_persisted(new_version)
 
-    def list_for_business(self, business_id: str, *, limit: int | None = 200) -> tuple[ProcessCase, ...]:
+    def list_for_business(
+        self,
+        business_id: str,
+        *,
+        limit: int | None = 200,
+        created_at_from: datetime | None = None,
+        created_at_to: datetime | None = None,
+        include_test: bool = True,
+    ) -> tuple[ProcessCase, ...]:
         statement = (
             select(ProcessCaseRow)
             .where(ProcessCaseRow.business_id == business_id)
             .order_by(ProcessCaseRow.updated_at.desc())
         )
+        if created_at_from is not None:
+            statement = statement.where(ProcessCaseRow.created_at >= created_at_from)
+        if created_at_to is not None:
+            statement = statement.where(ProcessCaseRow.created_at < created_at_to)
+        if not include_test:
+            statement = statement.where(ProcessCaseRow.is_test.is_(False))
         if limit is not None:
             statement = statement.limit(limit)
         rows = self.session.scalars(statement)

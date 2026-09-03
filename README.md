@@ -220,6 +220,6 @@ Every tenant-owned repository lookup requires `business_id`, and composite forei
 
 ## Next milestone
 
-Replace the process-local public rate limiter for multi-worker deployments and introduce an outbox-backed integration boundary. Real calendar synchronization, customer payment collection, and broader outbound/integration delivery remain deferred.
+The public rate limiter is shared across workers via PostgreSQL (`rate_limit_hits`). CRM webhook delivery uses a durable `integration_outbox` row plus `POST /api/v1/internal/integrations/deliver`. Quote and payment expiration can be swept with `POST /api/v1/internal/commercial/expire`. Real calendar synchronization and collection of a customer's payment remain deferred.
 
 SMS, CRM webhook, and follow-up delivery are currently best-effort side effects after the database transaction. They are not physically exactly-once: an outage or process failure can lose or duplicate an external delivery. The next integration sprint needs a transactional outbox plus provider idempotency keys and retry observability.

@@ -4,6 +4,7 @@ import { Search, Bell, ArrowUpRight, Clock, Phone, Mail, Loader2, ArrowDown, Arr
 import { Sidebar } from "../components/Sidebar";
 import { useAuth, describeError } from "../auth/AuthContext";
 import { api, type DashboardAnalytics, type DashboardCaseSummary } from "../api/client";
+import { isoToUs, usToIso } from "../lib/usDate";
 import {
   STATE_META,
   Stepper,
@@ -18,28 +19,6 @@ const FILTERS: (CaseState | "ALL")[] = ["ALL", "NEEDS_HUMAN", "QUALIFYING", "BOO
 
 type SortKey = "date" | "name";
 type SortDirection = "asc" | "desc";
-
-/** ISO (what the API speaks) -> MM/DD/YYYY (what a US owner reads). */
-function isoToUs(iso: string): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
-  return match ? `${match[2]}/${match[3]}/${match[1]}` : "";
-}
-
-/** MM/DD/YYYY -> ISO, or null when it is not a real date. */
-function usToIso(text: string): string | null {
-  const match = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(text.trim());
-  if (!match) return null;
-  const month = Number(match[1]);
-  const day = Number(match[2]);
-  const year = Number(match[3]);
-  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  const iso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  const parsed = new Date(`${iso}T00:00:00Z`);
-  // Rejects 02/31 rather than letting Date roll it forward into March.
-  if (Number.isNaN(parsed.getTime())) return null;
-  if (parsed.getUTCDate() !== day || parsed.getUTCMonth() + 1 !== month) return null;
-  return iso;
-}
 
 /**
  * A month/day/year field in English, always.

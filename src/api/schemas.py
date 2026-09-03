@@ -236,9 +236,20 @@ class PublicConversationCreateRequest(ApiModel):
     # updated_lead ORs it in permanently; sending False here never revokes
     # a prior True.
     sms_consent: bool = False
+    customer_timezone: str | None = None
 
     @model_validator(mode="after")
     def require_complete_first_message(self) -> "PublicConversationCreateRequest":
+        if (self.message is None) != (self.external_message_id is None):
+            raise ValueError("message and external_message_id must be supplied together")
+        return self
+
+    @field_validator("customer_timezone")
+    @classmethod
+    def sanitize_optional_customer_timezone(cls, value: str | None) -> str | None:
+        from src.domain.customer_timezone import sanitize_customer_timezone
+
+        return sanitize_customer_timezone(value)
         if (self.message is None) != (self.external_message_id is None):
             raise ValueError("message and external_message_id must be supplied together")
         return self
@@ -467,12 +478,25 @@ class LoginRequest(ApiModel):
 
 class StaffUserResponse(ApiModel):
     user_id: str
+    name: str | None = None
     email: str
     business_id: str | None
     # Every business this account is linked to -- business_id above is just
     # the active one (a member of this list, or null when the list is
     # empty). An account may own more than one business.
     business_ids: list[str] = []
+
+
+class UpdateStaffProfileRequest(ApiModel):
+    name: Annotated[str, Field(min_length=1, max_length=120)]
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if not normalized:
+            raise ValueError("name cannot be blank")
+        return normalized
 
 
 class SessionResponse(ApiModel):
@@ -977,6 +1001,9 @@ class BusinessDNAServiceSchema(ApiModel):
     name: str
     questions: tuple[str, ...]
     commercial_path: str
+    quote_price: str | None = None
+    next_step_message: str | None = None
+    intake_keywords: tuple[str, ...] = ()
     # Only populated when commercial_path == "quote" and the underlying
     # quoting.pricing_type is "fixed" -- Settings only ever writes fixed-price
     # quotes (see BusinessDNASettingsService._apply), so a quote_required
@@ -998,13 +1025,20 @@ class BusinessDNAServiceSchema(ApiModel):
         next_step_message = None
         if commercial_path == "direct_step" and service.get("direct_next_step_message") is not None:
             next_step_message = str(service["direct_next_step_message"])
+        name = str(service["name"])
+        extras = tuple(
+            str(keyword)
+            for keyword in service.get("intake_keywords", [])
+            if isinstance(keyword, str) and keyword.strip() and keyword.strip().casefold() != name.casefold()
+        )
         return cls(
             id=str(service["id"]),
-            name=str(service["name"]),
+            name=name,
             questions=tuple(str(q["prompt"]) for q in service.get("qualification_questions", [])),
             commercial_path=commercial_path,
             quote_price=quote_price,
             next_step_message=next_step_message,
+            intake_keywords=extras,
         )
 
 
@@ -1045,6 +1079,8 @@ class BusinessDNASettingsResponse(ApiModel):
     business_hours: dict[str, tuple[BusinessHoursWindowSchema, ...]]
     objection_responses: tuple[ObjectionResponseSchema, ...] = ()
     widget_snippet: str = ""
+    compliance_disclaimer: str = ""
+    ai_disclosure_text: str = ""
 
     @classmethod
     def from_domain(cls, dna: BusinessDNAVersion, *, api_base: str | None = None) -> "BusinessDNASettingsResponse":
@@ -1091,6 +1127,8 @@ class BusinessDNASettingsResponse(ApiModel):
                 if isinstance(entry, Mapping)
             ),
             widget_snippet=_widget_embed_snippet(dna.business_id, api_base=api_base),
+            compliance_disclaimer=str(config.get("communication", {}).get("compliance_disclaimer", "") or ""),
+            ai_disclosure_text=str(config.get("chat_widget", {}).get("ai_disclosure_text", "") or ""),
         )
 
 
@@ -1107,6 +1145,7 @@ class BusinessDNAServiceUpdateSchema(ApiModel):
     commercial_path: Annotated[str, Field(min_length=1, max_length=32)] = "human_review"
     quote_price: Annotated[str | None, Field(max_length=32)] = None
     next_step_message: Annotated[str | None, Field(max_length=1000)] = None
+    intake_keywords: Annotated[tuple[Annotated[str, Field(min_length=1, max_length=80)], ...], Field(max_length=30)] = ()
 
 
 class ObjectionResponseUpdateSchema(ApiModel):
@@ -1137,3 +1176,5 @@ class BusinessDNASettingsUpdateRequest(ApiModel):
     # so an empty submission here genuinely clears any previously configured
     # entries rather than leaving them untouched.
     objection_responses: Annotated[tuple[ObjectionResponseUpdateSchema, ...], Field(max_length=50)] = ()
+    compliance_disclaimer: Annotated[str, Field(max_length=1000)] = ""
+    ai_disclosure_text: Annotated[str, Field(max_length=200)] = ""

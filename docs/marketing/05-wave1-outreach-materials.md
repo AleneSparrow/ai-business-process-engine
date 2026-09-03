@@ -78,7 +78,7 @@ Atelier works differently. The AI never decides what to tell your client — it 
 
 - Answers inbound leads on your website, day or night
 - Qualifies the case against the criteria you set — practice area, urgency, location
-- Books consultations directly onto your calendar
+- Books a consultation in Flywheel so you receive a prepared matter, not an empty inbox
 - Escalates to you (or your staff) exactly when your rules say to
 - Never estimates case outcomes, gives legal advice, or promises a result — by design, not by request
 

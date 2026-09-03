@@ -402,7 +402,13 @@
     return data;
   }
 
-  async function restore() {
+  function customerTimezone() {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+    } catch (error) {
+      return null;
+    }
+  }
     if (!conversationToken) {
       history.replaceChildren();
       if (config) {
@@ -470,6 +476,8 @@
       conversationToken = conversationTokenValue();
       window.localStorage.setItem(storageKey, conversationToken);
       const createPayload = { ...message, conversation_token: conversationToken };
+      const timezone = customerTimezone();
+      if (timezone) createPayload.customer_timezone = timezone;
       pendingCreate = JSON.stringify(createPayload);
       window.sessionStorage.setItem(pendingKey, pendingCreate);
       data = await request("/conversations", {

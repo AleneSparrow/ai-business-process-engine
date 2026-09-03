@@ -22,7 +22,7 @@ from ..schemas import (
     ChangePasswordRequest, CurrentPasswordRequest, ForgotPasswordRequest, LoginRequest, PasswordAndTwoFactorRequest, RecoveryCodesResponse,
     ResetPasswordRequest, SecurityAuditEventResponse, SecuritySessionResponse,
     SecurityStatusResponse, SessionResponse, SignupRequest, StaffUserResponse,
-    TwoFactorCodeRequest, TwoFactorLoginChallengeResponse, TwoFactorSetupResponse,
+    TwoFactorCodeRequest, TwoFactorLoginChallengeResponse, TwoFactorSetupResponse, UpdateStaffProfileRequest,
 )
 
 
@@ -44,6 +44,7 @@ def _session_response(session: AuthenticatedSession) -> SessionResponse:
         expires_in_hours=session.expires_at_hours,
         user=StaffUserResponse(
             user_id=session.user.user_id,
+            name=session.user.name,
             email=session.user.email,
             business_id=session.user.business_id,
             business_ids=list(session.user.business_ids),
@@ -124,9 +125,29 @@ def logout(
 def me(user: Annotated[StaffUser, Depends(get_current_staff_user)]) -> StaffUserResponse:
     return StaffUserResponse(
         user_id=user.user_id,
+        name=user.name,
         email=user.email,
         business_id=user.business_id,
         business_ids=list(user.business_ids),
+    )
+
+
+@router.patch("/me", response_model=StaffUserResponse)
+def update_me(
+    body: UpdateStaffProfileRequest,
+    user: Annotated[StaffUser, Depends(get_current_staff_user)],
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+) -> StaffUserResponse:
+    try:
+        updated = auth_service.update_profile(user, body.name)
+    except ValueError as exc:
+        raise RequestDataError("Enter a valid name") from exc
+    return StaffUserResponse(
+        user_id=updated.user_id,
+        name=updated.name,
+        email=updated.email,
+        business_id=updated.business_id,
+        business_ids=list(updated.business_ids),
     )
 
 

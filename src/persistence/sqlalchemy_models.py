@@ -154,6 +154,7 @@ class StaffUserRow(Base):
     )
     email: Mapped[str] = mapped_column(String(320), nullable=False)
     normalized_email: Mapped[str] = mapped_column(String(320), nullable=False)
+    name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
@@ -780,4 +781,44 @@ class PaymentRequestRow(Base):
         ),
         Index("ix_payment_requests_business_status", "business_id", "status", "expires_at"),
         Index("ix_payment_requests_business_case", "business_id", "case_id"),
+    )
+
+
+class RateLimitHitRow(Base):
+    """Shared sliding-window hits for public chat and account-security limits."""
+
+    __tablename__ = "rate_limit_hits"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    rate_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        Index("ix_rate_limit_hits_key_time", "rate_key", "occurred_at"),
+    )
+
+
+class IntegrationOutboxRow(Base):
+    """Durable CRM (and later SMS) delivery intent written before the HTTP call."""
+
+    __tablename__ = "integration_outbox"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    business_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON_VALUE, nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    attempt_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_error: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("status IN ('PENDING', 'SENT', 'FAILED')", name="ck_integration_outbox_status"),
+        CheckConstraint("attempt_count >= 0", name="ck_integration_outbox_attempts"),
+        Index("ix_integration_outbox_due", "status", "next_attempt_at"),
+        Index("ix_integration_outbox_business", "business_id", "created_at"),
     )

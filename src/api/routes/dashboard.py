@@ -70,12 +70,12 @@ def list_cases(
         if business is None:
             raise ResourceNotFoundError("business_not_found", "Business was not found")
         period_start, period_end = _analytics_period(business.stats_since, start_date, end_date)
-        cases = tuple(
-            case
-            for case in unit_of_work.cases.list_for_business(business_id, limit=None)
-            if (period_start is None or case.created_at >= period_start)
-            and (period_end is None or case.created_at < period_end)
-            and (include_test or not case.is_test)
+        cases = unit_of_work.cases.list_for_business(
+            business_id,
+            limit=None,
+            created_at_from=period_start,
+            created_at_to=period_end,
+            include_test=include_test,
         )
         dna = unit_of_work.business_dna.get_active(business_id)
         service_names = {
@@ -128,15 +128,12 @@ def get_dashboard_analytics(
         if business is None:
             raise ResourceNotFoundError("business_not_found", "Business was not found")
         period_start, period_end = _analytics_period(business.stats_since, start_date, end_date)
-        # limit=None on purpose: an aggregate must never silently become
-        # "the most recent 200 cases". `list_cases` above passes limit=None
-        # too, so the tiles and the list they filter are computed over the
-        # same population -- keep the two in step if either ever gains a cap.
-        all_cases = unit_of_work.cases.list_for_business(business_id, limit=None)
-        period_cases = tuple(
-            case for case in all_cases
-            if (period_start is None or case.created_at >= period_start)
-            and (period_end is None or case.created_at < period_end)
+        period_cases = unit_of_work.cases.list_for_business(
+            business_id,
+            limit=None,
+            created_at_from=period_start,
+            created_at_to=period_end,
+            include_test=True,
         )
         hidden_test_case_ids = {case.case_id for case in period_cases if case.is_test}
         hidden_test_cases = len(hidden_test_case_ids)

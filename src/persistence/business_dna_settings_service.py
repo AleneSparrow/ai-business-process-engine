@@ -82,6 +82,7 @@ class SettingsServiceInput:
     quote_price: str | None = None
     # Required (1-1000 chars) when commercial_path == "direct_step".
     next_step_message: str | None = None
+    intake_keywords: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.name.strip():
@@ -149,6 +150,8 @@ class SettingsUpdate:
     # non-empty. Settings is the sole owner of this list once touched here,
     # same convention as business_hours above.
     objection_responses: tuple[ObjectionResponseInput, ...] = ()
+    compliance_disclaimer: str = ""
+    ai_disclosure_text: str = ""
 
     def __post_init__(self) -> None:
         if not self.name.strip():
@@ -244,6 +247,10 @@ class BusinessDNASettingsService:
         config["business"]["name"] = update.name
         config["business"]["industry"] = update.industry
         config["communication"]["tone"] = update.tone
+        config["communication"]["compliance_disclaimer"] = update.compliance_disclaimer.strip()
+        chat_widget = config.get("chat_widget")
+        if isinstance(chat_widget, dict):
+            chat_widget["ai_disclosure_text"] = update.ai_disclosure_text.strip()
 
         existing_by_id = {service["id"]: service for service in config["services"]}
         used_ids: set[str] = set()
@@ -280,9 +287,13 @@ class BusinessDNASettingsService:
                 service["description"] = described.strip()
             elif not str(service.get("description", "")).strip():
                 service["description"] = item.name
-            service["intake_keywords"] = sorted(
-                {*service.get("intake_keywords", []), item.name.strip().casefold()}
-            )
+            extras = {
+                keyword.strip().casefold()
+                for keyword in item.intake_keywords
+                if keyword.strip()
+            }
+            extras.add(item.name.strip().casefold())
+            service["intake_keywords"] = sorted(extras)
             service["qualification_questions"] = [
                 {
                     "id": slugify(question, fallback=f"question-{index}"),

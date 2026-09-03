@@ -122,7 +122,15 @@ class ProcessCaseRepository(Protocol):
     ) -> ProcessCase | None: ...
     def find_active_for_lead(self, business_id: str, lead_id: str) -> ProcessCase | None: ...
     def save(self, case: ProcessCase, expected_version: int) -> None: ...
-    def list_for_business(self, business_id: str, *, limit: int | None = 200) -> tuple[ProcessCase, ...]: ...
+    def list_for_business(
+        self,
+        business_id: str,
+        *,
+        limit: int | None = 200,
+        created_at_from: datetime | None = None,
+        created_at_to: datetime | None = None,
+        include_test: bool = True,
+    ) -> tuple[ProcessCase, ...]: ...
     def list_by_state(
         self,
         business_id: str,

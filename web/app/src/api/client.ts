@@ -83,6 +83,7 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
 
 export interface StaffUser {
   user_id: string;
+  name: string | null;
   email: string;
   business_id: string | null;
   // Every business this account is linked to -- business_id above is just
@@ -318,6 +319,7 @@ export interface BusinessDNAService {
   commercial_path: CommercialPath;
   quote_price: string | null;
   next_step_message: string | null;
+  intake_keywords: string[];
 }
 
 export interface BusinessHoursWindow {
@@ -351,6 +353,8 @@ export interface BusinessDNASettings {
    * on the business's own website -- see _widget_embed_snippet in
    * src/api/schemas.py. Absolute URL to this deployment, safe to copy as-is. */
   widget_snippet: string;
+  compliance_disclaimer: string;
+  ai_disclosure_text: string;
 }
 
 export interface BusinessDNAServiceUpdate {
@@ -360,6 +364,7 @@ export interface BusinessDNAServiceUpdate {
   commercial_path: CommercialPath;
   quote_price: string | null;
   next_step_message: string | null;
+  intake_keywords?: string[];
 }
 
 export interface BusinessDNASettingsUpdate {
@@ -374,6 +379,8 @@ export interface BusinessDNASettingsUpdate {
   booking_timezone: string;
   business_hours: Record<string, BusinessHoursWindow[]>;
   objection_responses: ObjectionResponse[];
+  compliance_disclaimer?: string;
+  ai_disclosure_text?: string;
 }
 
 export type BillingPlan = "starter" | "pro";
@@ -398,6 +405,10 @@ export interface BillingStatus {
 export interface SmsStatus {
   configured: boolean;
   phone_number: string | null;
+}
+
+export interface CrmWebhookStatus {
+  configured: boolean;
 }
 
 export interface CheckoutSessionResponse {
@@ -439,6 +450,10 @@ export const api = {
   logout: (token: string) => request<void>("/api/v1/auth/logout", { method: "POST" }, token),
 
   me: (token: string) => request<StaffUser>("/api/v1/auth/me", { method: "GET" }, token),
+
+  updateProfile: (token: string, name: string) => request<StaffUser>("/api/v1/auth/me", {
+    method: "PATCH", body: JSON.stringify({ name }),
+  }, token),
 
   getSecurityStatus: (token: string) => request<SecurityStatus>("/api/v1/auth/security", { method: "GET" }, token),
   changePassword: (token: string, currentPassword: string, newPassword: string) =>
@@ -578,6 +593,27 @@ export const api = {
     request<SmsStatus>(
       `/api/v1/businesses/${businessId}/integrations/sms/provision`,
       { method: "POST", body: JSON.stringify({}) },
+      token,
+    ),
+
+  getCrmWebhookStatus: (token: string, businessId: string) =>
+    request<CrmWebhookStatus>(
+      `/api/v1/businesses/${businessId}/integrations/crm-webhook`,
+      { method: "GET" },
+      token,
+    ),
+
+  configureCrmWebhook: (token: string, businessId: string, webhookUrl: string) =>
+    request<CrmWebhookStatus>(
+      `/api/v1/businesses/${businessId}/integrations/crm-webhook`,
+      { method: "PUT", body: JSON.stringify({ webhook_url: webhookUrl }) },
+      token,
+    ),
+
+  removeCrmWebhook: (token: string, businessId: string) =>
+    request<CrmWebhookStatus>(
+      `/api/v1/businesses/${businessId}/integrations/crm-webhook`,
+      { method: "DELETE" },
       token,
     ),
 };

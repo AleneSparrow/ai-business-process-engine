@@ -30,7 +30,7 @@ from .dependencies import ApplicationContainer
 from .errors import install_error_handlers
 from .middleware import RequestContextMiddleware
 from .cors import ConfiguredCORSMiddleware
-from .rate_limit import InMemorySlidingWindowRateLimiter
+from .rate_limit import SqlSlidingWindowRateLimiter
 from .observability import configure_logging, log_event
 from .routes import (
     auth,
@@ -143,11 +143,12 @@ def create_app(
             universal_reassurance_response_generator=configured_universal_reassurance_generator,
             ai_provider_name=ai_runtime.provider_name,
             ai_model_name=ai_runtime.model_name,
-            public_chat_rate_limiter=InMemorySlidingWindowRateLimiter(
+            public_chat_rate_limiter=SqlSlidingWindowRateLimiter(
+                engine,
                 runtime_settings.public_chat_rate_limit_requests,
                 runtime_settings.public_chat_rate_limit_window_seconds,
             ),
-            account_security_rate_limiter=InMemorySlidingWindowRateLimiter(5, 900),
+            account_security_rate_limiter=SqlSlidingWindowRateLimiter(engine, 5, 900),
             # Development/test never deliver real account-recovery mail. The
             # in-memory outbox is intentionally not an HTTP endpoint.
             password_reset_email_sender=(
