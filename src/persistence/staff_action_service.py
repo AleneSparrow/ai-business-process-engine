@@ -39,6 +39,7 @@ from .errors import (
     StaffConversationNotFoundError,
 )
 from .repositories import UnitOfWork
+from .sms_service import SmsService
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,9 +54,11 @@ class StaffActionService:
         unit_of_work_factory: Callable[[], UnitOfWork],
         *,
         process_engine: ProcessEngine | None = None,
+        sms_service: SmsService | None = None,
     ) -> None:
         self._unit_of_work_factory = unit_of_work_factory
         self.process_engine = process_engine or ProcessEngine()
+        self.sms_service = sms_service
 
     def reply(
         self,
@@ -112,7 +115,20 @@ class StaffActionService:
                     ))
 
             unit_of_work.commit()
-            return StaffActionResult(conversation=conversation, case=case)
+            result = StaffActionResult(conversation=conversation, case=case)
+
+        if (
+            self.sms_service is not None
+            and result.conversation.channel == "sms"
+            and result.conversation.external_session_id
+        ):
+            self.sms_service.enqueue_reply(
+                business_id,
+                to_number=result.conversation.external_session_id,
+                body=message_text,
+                inbound_message_id=f"staff:{result.conversation.conversation_id}:{sequence}",
+            )
+        return result
 
     def resolve(
         self,

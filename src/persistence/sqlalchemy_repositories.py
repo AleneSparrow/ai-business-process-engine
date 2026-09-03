@@ -1114,6 +1114,14 @@ class SQLAlchemyConversationRepository:
         lock_key = int.from_bytes(digest[:8], byteorder="big", signed=True)
         self.session.execute(select(func.pg_advisory_xact_lock(lock_key)))
 
+    def lock_session_identity(self, business_id: str, channel: str, external_session_id: str) -> None:
+        if self.session.get_bind().dialect.name != "postgresql":
+            return
+        identity = f"conversation-session\x1f{business_id}\x1f{channel}\x1f{external_session_id}"
+        digest = hashlib.sha256(identity.encode("utf-8")).digest()
+        lock_key = int.from_bytes(digest[:8], byteorder="big", signed=True)
+        self.session.execute(select(func.pg_advisory_xact_lock(lock_key)))
+
     def add(self, conversation: Conversation) -> None:
         self.session.add(ConversationRow(
             id=conversation.conversation_id,
@@ -1159,6 +1167,24 @@ class SQLAlchemyConversationRepository:
         statement = select(ConversationRow).where(
             ConversationRow.business_id == business_id,
             ConversationRow.token_hash == token_hash,
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        row = self.session.scalar(statement)
+        return self._to_domain(row) if row is not None else None
+
+    def get_by_channel_session(
+        self,
+        business_id: str,
+        channel: str,
+        external_session_id: str,
+        *,
+        for_update: bool = False,
+    ) -> Conversation | None:
+        statement = select(ConversationRow).where(
+            ConversationRow.business_id == business_id,
+            ConversationRow.channel == channel,
+            ConversationRow.external_session_id == external_session_id,
         )
         if for_update:
             statement = statement.with_for_update()

@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from src.api.dependencies import get_container, get_intake_service, get_sms_service
+from src.api.dependencies import get_container, get_intake_service, get_sms_service, get_sms_thread_service
 from src.api.routes.sms import INBOUND_SMS_WEBHOOK_PATH, public_router
 from src.config import Settings
 
@@ -60,6 +60,26 @@ class _FakeSmsService:
         )
 
 
+class _FakeThreads:
+    def __init__(self) -> None:
+        self.paused = False
+        self.appended: list[tuple[str, str, str]] = []
+        self.synced: list[str] = []
+
+    def is_paused(self, business_id: str, phone_number: str) -> bool:
+        return self.paused
+
+    def append_customer_message(
+        self, business_id: str, phone_number: str, *, body: str, inbound_message_id: str
+    ) -> None:
+        self.appended.append((phone_number, body, inbound_message_id))
+
+    def sync_from_intake(
+        self, business_id: str, phone_number: str, *, body: str, inbound_message_id: str, intake
+    ) -> None:
+        self.synced.append(inbound_message_id)
+
+
 class _FakeIntakeService:
     def __init__(self) -> None:
         self.received_ids: list[str] = []
@@ -77,11 +97,12 @@ def _signature(auth_token: str, url: str, form_params: dict[str, str]) -> str:
     return base64.b64encode(hmac.new(auth_token.encode(), text.encode(), hashlib.sha1).digest()).decode()
 
 
-def _client(sms, intake):
+def _client(sms, intake, threads=None):
     auth_token = "twilio-test-token"
     public_base = "https://api.example.test"
     application = FastAPI()
     application.include_router(public_router)
+    threads = threads or _FakeThreads()
     settings = Settings(
         database_url="sqlite+pysqlite:///:memory:",
         app_env="test",
@@ -92,7 +113,8 @@ def _client(sms, intake):
     application.dependency_overrides[get_container] = lambda: SimpleNamespace(settings=settings)
     application.dependency_overrides[get_sms_service] = lambda: sms
     application.dependency_overrides[get_intake_service] = lambda: intake
-    return TestClient(application), auth_token, public_base
+    application.dependency_overrides[get_sms_thread_service] = lambda: threads
+    return TestClient(application), auth_token, public_base, threads
 
 
 def _post(client, auth_token, public_base, body: str, message_sid: str):
@@ -109,7 +131,7 @@ def _post(client, auth_token, public_base, body: str, message_sid: str):
 def test_duplicate_signed_twilio_webhook_sends_customer_reply_once() -> None:
     sms = _FakeSmsService()
     intake = _FakeIntakeService()
-    client, auth_token, public_base = _client(sms, intake)
+    client, auth_token, public_base, _threads = _client(sms, intake)
     with client:
         first = _post(client, auth_token, public_base, "I need help", "SM_inbound_once")
         duplicate = _post(client, auth_token, public_base, "I need help", "SM_inbound_once")
@@ -122,7 +144,7 @@ def test_duplicate_signed_twilio_webhook_sends_customer_reply_once() -> None:
 def test_stop_command_does_not_enter_intake() -> None:
     sms = _FakeSmsService()
     intake = _FakeIntakeService()
-    client, auth_token, public_base = _client(sms, intake)
+    client, auth_token, public_base, _threads = _client(sms, intake)
     with client:
         response = _post(client, auth_token, public_base, "STOP", "SM_stop")
 
@@ -141,10 +163,25 @@ def test_stop_command_does_not_enter_intake() -> None:
 def test_yes_is_not_treated_as_an_opt_in_command() -> None:
     sms = _FakeSmsService()
     intake = _FakeIntakeService()
-    client, auth_token, public_base = _client(sms, intake)
+    client, auth_token, public_base, _threads = _client(sms, intake)
     with client:
         response = _post(client, auth_token, public_base, "yes", "SM_yes")
 
     assert response.status_code == 200
     assert intake.received_ids == ["SM_yes"]
     assert sms.opt_ins == []
+
+
+def test_paused_thread_does_not_run_intake() -> None:
+    sms = _FakeSmsService()
+    intake = _FakeIntakeService()
+    threads = _FakeThreads()
+    threads.paused = True
+    client, auth_token, public_base, _ = _client(sms, intake, threads)
+    with client:
+        response = _post(client, auth_token, public_base, "still waiting", "SM_paused")
+
+    assert response.status_code == 200
+    assert intake.received_ids == []
+    assert sms.outbound_calls == []
+    assert threads.appended == [("+15551234567", "still waiting", "SM_paused")]
