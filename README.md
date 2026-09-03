@@ -220,6 +220,6 @@ Every tenant-owned repository lookup requires `business_id`, and composite forei
 
 ## Next milestone
 
-The public rate limiter is shared across workers via PostgreSQL (`rate_limit_hits`). CRM webhook delivery uses a durable `integration_outbox` row plus `POST /api/v1/internal/integrations/deliver`. Quote and payment expiration can be swept with `POST /api/v1/internal/commercial/expire`. Real calendar synchronization and collection of a customer's payment remain deferred.
+The public rate limiter is shared across workers via PostgreSQL (`rate_limit_hits`). CRM webhook delivery and conversational SMS replies use a durable `integration_outbox` row plus `POST /api/v1/internal/integrations/deliver`. Inbound `STOP` / `START` / `HELP` are handled before lead intake. Quote and payment expiration can be swept with `POST /api/v1/internal/commercial/expire`. Real calendar synchronization and collection of a customer's payment remain deferred.
 
-SMS, CRM webhook, and follow-up delivery are currently best-effort side effects after the database transaction. They are not physically exactly-once: an outage or process failure can lose or duplicate an external delivery. The next integration sprint needs a transactional outbox plus provider idempotency keys and retry observability.
+SMS follow-up already has its own attempt table. Twilio's Messages API has no client-supplied idempotency key, so a crash between Twilio confirming dispatch and the outbox mark can still duplicate one message.

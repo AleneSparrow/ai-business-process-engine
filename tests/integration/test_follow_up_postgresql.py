@@ -47,6 +47,9 @@ class ThreadSafeFakeSmsService:
     def get_number(self, business_id: str) -> str | None:
         return "+15005550006"
 
+    def is_suppressed(self, business_id: str, phone_number: str) -> bool:
+        return False
+
     def send_outbound(self, business_id: str, *, to_number: str, body: str) -> str | None:
         with self._lock:
             self.send_calls.append((business_id, to_number, body))

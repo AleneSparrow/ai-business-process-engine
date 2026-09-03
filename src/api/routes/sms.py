@@ -24,6 +24,7 @@ from fastapi.responses import Response
 from src.domain.auth import StaffUser
 from src.domain.models import utc_now
 from src.domain.qualification import IncomingMessage
+from src.domain.sms_commands import classify_inbound_sms
 from src.persistence.errors import WebhookSignatureError
 from src.persistence.lead_intake import PersistentLeadIntakeService
 from src.persistence.sms_service import INBOUND_SMS_WEBHOOK_PATH, SmsProvisioningError, SmsService
@@ -95,6 +96,17 @@ async def receive_inbound_sms(
         # retry; there's no business-scoped error channel to report this to.
         return Response(content=_EMPTY_TWIML, media_type="application/xml")
 
+    command = classify_inbound_sms(body)
+    if command == "stop":
+        sms_service.opt_out(business_id, from_number, inbound_message_id=message_sid)
+        return Response(content=_EMPTY_TWIML, media_type="application/xml")
+    if command == "start":
+        sms_service.opt_in(business_id, from_number, inbound_message_id=message_sid)
+        return Response(content=_EMPTY_TWIML, media_type="application/xml")
+    if command == "help":
+        sms_service.send_help(business_id, from_number, inbound_message_id=message_sid)
+        return Response(content=_EMPTY_TWIML, media_type="application/xml")
+
     message = IncomingMessage(
         business_id=business_id,
         channel="sms",
@@ -108,8 +120,11 @@ async def receive_inbound_sms(
     # That is correct for state/audit idempotency, but a customer-facing SMS
     # is an external side effect and must not be repeated on a Twilio retry.
     if result.response is not None and not result.duplicate:
-        sms_service.send_outbound(
-            business_id, to_number=from_number, body=result.response.message_text
+        sms_service.enqueue_reply(
+            business_id,
+            to_number=from_number,
+            body=result.response.message_text,
+            inbound_message_id=message_sid,
         )
     return Response(content=_EMPTY_TWIML, media_type="application/xml")
 

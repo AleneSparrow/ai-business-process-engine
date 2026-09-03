@@ -50,12 +50,12 @@ class Lead:
     # Explicit, sticky opt-in for proactive outbound SMS (universal-sales-
     # cycle-model.md section 8) -- set only from a deliberate UI action
     # (a consent checkbox), never inferred by the AI from conversation
-    # text. Once True it must never revert to False on a later message
-    # that simply omits it -- see LeadIntakeService._updated_lead, which
-    # ORs this in rather than overwriting it. This gates ONLY the
-    # follow-up sweep (PersistentFollowUpRunner); it has no effect on the
-    # ordinary reactive reply the customer is already mid-conversation
-    # for, which needs no separate consent.
+    # text. A later message that simply omits the flag must not clear it
+    # (LeadIntakeService._updated_lead ORs it in). A carrier STOP command
+    # is the exception: it revokes this flag and adds the phone to
+    # sms_suppressions so neither follow-up nor conversational replies go
+    # out. This flag gates the follow-up sweep; conversational replies
+    # additionally honor sms_suppressions.
     sms_consent: bool = False
 
     def __post_init__(self) -> None:

@@ -822,3 +822,15 @@ class IntegrationOutboxRow(Base):
         Index("ix_integration_outbox_due", "status", "next_attempt_at"),
         Index("ix_integration_outbox_business", "business_id", "created_at"),
     )
+
+
+class SmsSuppressionRow(Base):
+    """Phone numbers that must not receive SMS for this business after STOP."""
+
+    __tablename__ = "sms_suppressions"
+
+    business_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("businesses.id", ondelete="CASCADE"), primary_key=True
+    )
+    phone_number: Mapped[str] = mapped_column(String(64), primary_key=True)
+    suppressed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

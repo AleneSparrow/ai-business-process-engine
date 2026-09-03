@@ -202,7 +202,8 @@ yet; nothing else in the deploy depends on it.
    curl -X POST https://your-backend.up.railway.app/api/v1/internal/commercial/expire \
      -H "X-Internal-Task-Secret: <the same value as INTERNAL_TASK_SECRET>"
    ```
-   `integrations/deliver` retries CRM webhook outbox rows. `commercial/expire`
+   `integrations/deliver` retries CRM webhook outbox rows and conversational
+   SMS replies. `commercial/expire`
    expires stale quotes and payment requests that nobody has messaged since
    they became due.
 3. You can also just call it by hand any time (same curl command) to run a
@@ -216,10 +217,12 @@ one replica, without double-sending).
 **Not yet done, before this should carry real customer traffic:** the
 widget's consent checkbox text (`web/widget/widget.js`) is a placeholder
 shape, not reviewed by a lawyer -- see the delivery notes for this feature.
-Also, only the website chat widget captures consent right now; a lead that
-only ever came in over inbound SMS or the direct API has no consent-capture
-path yet and will simply never qualify for follow-up (safe by default, just
-incomplete coverage).
+Inbound SMS `STOP` / `START` / `HELP` are honored on the Twilio number.
+Also, only the website chat widget captures follow-up consent right now; a
+lead that only ever came in over inbound SMS or the direct API has no
+follow-up consent-capture path yet and will simply never qualify for
+proactive follow-up (safe by default, just incomplete coverage). Conversation
+replies to a number that texted in still go out until that person sends STOP.
 
 ## Known limitation carried over from local dev
 

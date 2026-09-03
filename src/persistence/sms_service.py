@@ -22,16 +22,23 @@ this into a real error message the owner actually sees.
 isn't: it's called from inside the inbound-SMS webhook handler, right after
 the lead-intake transaction has already committed -- a delivery failure here
 must not turn into a 500 back to Twilio or retroactively undo work that's
-already saved.
+already saved. Conversational replies are also written to `integration_outbox`
+(`kind=sms_reply`) so `POST /api/v1/internal/integrations/deliver` can retry
+a Twilio outage. STOP/START/HELP never enter lead intake.
 """
 
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
+from datetime import timedelta
 from typing import TYPE_CHECKING
+
+from sqlalchemy import select
 
 from src.domain.models import utc_now
 
+from .sqlalchemy_models import IntegrationOutboxRow, SmsSuppressionRow
 from .twilio_client import TwilioAPIError, TwilioClient
 
 if TYPE_CHECKING:
@@ -40,6 +47,18 @@ if TYPE_CHECKING:
 LOGGER = logging.getLogger("uvicorn.error")
 
 INBOUND_SMS_WEBHOOK_PATH = "/api/v1/public/sms/inbound"
+_SMS_REPLY_KIND = "sms_reply"
+_MAX_ATTEMPTS = 8
+_BACKOFF = timedelta(minutes=5)
+_STOP_ACK = (
+    "You have been unsubscribed from texts from this number. Reply START to resume."
+)
+_START_ACK = (
+    "You are subscribed to texts from this number again. Reply STOP to opt out."
+)
+_HELP_ACK = (
+    "This number sends updates about your request. Reply STOP to opt out. Reply START to resume."
+)
 
 
 class SmsProvisioningError(RuntimeError):
@@ -124,12 +143,205 @@ class SmsService:
             uow.commit()
         return available
 
-    def send_outbound(self, business_id: str, *, to_number: str, body: str) -> str | None:
+    def is_suppressed(self, business_id: str, phone_number: str) -> bool:
+        with self.unit_of_work_factory() as uow:
+            session = getattr(uow, "session", None)
+            if session is None:
+                return False
+            row = session.get(SmsSuppressionRow, (business_id, phone_number))
+            return row is not None
+
+    def opt_out(self, business_id: str, phone_number: str, *, inbound_message_id: str) -> None:
+        """Honor STOP: suppress the number, revoke follow-up consent, ack once."""
+        try:
+            now = utc_now()
+            with self.unit_of_work_factory() as uow:
+                session = getattr(uow, "session", None)
+                if session is not None:
+                    existing = session.get(SmsSuppressionRow, (business_id, phone_number))
+                    if existing is None:
+                        session.add(
+                            SmsSuppressionRow(
+                                business_id=business_id,
+                                phone_number=phone_number,
+                                suppressed_at=now,
+                            )
+                        )
+                lead = uow.leads.find_by_identity(business_id, phone_number, None)
+                if lead is not None and lead.sms_consent:
+                    uow.leads.save(business_id, replace(lead, sms_consent=False), now)
+                uow.commit()
+            self.enqueue_reply(
+                business_id,
+                to_number=phone_number,
+                body=_STOP_ACK,
+                inbound_message_id=inbound_message_id,
+                ignore_suppression=True,
+            )
+        except Exception:  # noqa: BLE001
+            LOGGER.exception("sms_opt_out_failed business_id=%s", business_id)
+
+    def opt_in(self, business_id: str, phone_number: str, *, inbound_message_id: str) -> None:
+        """Honor START: lift suppression. Does not grant follow-up sms_consent."""
+        try:
+            with self.unit_of_work_factory() as uow:
+                session = getattr(uow, "session", None)
+                if session is not None:
+                    row = session.get(SmsSuppressionRow, (business_id, phone_number))
+                    if row is not None:
+                        session.delete(row)
+                uow.commit()
+            self.enqueue_reply(
+                business_id,
+                to_number=phone_number,
+                body=_START_ACK,
+                inbound_message_id=inbound_message_id,
+            )
+        except Exception:  # noqa: BLE001
+            LOGGER.exception("sms_opt_in_failed business_id=%s", business_id)
+
+    def send_help(self, business_id: str, phone_number: str, *, inbound_message_id: str) -> None:
+        self.enqueue_reply(
+            business_id,
+            to_number=phone_number,
+            body=_HELP_ACK,
+            inbound_message_id=inbound_message_id,
+            ignore_suppression=True,
+        )
+
+    def enqueue_reply(
+        self,
+        business_id: str,
+        *,
+        to_number: str,
+        body: str,
+        inbound_message_id: str,
+        ignore_suppression: bool = False,
+    ) -> None:
+        """Persist an SMS reply, then try Twilio once. Never raises."""
+        try:
+            if not ignore_suppression and self.is_suppressed(business_id, to_number):
+                return
+            now = utc_now()
+            outbox_id = f"smsr:{inbound_message_id}"[:128]
+            with self.unit_of_work_factory() as uow:
+                session = getattr(uow, "session", None)
+                if session is None:
+                    self.send_outbound(
+                        business_id,
+                        to_number=to_number,
+                        body=body,
+                        ignore_suppression=ignore_suppression,
+                    )
+                    return
+                existing = session.get(IntegrationOutboxRow, outbox_id)
+                if existing is None:
+                    session.add(
+                        IntegrationOutboxRow(
+                            id=outbox_id,
+                            business_id=business_id,
+                            kind=_SMS_REPLY_KIND,
+                            payload={
+                                "to_number": to_number,
+                                "body": body,
+                                "ignore_suppression": ignore_suppression,
+                            },
+                            status="PENDING",
+                            attempt_count=0,
+                            next_attempt_at=now,
+                            last_error=None,
+                            created_at=now,
+                            updated_at=now,
+                        )
+                    )
+                    uow.commit()
+                elif existing.status != "PENDING":
+                    return
+            self.deliver_one(outbox_id)
+        except Exception:  # noqa: BLE001
+            LOGGER.exception(
+                "sms_enqueue_failed business_id=%s inbound_message_id=%s",
+                business_id,
+                inbound_message_id,
+            )
+
+    def deliver_due(self, *, limit: int = 50) -> dict[str, int]:
+        now = utc_now()
+        with self.unit_of_work_factory() as uow:
+            session = getattr(uow, "session", None)
+            if session is None:
+                return {"attempted": 0, "sent": 0, "failed": 0}
+            rows = session.scalars(
+                select(IntegrationOutboxRow)
+                .where(
+                    IntegrationOutboxRow.status == "PENDING",
+                    IntegrationOutboxRow.kind == _SMS_REPLY_KIND,
+                    IntegrationOutboxRow.next_attempt_at <= now,
+                )
+                .order_by(IntegrationOutboxRow.created_at.asc())
+                .limit(limit)
+            ).all()
+            ids = [row.id for row in rows]
+        attempted = sent = failed = 0
+        for outbox_id in ids:
+            attempted += 1
+            if self.deliver_one(outbox_id):
+                sent += 1
+            else:
+                failed += 1
+        return {"attempted": attempted, "sent": sent, "failed": failed}
+
+    def deliver_one(self, outbox_id: str) -> bool:
+        with self.unit_of_work_factory() as uow:
+            session = getattr(uow, "session", None)
+            if session is None:
+                return False
+            row = session.get(IntegrationOutboxRow, outbox_id)
+            if row is None or row.status != "PENDING":
+                return row is not None and row.status == "SENT"
+            payload = dict(row.payload)
+            to_number = str(payload.get("to_number") or "")
+            body = str(payload.get("body") or "")
+            ignore_suppression = bool(payload.get("ignore_suppression"))
+            now = utc_now()
+            sid = self.send_outbound(
+                row.business_id,
+                to_number=to_number,
+                body=body,
+                ignore_suppression=ignore_suppression,
+            )
+            row.attempt_count += 1
+            row.updated_at = now
+            if sid:
+                row.status = "SENT"
+                row.last_error = None
+                uow.commit()
+                return True
+            if row.attempt_count >= _MAX_ATTEMPTS:
+                row.status = "FAILED"
+                row.last_error = "delivery_exhausted"
+            else:
+                row.next_attempt_at = now + (_BACKOFF * row.attempt_count)
+                row.last_error = "delivery_failed"
+            uow.commit()
+            return False
+
+    def send_outbound(
+        self,
+        business_id: str,
+        *,
+        to_number: str,
+        body: str,
+        ignore_suppression: bool = False,
+    ) -> str | None:
         """Best-effort, never raises. Returns the Twilio message SID on
         success (the durable proof of dispatch a caller can persist for
         outbox-style delivery tracking -- see PersistentFollowUpRunner), or
         None on any failure."""
         if not self.configured:
+            return None
+        if not ignore_suppression and self.is_suppressed(business_id, to_number):
+            LOGGER.info("sms_send_suppressed business_id=%s", business_id)
             return None
         try:
             from_number = self.get_number(business_id)

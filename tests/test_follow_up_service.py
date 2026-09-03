@@ -51,6 +51,9 @@ class FakeSmsService:
     def get_number(self, business_id: str) -> str | None:
         return self._number
 
+    def is_suppressed(self, business_id: str, phone_number: str) -> bool:
+        return False
+
     def send_outbound(self, business_id: str, *, to_number: str, body: str) -> str | None:
         self.send_calls.append((business_id, to_number, body))
         if self._fail:

@@ -155,10 +155,11 @@
   // universal-sales-cycle-model.md section 8). Unchecked by default;
   // persisted per-browser the same way conversationToken already is, so a
   // returning visitor in the same conversation doesn't have to re-tick it
-  // every time they reopen the widget. The label text below is a
-  // placeholder shape (informational, not marketing, with a STOP opt-out
-  // mention) -- NOT reviewed by a lawyer; see the delivery notes for why
-  // this needs legal review per-state before relying on it.
+  // every time they reopen the widget. Reply STOP on the Twilio number is
+  // honored in src/api/routes/sms.py. The label text below is still a
+  // placeholder shape (informational, not marketing) -- NOT reviewed by a
+  // lawyer; see the delivery notes for why this needs legal review per-state
+  // before relying on it.
   const consentKey = `${storageKey}:sms-consent`;
   let smsConsent = window.localStorage.getItem(consentKey) === "true";
   const consentRow = document.createElement("label");

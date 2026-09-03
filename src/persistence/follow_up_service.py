@@ -257,6 +257,8 @@ class PersistentFollowUpRunner:
             decision = decide_follow_up(case, dna_version.configuration, now)
             if not decision.due or decision.attempt_number != attempt_number or not case.lead.phone:
                 return None
+            if self.sms_service.is_suppressed(business_id, case.lead.phone):
+                return None
             twilio_sid = self.sms_service.send_outbound(
                 business_id, to_number=case.lead.phone, body=message_text
             )
