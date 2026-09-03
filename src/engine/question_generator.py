@@ -3,6 +3,7 @@
 from typing import Mapping, Protocol
 
 from src.domain.qualification import CustomerResponse, CustomerTone, MissingInformationResult
+from src.engine.sales_technique import SalesTechnique, frame_with_technique
 
 
 class QuestionGenerator(Protocol):
@@ -14,6 +15,8 @@ class QuestionGenerator(Protocol):
         case_id: str,
         customer_message: str = "",
         customer_tone: CustomerTone = CustomerTone.NEUTRAL,
+        *,
+        sales_technique: SalesTechnique = SalesTechnique.DISCOVERY,
     ) -> CustomerResponse: ...
 
 
@@ -32,6 +35,8 @@ class DeterministicQuestionGenerator:
         case_id: str,
         customer_message: str = "",
         customer_tone: CustomerTone = CustomerTone.NEUTRAL,
+        *,
+        sales_technique: SalesTechnique = SalesTechnique.DISCOVERY,
     ) -> CustomerResponse:
         customer_information = business_dna.get("customer_information", {})
         field_questions = (
@@ -49,8 +54,9 @@ class DeterministicQuestionGenerator:
         if not prompts:
             raise ValueError("cannot generate a missing-information response without questions")
         return CustomerResponse(
-            message_text=" ".join(prompts),
+            message_text=frame_with_technique(sales_technique, " ".join(prompts)),
             channel=channel,
             reason="missing_information",
             related_case_id=case_id,
+            sales_technique=sales_technique.value,
         )

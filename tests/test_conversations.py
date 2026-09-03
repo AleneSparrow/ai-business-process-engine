@@ -162,7 +162,7 @@ def test_multi_turn_messages_reuse_conversation_lead_and_case(conversation_envir
     assert second.status_code == third.status_code == fourth.status_code == 200
     assert fourth.json()["current_state"] == "QUALIFIED"
     assert fourth.json()["status"] == "ai_active"
-    assert "Choose an appointment time" in fourth.json()["messages"][-1]["text"]
+    assert "Which of these times works better for you" in fourth.json()["messages"][-1]["text"]
     assert len(fourth.json()["messages"]) == 8
     with factory() as uow:
         restored = uow.session.scalar(select(ConversationRow).where(
@@ -186,7 +186,7 @@ def test_conversation_books_valid_proposed_slot_and_public_status_is_token_scope
     )
     token = qualified.json()["conversation_token"]
     assert qualified.json()["current_state"] == "QUALIFIED"
-    assert "Choose an appointment time" in qualified.json()["messages"][-1]["text"]
+    assert "Which of these times works better for you" in qualified.json()["messages"][-1]["text"]
 
     # Regression coverage for the public-widget slot-picker buttons (see
     # web/widget/widget.js renderSlotOptions): the proposed slots must be

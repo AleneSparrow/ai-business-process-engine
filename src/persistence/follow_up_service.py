@@ -43,6 +43,7 @@ from src.engine.follow_up import (
     missing_information_from_case,
     record_follow_up_sent,
 )
+from src.engine.sales_technique import ConversationKind, select_sales_technique
 
 from .errors import StaleCaseError
 from .repositories import DeliveryStatus, UnitOfWorkFactory
@@ -250,8 +251,19 @@ class PersistentFollowUpRunner:
                 return "no_longer_due"
 
             missing = missing_information_from_case(case)
+            technique = select_sales_technique(
+                kind=ConversationKind.FOLLOW_UP,
+                follow_up_attempt=decision.attempt_number,
+                follow_up_maximum_attempts=decision.maximum_attempts,
+            )
             response = self.message_generator.generate(
-                missing, business_dna, "sms", case.case_id, attempt_number=decision.attempt_number,
+                missing,
+                business_dna,
+                "sms",
+                case.case_id,
+                attempt_number=decision.attempt_number,
+                maximum_attempts=decision.maximum_attempts,
+                sales_technique=technique,
             )
             attempt, owns_send = uow.follow_up_deliveries.claim_attempt(
                 business_id, case_id, decision.attempt_number,
