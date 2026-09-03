@@ -17,6 +17,13 @@ export default function Account() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    document.title = "Account · Flywheel";
+    return () => {
+      document.title = "Flywheel — every lead answered, every step logged";
+    };
+  }, []);
+
   useEffect(() => setName(user?.name ?? ""), [user?.name]);
 
   useEffect(() => {

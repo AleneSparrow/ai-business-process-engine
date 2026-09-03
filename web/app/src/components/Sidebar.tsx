@@ -1,5 +1,5 @@
 import { useEffect, useState, type ComponentType } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import { LayoutGrid, MessageSquare, Workflow, CreditCard, LogOut, Menu, X, Plus, Check, ChevronsUpDown, Home, HelpCircle, User } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { api, type OwnedBusiness } from "../api/client";
@@ -71,31 +71,48 @@ function BusinessSwitcher({
   );
 }
 
+function navVisual(active: boolean) {
+  return {
+    color: active ? "#151515" : "#6B6459",
+    backgroundColor: active ? "#F5E7D6" : "transparent",
+    fontWeight: active ? 600 : 500,
+  };
+}
+
 function NavItem({
   icon: Icon,
   label,
-  active,
+  to,
+  end,
+  active = false,
   onClick,
 }: {
   // size and strokeWidth are both `string | number` on lucide-react's own
   // prop type -- widened to match, same fix as AreaOption in Shared.tsx.
   icon: ComponentType<{ size?: number | string; strokeWidth?: number | string }>;
   label: string;
-  active: boolean;
-  onClick: () => void;
+  to?: string;
+  end?: boolean;
+  active?: boolean;
+  onClick?: () => void;
 }) {
-  return (
-    <button
-      onClick={onClick}
-      className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-left"
-      style={{
-        color: active ? "#151515" : "#6B6459",
-        backgroundColor: active ? "#F5E7D6" : "transparent",
-        fontWeight: active ? 600 : 500,
-      }}
-    >
+  const className = "w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-left";
+  const inner = (
+    <>
       <Icon size={17} strokeWidth={2} />
       {label}
+    </>
+  );
+  if (to) {
+    return (
+      <NavLink to={to} end={end} onClick={onClick} className={className} style={({ isActive }) => navVisual(isActive)}>
+        {inner}
+      </NavLink>
+    );
+  }
+  return (
+    <button type="button" onClick={onClick} className={className} style={navVisual(active)}>
+      {inner}
     </button>
   );
 }
@@ -108,7 +125,6 @@ function NavItem({
  * desktop flex layout in Dashboard/Conversation/Settings/Billing -- each of
  * those pages just needs `pt-14 md:pt-0` on its `<main>` to clear it. */
 function MobileNav({
-  view,
   businesses,
   businessId,
   businessName,
@@ -117,7 +133,6 @@ function MobileNav({
   onSelectBusiness,
   onLogout,
 }: {
-  view: "dashboard" | "conversation" | "settings" | "billing" | "account" | "faq";
   businesses: OwnedBusiness[];
   businessId: string | null;
   businessName: string | null;
@@ -180,28 +195,28 @@ function MobileNav({
                   ) : (
                     <div className="text-sm font-semibold leading-tight truncate">{businessName ?? "Your business"}</div>
                   )}
-                  <button
-                    type="button"
+                  <NavLink
+                    to="/app/account"
                     aria-label="Open personal account"
-                    onClick={() => go("/app/account")}
+                    onClick={() => setOpen(false)}
                     className="block max-w-full text-[11px] text-[#6B6459] leading-tight truncate rounded-sm hover:text-[#B87333] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B87333] focus-visible:ring-offset-2 transition-colors"
                   >
                     {email}
-                  </button>
+                  </NavLink>
                 </div>
                 <button onClick={() => setOpen(false)} aria-label="Close menu" className="p-1 shrink-0" style={{ color: "#6B6459" }}>
                   <X size={18} />
                 </button>
               </div>
               <nav className="flex flex-col gap-1">
-                <NavItem icon={LayoutGrid} label="Overview" active={view === "dashboard"} onClick={() => go("/app")} />
-                <NavItem icon={MessageSquare} label="Conversations" active={view === "conversation"} onClick={() => go("/app/conversations")} />
-                <NavItem icon={Workflow} label="Settings" active={view === "settings"} onClick={() => go("/app/settings")} />
-                <NavItem icon={CreditCard} label="Billing" active={view === "billing"} onClick={() => go("/app/billing")} />
-                <NavItem icon={Plus} label="Add another business" active={false} onClick={() => go("/onboarding")} />
+                <NavItem icon={LayoutGrid} label="Overview" to="/app" end onClick={() => setOpen(false)} />
+                <NavItem icon={MessageSquare} label="Conversations" to="/app/conversations" onClick={() => setOpen(false)} />
+                <NavItem icon={Workflow} label="Settings" to="/app/settings" onClick={() => setOpen(false)} />
+                <NavItem icon={CreditCard} label="Billing" to="/app/billing" onClick={() => setOpen(false)} />
+                <NavItem icon={Plus} label="Add another business" to="/onboarding" onClick={() => setOpen(false)} />
                 <div className="border-t border-[#F0EFE9] mt-3 pt-3">
-                  <NavItem icon={User} label="Account" active={view === "account"} onClick={() => go("/app/account")} />
-                  <NavItem icon={HelpCircle} label="FAQ" active={view === "faq"} onClick={() => go("/app/faq")} />
+                  <NavItem icon={User} label="Account" to="/app/account" onClick={() => setOpen(false)} />
+                  <NavItem icon={HelpCircle} label="FAQ" to="/app/faq" onClick={() => setOpen(false)} />
                 </div>
               </nav>
             </div>
@@ -223,7 +238,6 @@ function MobileNav({
 
 export function Sidebar() {
   const navigate = useNavigate();
-  const location = useLocation();
   const { user, token, businessId, selectBusiness, logout } = useAuth();
   const [businesses, setBusinesses] = useState<OwnedBusiness[]>([]);
 
@@ -249,18 +263,6 @@ export function Sidebar() {
 
   const businessName = businesses.find((b) => b.business_id === businessId)?.name ?? null;
 
-  const view = location.pathname.startsWith("/app/settings")
-    ? "settings"
-    : location.pathname.startsWith("/app/faq")
-      ? "faq"
-      : location.pathname.startsWith("/app/account")
-        ? "account"
-        : location.pathname.startsWith("/app/billing")
-          ? "billing"
-          : location.pathname.startsWith("/app/conversations")
-            ? "conversation"
-            : "dashboard";
-
   async function handleLogout() {
     await logout();
     navigate("/", { replace: true });
@@ -269,7 +271,6 @@ export function Sidebar() {
   return (
     <>
       <MobileNav
-        view={view}
         businesses={businesses}
         businessId={businessId}
         businessName={businessName}
@@ -301,40 +302,29 @@ export function Sidebar() {
                   <div className="text-sm font-semibold leading-tight truncate">{businessName ?? "Your business"}</div>
                 </button>
               )}
-              <button
-                type="button"
+              <NavLink
+                to="/app/account"
                 aria-label="Open personal account"
-                onClick={() => navigate("/app/account")}
                 className="block max-w-full text-[11px] text-[#6B6459] leading-tight truncate rounded-sm hover:text-[#B87333] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B87333] focus-visible:ring-offset-2 transition-colors"
               >
                 {user?.email}
-              </button>
+              </NavLink>
             </div>
           </div>
           <nav className="flex flex-col gap-1">
-            <NavItem icon={LayoutGrid} label="Overview" active={view === "dashboard"} onClick={() => navigate("/app")} />
-            <NavItem
-              icon={MessageSquare}
-              label="Conversations"
-              active={view === "conversation"}
-              onClick={() => navigate("/app/conversations")}
-            />
-            <NavItem
-              icon={Workflow}
-              label="Settings"
-              active={view === "settings"}
-              onClick={() => navigate("/app/settings")}
-            />
-            <NavItem icon={CreditCard} label="Billing" active={view === "billing"} onClick={() => navigate("/app/billing")} />
-            <NavItem icon={Plus} label="Add another business" active={false} onClick={() => navigate("/onboarding")} />
+            <NavItem icon={LayoutGrid} label="Overview" to="/app" end />
+            <NavItem icon={MessageSquare} label="Conversations" to="/app/conversations" />
+            <NavItem icon={Workflow} label="Settings" to="/app/settings" />
+            <NavItem icon={CreditCard} label="Billing" to="/app/billing" />
+            <NavItem icon={Plus} label="Add another business" to="/onboarding" />
             <div className="border-t border-[#F0EFE9] mt-3 pt-3">
-              <NavItem icon={User} label="Account" active={view === "account"} onClick={() => navigate("/app/account")} />
-              <NavItem icon={HelpCircle} label="FAQ" active={view === "faq"} onClick={() => navigate("/app/faq")} />
+              <NavItem icon={User} label="Account" to="/app/account" />
+              <NavItem icon={HelpCircle} label="FAQ" to="/app/faq" />
             </div>
           </nav>
         </div>
         <div>
-          <NavItem icon={Home} label="Home page" active={false} onClick={() => navigate("/")} />
+          <NavItem icon={Home} label="Home page" to="/" end />
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-[#6B6459] hover:text-[#151515] transition-colors"

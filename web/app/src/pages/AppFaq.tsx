@@ -1,8 +1,16 @@
+import { useEffect } from "react";
 import { FaqList } from "../components/FaqSection";
 import { Sidebar } from "../components/Sidebar";
 
 /** In-app FAQ, separate from the personal account and from the public /faq page. */
 export default function AppFaq() {
+  useEffect(() => {
+    document.title = "FAQ · Flywheel";
+    return () => {
+      document.title = "Flywheel — every lead answered, every step logged";
+    };
+  }, []);
+
   return (
     <div className="min-h-screen flex" style={{ backgroundColor: "#FAF9F6", color: "#151515" }}>
       <Sidebar />
