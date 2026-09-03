@@ -309,6 +309,51 @@ def test_remote_business_safety_net_is_not_duplicated_on_repeated_saves() -> Non
     ]
 
 
+def test_service_description_is_written_when_provided_and_kept_when_blank() -> None:
+    """Settings must be able to store a real service description, and an empty
+    field must not wipe one that already exists (older clients omit it)."""
+    written = BusinessDNASettingsService._apply(
+        _base_config(),
+        _update(
+            services=(
+                SettingsServiceInput(
+                    id="consultation",
+                    name="Consultation",
+                    questions=(),
+                    description="First meeting to decide whether we take the matter",
+                ),
+            )
+        ),
+    )
+    assert written["services"][0]["description"] == "First meeting to decide whether we take the matter"
+
+    kept = BusinessDNASettingsService._apply(
+        written,
+        _update(
+            services=(
+                SettingsServiceInput(id="consultation", name="Consultation", questions=(), description=""),
+            )
+        ),
+    )
+    assert kept["services"][0]["description"] == "First meeting to decide whether we take the matter"
+
+
+def test_settings_schema_exposes_service_description() -> None:
+    from src.api.schemas import BusinessDNAServiceSchema
+
+    schema = BusinessDNAServiceSchema.from_domain(
+        {
+            "id": "consultation",
+            "name": "Consultation",
+            "description": "First meeting",
+            "fulfillment_type": "human_review",
+            "qualification_questions": [],
+            "intake_keywords": ["consultation"],
+        }
+    )
+    assert schema.description == "First meeting"
+
+
 def test_local_business_rules_are_left_alone():
     config = _base_config()
     config["qualification"] = {"enforce_service_area": False}

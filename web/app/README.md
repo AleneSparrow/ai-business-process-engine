@@ -42,9 +42,9 @@ session token for one business cannot read or act on another's data.
 
 ## What's still not wired
 
-- Pricing, booking hours/availability, and payment configuration aren't editable from the
-  UI yet — they carry the safe defaults `build_business_dna` (self-serve onboarding) sets,
-  editable only by hand-editing a Business DNA version directly.
+- Rich quote pricing (anything other than a fixed amount) and payment collection from
+  the end customer are not editable from the UI. Booking hours, timezone, services,
+  matching phrases, and service descriptions are on Settings.
 
 ## Running it
 

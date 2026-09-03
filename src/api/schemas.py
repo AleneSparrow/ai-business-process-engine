@@ -999,11 +999,9 @@ _FULFILLMENT_TO_COMMERCIAL_PATH = {
 class BusinessDNAServiceSchema(ApiModel):
     id: str
     name: str
+    description: str = ""
     questions: tuple[str, ...]
     commercial_path: str
-    quote_price: str | None = None
-    next_step_message: str | None = None
-    intake_keywords: tuple[str, ...] = ()
     # Only populated when commercial_path == "quote" and the underlying
     # quoting.pricing_type is "fixed" -- Settings only ever writes fixed-price
     # quotes (see BusinessDNASettingsService._apply), so a quote_required
@@ -1012,6 +1010,7 @@ class BusinessDNAServiceSchema(ApiModel):
     # require entering a fixed price, which then replaces the richer config.
     quote_price: str | None = None
     next_step_message: str | None = None
+    intake_keywords: tuple[str, ...] = ()
 
     @classmethod
     def from_domain(cls, service: Mapping[str, Any]) -> "BusinessDNAServiceSchema":
@@ -1034,6 +1033,7 @@ class BusinessDNAServiceSchema(ApiModel):
         return cls(
             id=str(service["id"]),
             name=name,
+            description=str(service.get("description") or ""),
             questions=tuple(str(q["prompt"]) for q in service.get("qualification_questions", [])),
             commercial_path=commercial_path,
             quote_price=quote_price,

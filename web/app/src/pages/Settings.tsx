@@ -91,6 +91,7 @@ interface DNAServiceState {
   key: string;
   id: string | null;
   name: string;
+  description: string;
   questions: string[];
   /** What happens once a lead qualifies for this service — see
    * BusinessDNASettingsService._apply. "booking" only actually offers a slot
@@ -183,6 +184,7 @@ function fromServer(dna: BusinessDNASettings): SettingsState {
       key: nextClientKey(),
       id: s.id,
       name: s.name,
+      description: s.description ?? "",
       questions: [...s.questions],
       commercialPath: s.commercial_path,
       quotePrice: s.quote_price ?? "",
@@ -412,7 +414,7 @@ export default function Settings() {
       ...state,
       services: [
         ...state.services,
-        { key: nextClientKey(), id: null, name: v, questions: [], commercialPath: "human_review", quotePrice: "", nextStepMessage: "", intakeKeywords: "" },
+        { key: nextClientKey(), id: null, name: v, description: "", questions: [], commercialPath: "human_review", quotePrice: "", nextStepMessage: "", intakeKeywords: "" },
       ],
     });
     setNewService("");
@@ -458,6 +460,7 @@ export default function Settings() {
         services: state.services.map((s) => ({
           id: s.id ?? undefined,
           name: s.name.trim(),
+          description: s.description.trim(),
           questions: s.questions.map((q) => q.trim()).filter(Boolean),
           commercial_path: s.commercialPath,
           quote_price: s.commercialPath === "quote" ? s.quotePrice.trim() : null,
@@ -843,6 +846,22 @@ export default function Settings() {
                               )}
                             </div>
                           )}
+                          <div className="mt-3">
+                            <label className="text-xs text-[#6B6459] block mb-1">What this service is</label>
+                            <textarea
+                              className={inputCls}
+                              rows={2}
+                              maxLength={500}
+                              placeholder="Plain language the engine uses to match what a customer asked for"
+                              value={s.description}
+                              onChange={(e) => {
+                                const services = state.services.map((svc) =>
+                                  svc.key === s.key ? { ...svc, description: e.target.value } : svc,
+                                );
+                                setState({ ...state, services });
+                              }}
+                            />
+                          </div>
                           <div className="mt-3">
                             <label className="text-xs text-[#6B6459] block mb-1">Matching phrases</label>
                             <input

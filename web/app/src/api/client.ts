@@ -315,6 +315,7 @@ export type CommercialPath = "booking" | "quote" | "direct_step" | "human_review
 export interface BusinessDNAService {
   id: string;
   name: string;
+  description: string;
   questions: string[];
   commercial_path: CommercialPath;
   quote_price: string | null;
@@ -360,6 +361,7 @@ export interface BusinessDNASettings {
 export interface BusinessDNAServiceUpdate {
   id?: string;
   name: string;
+  description?: string;
   questions: string[];
   commercial_path: CommercialPath;
   quote_price: string | null;
