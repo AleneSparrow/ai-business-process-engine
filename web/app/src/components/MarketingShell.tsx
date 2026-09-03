@@ -22,7 +22,7 @@ const CYCLE = [
 export function DealCycle({ compact }: { compact?: boolean }) {
   return (
     <div
-      className={`flex items-center gap-1 overflow-x-auto ${compact ? "" : "py-1"}`}
+      className={`flex flex-wrap items-center gap-1 ${compact ? "" : "py-1"}`}
       aria-label="Lead-to-deal cycle"
     >
       {CYCLE.map((label, i) => (

@@ -9,15 +9,22 @@ import {
 } from "../components/MarketingShell";
 
 function ChatBubble() {
-  const [step, setStep] = useState(2);
+  const [step, setStep] = useState(1);
+  const stage = step >= 3 ? "Booked" : "Qualifying";
   return (
     <div className="bg-white rounded-2xl border border-[#E7E5DE] shadow-[0_1px_2px_rgba(0,0,0,0.03)] p-5 w-full max-w-sm">
       <div className="flex items-center justify-between mb-4 gap-3">
         <span className="text-xs font-medium text-[#9C9488]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
           your-site · web chat
         </span>
-        <span className="text-[11px] font-medium uppercase tracking-wide px-2 py-0.5 rounded-full shrink-0" style={{ backgroundColor: "#E9F5EF", color: "#1E7B52" }}>
-          {["New", "Qualifying", "Booked"][Math.min(step, 2)]}
+        <span
+          className="text-[11px] font-medium uppercase tracking-wide px-2 py-0.5 rounded-full shrink-0"
+          style={{
+            backgroundColor: stage === "Booked" ? "#E9F5EF" : "#FBF0E2",
+            color: stage === "Booked" ? "#1E7B52" : "#D97B29",
+          }}
+        >
+          {stage}
         </span>
       </div>
       <div className="flex flex-col gap-2.5">
@@ -43,7 +50,7 @@ function ChatBubble() {
         )}
       </div>
       <button
-        onClick={() => setStep((s) => (s < 4 ? s + 1 : 2))}
+        onClick={() => setStep((s) => (s < 3 ? s + 1 : 1))}
         className="mt-4 text-xs font-medium text-[#B87333] flex items-center gap-1"
       >
         Advance the deal <ChevronRight size={12} />
