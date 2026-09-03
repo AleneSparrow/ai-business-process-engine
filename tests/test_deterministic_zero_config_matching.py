@@ -3,8 +3,9 @@
 from datetime import datetime, timezone
 
 from src.domain.business_dna_builder import OnboardingInput, OnboardingService, build_business_dna
+from src.domain.conversations import ConversationContext
 from src.domain.qualification import IncomingMessage
-from src.engine.intent_extractor import DeterministicIntentExtractor
+from src.engine.intent_extractor import UNLISTED_SERVICE, DeterministicIntentExtractor
 
 
 NOW = datetime(2026, 9, 3, 12, 0, tzinfo=timezone.utc)
@@ -21,7 +22,7 @@ def _northstar() -> dict:
             OnboardingService(
                 "Heating & AC repair",
                 ("Is the system running at all?",),
-                "Furnace not heating, AC not cooling, noisy HVAC, thermostat and airflow problems",
+                "Furnace not heating, air conditioner or AC not cooling, noisy HVAC, thermostat and airflow problems",
             ),
             OnboardingService(
                 "Plumbing repair",
@@ -51,6 +52,14 @@ def _incoming(text: str) -> IncomingMessage:
         raw_text=text,
         timestamp=NOW,
     )
+
+
+def test_air_conditioner_wording_selects_hvac() -> None:
+    intent = DeterministicIntentExtractor().extract(
+        _incoming("Our air conditioner is blowing warm air. Can someone come to 10009?"),
+        _northstar(),
+    )
+    assert intent.service_requested == "heating-ac-repair"
 
 
 def test_furnace_wording_selects_hvac_without_catalog_name() -> None:
@@ -137,3 +146,27 @@ def test_return_guarantee_requests_a_human() -> None:
     )
     assert intent.requires_human
     assert intent.service_requested is None
+
+
+def test_second_unmatched_service_answer_is_unsupported() -> None:
+    intent = DeterministicIntentExtractor().extract(
+        IncomingMessage(
+            business_id="northstar-home",
+            channel="webchat",
+            external_message_id="eval-3",
+            raw_text="It's my laptop that needs to be repaired.",
+            timestamp=NOW,
+            conversation_context=ConversationContext(unresolved_items=("field:service_id",)),
+        ),
+        _northstar(),
+    )
+    assert intent.unsupported_service_name == UNLISTED_SERVICE
+    assert intent.service_requested is None
+
+
+def test_first_turn_ambiguous_house_noise_is_not_marked_unsupported() -> None:
+    intent = DeterministicIntentExtractor().extract(
+        _incoming("Something in the utility room is making a strange noise. Can somebody help?"),
+        _northstar(),
+    )
+    assert intent.unsupported_service_name is None

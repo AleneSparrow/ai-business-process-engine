@@ -24,6 +24,15 @@ _STOPWORDS = frozenset({
     "faults", "issue", "issues", "residential", "looking", "just", "like",
 })
 _TOKEN = re.compile(r"[a-z0-9]{4,}")
+_REQUESTISH = re.compile(
+    r"\b(?:can you|could you|i need|i want|please|repair(?:ed|ing)?|fix(?:ed|ing)?|book|help)\b",
+    re.IGNORECASE,
+)
+# Catalog id never goes here -- this is the fallback's stand-in when the
+# customer has already been asked which service they need and still named
+# nothing in the catalog. QualificationService treats any non-None value as
+# SERVICE_NOT_OFFERED. The phrase is a fixed label, never customer prose.
+UNLISTED_SERVICE = "unlisted-service"
 # "I'm Sam at 10002" is how people actually introduce themselves. Require an
 # uppercase given name so "I'm really worried" is not captured as a name.
 _INTRODUCED_NAME = re.compile(
@@ -224,6 +233,18 @@ class DeterministicIntentExtractor:
 
         ambiguous = len(unique_matches) > 1
         advice_request = bool(ADVICE_OR_COMMITMENT_CUE.search(raw_text))
+        unsupported_service_name = None
+        if (
+            not unique_matches
+            and "field:service_id" in unresolved
+            and not suspicious_instruction
+            and _REQUESTISH.search(raw_text)
+            and not (phone or postal_match or customer_name)
+        ):
+            # Already asked what they need; this turn still names nothing we
+            # offer. First-turn ambiguity ("a noise in the utility room") is
+            # untouched because service_id is not yet an unresolved item.
+            unsupported_service_name = UNLISTED_SERVICE
         contextual_answer = context is not None and bool(
             postal_match or email_match or phone or customer_name or answers or unique_matches
         )
@@ -238,4 +259,5 @@ class DeterministicIntentExtractor:
             customer_name=customer_name,
             phone=phone,
             email=email_match.group(0) if email_match else None,
+            unsupported_service_name=unsupported_service_name,
         )

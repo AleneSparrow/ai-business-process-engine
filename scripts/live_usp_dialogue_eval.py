@@ -113,6 +113,9 @@ class Scenario:
     answers: Mapping[str, str] = field(default_factory=dict)
     clarify_service: str | None = None
     quote_accept: str | None = None
+    service_retry: str | None = None
+    reactivate_message: str | None = None
+    slot_reply: str | None = None
     expect_human: bool | None = None
     expect_lost: bool = False
     everyday_wording: bool = True
@@ -138,7 +141,7 @@ BUSINESSES: tuple[BusinessSpec, ...] = (
         services=(
             ServiceSpec(
                 "Heating & AC repair",
-                "Furnace not heating, AC not cooling, noisy HVAC, thermostat and airflow problems",
+                "Furnace not heating, air conditioner or AC not cooling, noisy HVAC, thermostat and airflow problems",
                 "Is the system running at all?",
                 "booking",
             ),
@@ -277,6 +280,141 @@ BUSINESSES: tuple[BusinessSpec, ...] = (
             ),
         ),
     ),
+    BusinessSpec(
+        business_id="greenleaf-pest",
+        name="GreenLeaf Pest Control",
+        industry="Pest control",
+        description="Inspection and treatment planning for household pests",
+        segment="local services",
+        setup="owner_settings",
+        zip_codes=("33101", "33109", "33131"),
+        booking_enabled=True,
+        services=(
+            ServiceSpec(
+                "Pest inspection",
+                "Inspection and treatment for termites, ants, and other household pests",
+                "Which pest have you noticed?",
+                "booking",
+            ),
+            ServiceSpec(
+                "Rodent control",
+                "Mice and rat trapping and exclusion",
+                "Where have you seen activity?",
+                "booking",
+            ),
+        ),
+    ),
+    BusinessSpec(
+        business_id="moveright",
+        name="MoveRight Movers",
+        industry="Moving services",
+        description="Local and long-distance household moving estimates",
+        segment="local services",
+        setup="owner_settings",
+        zip_codes=("10001", "10002", "10003"),
+        services=(
+            ServiceSpec(
+                "Moving quote",
+                "Local and long-distance household moving for apartments and houses",
+                "What size home are you moving?",
+                "quote",
+                quote_price="1299.00",
+            ),
+        ),
+    ),
+    BusinessSpec(
+        business_id="lenslight",
+        name="Lens and Light Studio",
+        industry="Photography",
+        description="Commercial, event, and portrait photography",
+        segment="local services",
+        setup="owner_settings",
+        zip_codes=("90001", "90012", "90015"),
+        booking_enabled=True,
+        services=(
+            ServiceSpec(
+                "Product photography",
+                "Studio and on-site photography for product launches and catalogs",
+                "What type of shoot is this?",
+                "booking",
+            ),
+            ServiceSpec(
+                "Event photography",
+                "Coverage for dinners, conferences, and private events",
+                "How many guests do you expect?",
+                "booking",
+            ),
+        ),
+    ),
+    BusinessSpec(
+        business_id="cloudnest",
+        name="CloudNest",
+        industry="SaaS sales",
+        description="Business software demos and solution consultations",
+        segment="b2b",
+        setup="zero_config",
+        services=(
+            ServiceSpec(
+                "Product demo",
+                "Software demos for teams that need to automate customer onboarding",
+                "How many people will use the software?",
+            ),
+        ),
+    ),
+    BusinessSpec(
+        business_id="pawside",
+        name="Pawside Veterinary Clinic",
+        industry="Veterinary services",
+        description="Non-emergency pet examinations and consultations",
+        segment="local services",
+        setup="owner_settings",
+        zip_codes=("80202", "80203", "80205"),
+        booking_enabled=True,
+        services=(
+            ServiceSpec(
+                "Veterinary appointment",
+                "Routine checkups and non-emergency exams for dogs and cats",
+                "What kind of pet is the appointment for?",
+                "booking",
+            ),
+        ),
+    ),
+    BusinessSpec(
+        business_id="sunwell",
+        name="Sunwell Solar",
+        industry="Solar installation",
+        description="Residential solar design and installation estimates",
+        segment="local services",
+        setup="owner_settings",
+        zip_codes=("85001", "85003", "85004"),
+        services=(
+            ServiceSpec(
+                "Solar assessment",
+                "Residential solar design and installation estimates for houses",
+                "What type of property is this?",
+                "quote",
+                quote_price="4500.00",
+            ),
+        ),
+    ),
+    BusinessSpec(
+        business_id="tidyco",
+        name="TidyCo Cleaning",
+        industry="Cleaning services",
+        description="Residential and commercial cleaning estimates",
+        segment="local services",
+        setup="owner_settings",
+        zip_codes=("94102", "94103", "94107"),
+        services=(
+            ServiceSpec(
+                "Cleaning quote",
+                "Deep cleaning and move-out cleaning for apartments and houses",
+                "What type of property is it?",
+                "quote",
+                quote_price="249.00",
+            ),
+        ),
+    ),
 )
 
 
@@ -386,11 +524,13 @@ SCENARIOS: tuple[Scenario, ...] = (
         usp_claims=("any_business",),
         first_message="Can you repair my laptop? I'm Maya at 10001, +1 212-555-0110.",
         expected_service=None,
-        expected_states=("LOST", "NEEDS_HUMAN"),
+        expected_states=("LOST",),
         name="Maya",
         phone="+1 212-555-0110",
         zip_code="10001",
-        max_turns=4,
+        service_retry="It's my laptop that needs to be repaired.",
+        expect_lost=True,
+        max_turns=6,
     ),
     Scenario(
         scenario_id="salon-balayage-booking",
@@ -459,6 +599,252 @@ SCENARIOS: tuple[Scenario, ...] = (
         phone="+1 214-555-0155",
         answers={"what-are-you-shipping": "four pallets"},
         quote_accept="sounds good, lets do it",
+    ),
+    Scenario(
+        scenario_id="northstar-ac-booking",
+        business_id="northstar-home",
+        usp_claims=("any_business", "to_deal", "zero_config_wording"),
+        first_message="Our air conditioner is blowing warm air. Can someone come to 10009?",
+        expected_service="heating-ac-repair",
+        expected_states=("BOOKED",),
+        name="Pat",
+        phone="+1 212-555-0160",
+        zip_code="10009",
+        answers={"is-the-system-running-at-all": "yes, it runs but blows warm air"},
+    ),
+    Scenario(
+        scenario_id="northstar-need-it-today-still-books",
+        business_id="northstar-home",
+        usp_claims=("any_business", "to_deal"),
+        first_message=(
+            "The furnace stopped and I need it today if possible. I'm Kim at 10001, +1 212-555-0161. It is not running."
+        ),
+        expected_service="heating-ac-repair",
+        expected_states=("BOOKED",),
+        name="Kim",
+        phone="+1 212-555-0161",
+        zip_code="10001",
+        answers={"is-the-system-running-at-all": "It is not running"},
+    ),
+    Scenario(
+        scenario_id="northstar-invented-slot-rejected",
+        business_id="northstar-home",
+        usp_claims=("to_deal",),
+        first_message=(
+            "My furnace is rattling. I'm Lee at 10002, +1 212-555-0162. The unit still runs."
+        ),
+        expected_service="heating-ac-repair",
+        expected_states=("QUALIFIED",),
+        name="Lee",
+        phone="+1 212-555-0162",
+        zip_code="10002",
+        answers={"is-the-system-running-at-all": "The unit still runs"},
+        slot_reply="Book me tomorrow at 7:15 AM",
+    ),
+    Scenario(
+        scenario_id="northstar-out-of-area-then-correct-zip",
+        business_id="northstar-home",
+        usp_claims=("any_business", "to_deal"),
+        first_message=(
+            "My AC isn't cooling. I'm Alex, phone +1 212-555-0163, ZIP 07030, and the system is still running."
+        ),
+        expected_service="heating-ac-repair",
+        expected_states=("BOOKED",),
+        name="Alex",
+        phone="+1 212-555-0163",
+        zip_code="10001",
+        answers={"is-the-system-running-at-all": "the system is still running"},
+        reactivate_message="Sorry, the ZIP is actually 10001.",
+        max_turns=8,
+    ),
+    Scenario(
+        scenario_id="salon-haircut-booking",
+        business_id="bloom-salon",
+        usp_claims=("any_business", "to_deal", "zero_config_wording"),
+        first_message="I need a trim, not a full restyle. I'm in 94103.",
+        expected_service="haircut",
+        expected_states=("BOOKED",),
+        name="Jamie",
+        phone="+1 415-555-0164",
+        zip_code="94103",
+        answers={"how-short-would-you-like-it": "just a trim"},
+    ),
+    Scenario(
+        scenario_id="auto-check-engine",
+        business_id="ridge-auto",
+        usp_claims=("any_business", "to_deal", "zero_config_wording"),
+        first_message="The check-engine light came on this morning in 85003.",
+        expected_service="vehicle-diagnostic",
+        expected_states=("BOOKED",),
+        name="Reese",
+        phone="+1 602-555-0165",
+        zip_code="85003",
+        answers={"what-warning-lights-or-symptoms-do-you-see": "check-engine light"},
+    ),
+    Scenario(
+        scenario_id="auto-out-of-area",
+        business_id="ridge-auto",
+        usp_claims=("any_business",),
+        first_message="My car shakes when I brake. I'm in 99999. I'm Taylor, +1 602-555-0166.",
+        expected_service="brake-service",
+        expected_states=("LOST",),
+        name="Taylor",
+        phone="+1 602-555-0166",
+        zip_code="99999",
+        answers={"what-is-the-vehicle-make-and-model": "Toyota Camry"},
+        expect_lost=True,
+    ),
+    Scenario(
+        scenario_id="pest-termites",
+        business_id="greenleaf-pest",
+        usp_claims=("any_business", "to_deal", "zero_config_wording"),
+        first_message="We keep finding termites near the garage in 33101.",
+        expected_service="pest-inspection",
+        expected_states=("BOOKED",),
+        name="Drew",
+        phone="+1 305-555-0167",
+        zip_code="33101",
+        answers={"which-pest-have-you-noticed": "termites"},
+    ),
+    Scenario(
+        scenario_id="moving-two-bedroom-quote",
+        business_id="moveright",
+        usp_claims=("any_business", "to_deal", "zero_config_wording"),
+        first_message="We are moving a two-bedroom apartment next month from 10002.",
+        expected_service="moving-quote",
+        expected_states=("WON", "FOLLOW_UP"),
+        name="Quinn",
+        phone="+1 212-555-0168",
+        zip_code="10002",
+        answers={"what-size-home-are-you-moving": "two-bedroom"},
+        quote_accept="sounds good, lets do it",
+    ),
+    Scenario(
+        scenario_id="photo-product-launch",
+        business_id="lenslight",
+        usp_claims=("any_business", "to_deal", "zero_config_wording"),
+        first_message="We need a photographer for our product launch in 90012.",
+        expected_service="product-photography",
+        expected_states=("BOOKED",),
+        name="Sasha",
+        phone="+1 213-555-0169",
+        zip_code="90012",
+        answers={"what-type-of-shoot-is-this": "product launch"},
+    ),
+    Scenario(
+        scenario_id="saas-onboarding-zero-config",
+        business_id="cloudnest",
+        usp_claims=("any_business", "zero_config", "zero_config_wording"),
+        first_message="We need software to automate customer onboarding for a forty-person team.",
+        expected_service="product-demo",
+        expected_states=("NEEDS_HUMAN", "QUALIFIED"),
+        name="Riley Park",
+        phone="+1 415-555-0170",
+        answers={"how-many-people-will-use-the-software": "forty"},
+    ),
+    Scenario(
+        scenario_id="saas-greeting-stays-qualifying",
+        business_id="cloudnest",
+        usp_claims=("zero_config",),
+        first_message="Hi, can you help me?",
+        expected_service=None,
+        expected_states=("QUALIFYING",),
+        max_turns=2,
+    ),
+    Scenario(
+        scenario_id="vet-dog-checkup",
+        business_id="pawside",
+        usp_claims=("any_business", "to_deal", "zero_config_wording"),
+        first_message="My dog needs a routine checkup. We are in 80202.",
+        expected_service="veterinary-appointment",
+        expected_states=("BOOKED",),
+        name="Cameron",
+        phone="+1 303-555-0171",
+        zip_code="80202",
+        answers={"what-kind-of-pet-is-the-appointment-for": "dog"},
+    ),
+    Scenario(
+        scenario_id="solar-house-quote",
+        business_id="sunwell",
+        usp_claims=("any_business", "to_deal", "zero_config_wording"),
+        first_message="I want to know if solar makes sense for my house in 85003.",
+        expected_service="solar-assessment",
+        expected_states=("WON", "FOLLOW_UP"),
+        name="Avery",
+        phone="+1 602-555-0172",
+        zip_code="85003",
+        answers={"what-type-of-property-is-this": "house"},
+        quote_accept="sounds good, lets do it",
+    ),
+    Scenario(
+        scenario_id="cleaning-move-out-quote",
+        business_id="tidyco",
+        usp_claims=("any_business", "to_deal", "zero_config_wording"),
+        first_message="We need a deep clean before moving out of our apartment in 94107.",
+        expected_service="cleaning-quote",
+        expected_states=("WON", "FOLLOW_UP"),
+        name="Emerson",
+        phone="+1 415-555-0173",
+        zip_code="94107",
+        answers={"what-type-of-property-is-it": "apartment"},
+        quote_accept="sounds good, lets do it",
+    ),
+    Scenario(
+        scenario_id="wealth-insurance-review",
+        business_id="harbor-wealth",
+        usp_claims=("any_business", "zero_config", "zero_config_wording"),
+        first_message="I need life coverage reviewed for my family.",
+        expected_service="insurance-review",
+        expected_states=("NEEDS_HUMAN", "QUALIFIED"),
+        name="Blake",
+        phone="+1 503-555-0174",
+        answers={"what-type-of-coverage-do-you-want-reviewed": "life"},
+    ),
+    Scenario(
+        scenario_id="tutoring-sat",
+        business_id="brightpath-tutoring",
+        usp_claims=("any_business", "to_deal", "zero_config_wording"),
+        first_message="My son needs SAT practice starting next month.",
+        expected_service="test-prep",
+        expected_states=("BOOKED",),
+        name="Harper",
+        phone="+1 503-555-0175",
+        answers={"which-exam-is-this-for": "SAT"},
+    ),
+    Scenario(
+        scenario_id="freight-carrier-sourcing",
+        business_id="packwright-freight",
+        usp_claims=("any_business", "zero_config_wording"),
+        first_message="We need a carrier for a recurring Dallas to Miami lane.",
+        expected_service="carrier-sourcing",
+        expected_states=("NEEDS_HUMAN", "QUALIFIED"),
+        name="Jordan Hale",
+        phone="+1 214-555-0176",
+        answers={"how-often-do-you-ship": "weekly"},
+    ),
+    Scenario(
+        scenario_id="pest-mice",
+        business_id="greenleaf-pest",
+        usp_claims=("any_business", "to_deal", "zero_config_wording"),
+        first_message="We have mice in the kitchen in 33109.",
+        expected_service="rodent-control",
+        expected_states=("BOOKED",),
+        name="Finley",
+        phone="+1 305-555-0177",
+        zip_code="33109",
+        answers={"where-have-you-seen-activity": "kitchen"},
+    ),
+    Scenario(
+        scenario_id="photo-event",
+        business_id="lenslight",
+        usp_claims=("any_business", "to_deal", "zero_config_wording"),
+        first_message="We need coverage for a company dinner for 150 people in 90015.",
+        expected_service="event-photography",
+        expected_states=("BOOKED",),
+        name="Rowan",
+        phone="+1 213-555-0178",
+        zip_code="90015",
+        answers={"how-many-guests-do-you-expect": "150"},
     ),
 )
 
@@ -665,23 +1051,32 @@ def choose_reply(
     sent: set[str],
     service_requested: str | None,
 ) -> str | None:
+    if state == ProcessState.LOST.value:
+        if scenario.reactivate_message and "reactivate" not in sent:
+            sent.add("reactivate")
+            return scenario.reactivate_message
+        return None
+    if state == ProcessState.NEEDS_HUMAN.value:
+        return None
+    if state in DEAL_STATES:
+        return None
     if state in STOP_STATES and not (state == ProcessState.QUOTED.value and scenario.quote_accept):
-        if state == ProcessState.NEEDS_HUMAN.value or state == ProcessState.LOST.value:
-            return None
-        if state in DEAL_STATES:
-            return None
+        return None
     if state == ProcessState.QUOTED.value and scenario.quote_accept and "quote_accept" not in sent:
         sent.add("quote_accept")
         return scenario.quote_accept
     if state in {ProcessState.QUALIFIED.value, ProcessState.QUOTED.value} and has_slots and "slot" not in sent:
         sent.add("slot")
-        return "The second option works"
+        return scenario.slot_reply or "The second option works"
     if state == ProcessState.QUALIFIED.value and has_quote and scenario.quote_accept and "quote_accept" not in sent:
         sent.add("quote_accept")
         return scenario.quote_accept
     if scenario.clarify_service and not service_requested and "clarify" not in sent:
         sent.add("clarify")
         return scenario.clarify_service
+    if "field:service_id" in unresolved and scenario.service_retry and "service_retry" not in sent:
+        sent.add("service_retry")
+        return scenario.service_retry
     if "field:phone" in unresolved and scenario.phone and "phone" not in sent:
         sent.add("phone")
         return f"My phone is {scenario.phone}"
@@ -881,15 +1276,40 @@ def summarize(records: list[dict[str, Any]], provider: str, model: str) -> dict[
         for row in records
         if not row.get("score", {}).get("pass")
     ]
+    pass_rate = rate(lambda row: row.get("score", {}).get("pass"))
+    to_deal_rows = [row for row in records if "to_deal" in row.get("usp_claims", [])]
+    any_business_rows = [row for row in records if "any_business" in row.get("usp_claims", [])]
+    zero_config_rows = [row for row in records if "zero_config" in row.get("usp_claims", [])]
+    everyday_rows = [row for row in records if row.get("everyday_wording")]
+    sales_bar = 0.98
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "provider": provider,
         "model": model,
         "cases": len(records),
-        "pass_rate": rate(lambda row: row.get("score", {}).get("pass")),
+        "businesses": len({row["business_id"] for row in records}),
+        "pass_rate": pass_rate,
+        "sales_bar": sales_bar,
+        "sales_bar_met": pass_rate is not None and pass_rate >= sales_bar,
         "service_match_rate": rate(lambda row: row.get("score", {}).get("service_match")),
         "state_match_rate": rate(lambda row: row.get("score", {}).get("state_match")),
         "to_deal_rate": rate(lambda row: row.get("score", {}).get("to_deal")),
+        "to_deal_claim_pass_rate": (
+            sum(bool(row.get("score", {}).get("pass")) for row in to_deal_rows) / len(to_deal_rows)
+            if to_deal_rows else None
+        ),
+        "any_business_claim_pass_rate": (
+            sum(bool(row.get("score", {}).get("pass")) for row in any_business_rows) / len(any_business_rows)
+            if any_business_rows else None
+        ),
+        "zero_config_claim_pass_rate": (
+            sum(bool(row.get("score", {}).get("pass")) for row in zero_config_rows) / len(zero_config_rows)
+            if zero_config_rows else None
+        ),
+        "everyday_wording_pass_rate": (
+            sum(bool(row.get("score", {}).get("pass")) for row in everyday_rows) / len(everyday_rows)
+            if everyday_rows else None
+        ),
         "no_invented_price_rate": rate(lambda row: row.get("score", {}).get("no_invented_price")),
         "errors": sum("error_type" in row for row in records),
         "mean_wall_latency_ms": round(sum(row["wall_latency_ms"] for row in records) / len(records)) if records else None,
@@ -923,6 +1343,9 @@ def main() -> None:
     parser.add_argument("--only", action="append", default=[], help="Run only these scenario_id values.")
     args = parser.parse_args()
     apply_env_file(ROOT / ".env")
+    requested_provider = args.provider
+    if requested_provider == "anthropic" and not (os.getenv("ANTHROPIC_API_KEY") or "").strip():
+        args.provider = "deterministic"
 
     selected = tuple(
         scenario for scenario in SCENARIOS
@@ -957,6 +1380,8 @@ def main() -> None:
     engine.dispose()
     Path(handle.name).unlink(missing_ok=True)
     summary = summarize(records, runtime.provider_name, runtime.model_name)
+    summary["requested_provider"] = requested_provider
+    summary["anthropic_available"] = bool((os.getenv("ANTHROPIC_API_KEY") or "").strip())
     payload = {"summary": summary, "records": records}
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")

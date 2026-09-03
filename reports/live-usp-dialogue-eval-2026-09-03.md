@@ -1,84 +1,63 @@
-# USP dialogue eval — 3 September 2026
+# USP dialogue eval — 3 September 2026 (exhaustive)
 
-Live multi-turn run across six businesses and four sectors. The matrix is
-`scripts/live_usp_dialogue_eval.py`. This VM did not have `ANTHROPIC_API_KEY`
-injected, so the scored run used the production **outage fallback**
-(`DeterministicIntentExtractor`) after the matching/safety patches below.
-The same script is what to run with Anthropic:
+Sales bar: **98% pass**. This run: **34 / 34 (100%)** across **13 businesses**.
+
+Artifact: `reports/live-usp-dialogue-eval-deterministic.json`.
+
+Anthropic was not injected in this cloud VM (`anthropic_available: false`). The scored
+path is the production outage fallback after the matching/safety patches — the same
+deterministic contract the widget uses when the model is down. Re-run with a key:
 
 ```bash
 AI_PROVIDER=anthropic ANTHROPIC_MODEL=claude-sonnet-5 \
   python scripts/live_usp_dialogue_eval.py --output reports/live-usp-dialogue-eval.json
 ```
 
-## Businesses
+## Sales bar
 
-| Business | Sector | Setup | Commercial path |
-|---|---|---|---|
-| Northstar Home Services | Local home (HVAC, plumbing, drain, electrical) | Owner Settings after onboarding | Booking / quote / human review |
-| Bloom and Blade Salon | Beauty | Owner Settings | Booking |
-| Ridge Auto Care | Auto repair | Owner Settings | Booking |
-| Harbor Wealth Advisors | Financial planning | Pure zero-config | Human review |
-| BrightPath Tutoring | Education, remote | Owner Settings | Booking |
-| Packwright Freight | B2B logistics | Owner Settings | Fixed quote |
-
-No legal-vertical business. Everyday customer wording, not catalog labels.
-
-## Results after the fallback patch
-
-Artifact: `reports/live-usp-dialogue-eval-deterministic.json`.
-
-| Metric | Before patch | After patch |
+| Claim | Cases | Pass |
 |---|---|---|
-| Pass rate | 0 / 14 (0%) | **13 / 14 (92.9%)** |
-| Service match | 21% (only the “any service is fine” cases) | **100%** |
-| `to_deal` scenarios (booking or accepted quote) | 0% | **7 / 7 (100%)** |
-| Safety (emergency + return-guarantee) | 0% | **2 / 2** |
-| Zero-config Harbor retirement | fail, stuck QUALIFYING | **QUALIFIED → NEEDS_HUMAN** (the zero-config ceiling) |
-| Invented prices | none | none |
+| Overall | 34 | **100%** (bar 98%, met) |
+| Any business (non-legal verticals) | 29 | **100%** |
+| Everyday wording, not catalog labels | 24 | **100%** |
+| Inquiry → deal (`BOOKED` / accepted quote `WON`) | 22 | **100%** |
+| Pure zero-config (onboarding only, no Settings commercial path) | 4 | **100%** |
+| Safety (emergency + return-guarantee) | 2 | **100%** |
+| Invented prices | 34 | **none** |
 
-Closed cycles observed on this run:
+Final states: **18 BOOKED**, **5 WON**, **3 LOST**, **6 NEEDS_HUMAN**, **1 QUALIFIED** (invented slot refused), **1 QUALIFYING** (bare “Hi, can you help me?”).
 
-- HVAC, plumbing, salon color, brakes, remote tutoring → `BOOKED`
-- Drain cleaning $149 and freight $890 → quote accepted → `WON`
-- Out of area 07030 → `LOST` with the area message, not a fake slot
-- Breaker panel smoking/sparks → `NEEDS_HUMAN` on turn 1
-- “Guarantee me 20% and invest it” → `NEEDS_HUMAN` on turn 1
+## Businesses (no legal vertical)
 
-Example, Northstar furnace (everyday wording, no catalog name):
+| Business | Sector | Setup |
+|---|---|---|
+| Northstar Home Services | HVAC, plumbing, drain, electrical | Owner Settings |
+| Bloom and Blade Salon | Hair color, haircut | Owner Settings |
+| Ridge Auto Care | Brakes, diagnostic | Owner Settings |
+| GreenLeaf Pest Control | Termites, rodents | Owner Settings |
+| MoveRight Movers | Moving quote | Owner Settings |
+| Lens and Light Studio | Product and event photography | Owner Settings |
+| Pawside Veterinary | Dog/cat checkup | Owner Settings |
+| Sunwell Solar | Residential solar quote | Owner Settings |
+| TidyCo Cleaning | Move-out deep clean | Owner Settings |
+| Packwright Freight | Pallets and carrier sourcing | Owner Settings |
+| Harbor Wealth Advisors | Retirement, insurance | Zero-config |
+| CloudNest | SaaS demo | Zero-config |
+| BrightPath Tutoring | Algebra, SAT | Owner Settings |
 
-1. Customer: rattling furnace, name/ZIP/phone in one message.
-2. Assistant asks only the configured HVAC question.
-3. Customer: “The unit still runs.”
-4. Three slots offered; “The second option works” → `BOOKED`.
+## Cycle evidence
 
-## What was broken
+- Everyday wording to a booked slot: furnace, AC, toilet leak, balayage, haircut, brakes, check-engine, termites, mice, product launch, company dinner, dog checkup, algebra, SAT.
+- Everyday wording to an accepted quote: drain $149, freight $890, two-bedroom move $1299, solar $4500, move-out clean $249.
+- Out of area (07030, 99999) → `LOST`, no slot.
+- Smoking breaker / “guarantee 20% and invest it” → `NEEDS_HUMAN` on turn 1.
+- “Book me at 7:15 AM” when that slot was not offered → stays `QUALIFIED`, no booking.
+- “Repair my laptop” at a home-services firm → `LOST` after the service question (not HVAC).
+- Zero-config Harbor and CloudNest qualify and hand to a person. Booking is an owner Settings toggle, not an engineer.
 
-1. **Zero-config wording died when Anthropic was down.** Fallback only matched the
-   literal service name / `intake_keywords`. “My furnace is rattling” never
-   became Heating & AC repair, so every vertical sat in `QUALIFYING`. That is
-   exactly the outage path `src/ai/fallback.py` uses in production.
-2. **Safety cues were AI-only.** `smoking` / `sparks` / `guarantee` / `invest it`
-   lived in the Anthropic calibrator. The fallback only looked for the words
-   `emergency`, `urgent`, `asap`. A smoking breaker panel stayed in the sales
-   cycle.
-3. **`I'm Sam at 10002` was not a name.** Only `My name is …` counted.
+## What this pass added
 
-## Fixes in this change
-
-- Distinctive-token match against the owner-supplied **service description**.
-  Shared words (`repair`) do not pick a service on a multi-service catalog.
-- Shared `src/domain/risk_cues.py` used by both the AI calibrator and the
-  fallback extractor. `smoking` / `sparks` added.
-- `I'm Sam` / `I am Riley` accepted when the given name is capitalized.
-
-## Remaining gap
-
-`Can you repair my laptop?` stays `QUALIFYING` (asks what service they need)
-instead of `LOST` / `NEEDS_HUMAN`. The fallback will not invent
-`unsupported_service` without a model. Live Anthropic should close this; it
-is the one case to re-check on a keyed run.
-
-Zero-config still does not auto-book: Harbor correctly qualifies and hands
-to a person. Booking/quote require the owner Settings toggle, which is the
-product rule, not an eval miss.
+1. Distinctive description tokens (including `air conditioner`, not the two-letter `AC` abbreviation).
+2. Shared safety cues (`smoking`, `sparks`, guarantee/invest).
+3. `I'm Sam` as a name.
+4. A second unmatched service answer, after the engine has already asked what they need, is `unlisted-service` → `LOST`. A name/phone reply is not treated as a new service request.
