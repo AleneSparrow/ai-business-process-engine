@@ -1,0 +1,153 @@
+{
+  "schema_version": "1.0",
+  "business_id": "acme-home-services",
+  "market": {
+    "geography": "ZIPs 60601, 60602",
+    "category": "home services",
+    "jobs": [
+      "Diagnostic visit",
+      "Equipment replacement"
+    ],
+    "pains": [
+      "not knowing whether a provider is a fit",
+      "wasting time on the wrong next step",
+      "starting a conversation without knowing what happens next"
+    ],
+    "gains": [
+      "a clear next step",
+      "a provider who already explains what they do",
+      "reaching out only when ready"
+    ],
+    "alternatives": [
+      "handle the job themselves",
+      "hire extra staff to chase every inquiry by hand",
+      "use a generic tool that is not set up for this business"
+    ]
+  },
+  "segments": [
+    {
+      "id": "primary",
+      "label": "People who need diagnostic visit",
+      "jobs": [
+        "Diagnostic visit",
+        "Equipment replacement"
+      ],
+      "pains": [
+        "not knowing whether a provider is a fit",
+        "wasting time on the wrong next step",
+        "starting a conversation without knowing what happens next"
+      ]
+    }
+  ],
+  "targeting": {
+    "primary_segment_id": "primary",
+    "strategy": "concentrated"
+  },
+  "positioning": {
+    "competitive_alternatives": [
+      "handle the job themselves",
+      "hire extra staff to chase every inquiry by hand",
+      "use a generic tool that is not set up for this business"
+    ],
+    "unique_attributes": [
+      "Diagnostic visit",
+      "Equipment replacement"
+    ],
+    "value_themes": [
+      "A clear path to get diagnostic visit done"
+    ],
+    "best_fit_customers": "People who need diagnostic visit",
+    "market_category": "home services",
+    "statement": "For people who need diagnostic visit in ZIPs 60601, 60602, Acme Home Services is a home services business that offers Diagnostic visit, Equipment replacement, unlike handle the job themselves.",
+    "claims": [
+      {
+        "id": "offers-catalog",
+        "text": "Acme Home Services offers Diagnostic visit, Equipment replacement.",
+        "substantiation": "business_dna",
+        "status": "approved",
+        "evidence": "Copied from Business DNA; not an advertising superlative."
+      },
+      {
+        "id": "serves-geography",
+        "text": "Acme Home Services serves ZIPs 60601, 60602.",
+        "substantiation": "business_dna",
+        "status": "approved",
+        "evidence": "Copied from Business DNA; not an advertising superlative."
+      }
+    ]
+  },
+  "motions": {
+    "attract": true,
+    "loyalty": true
+  },
+  "content_plan": {
+    "pillars": [
+      {
+        "id": "problem",
+        "stage": "aware",
+        "format": "explainer",
+        "job": "Diagnostic visit",
+        "cta": "subscribe",
+        "allowed_claim_ids": [
+          "offers-catalog",
+          "serves-geography"
+        ]
+      },
+      {
+        "id": "fit",
+        "stage": "engaged",
+        "format": "comparison",
+        "job": "Diagnostic visit",
+        "cta": "inquire",
+        "allowed_claim_ids": [
+          "offers-catalog",
+          "serves-geography"
+        ]
+      },
+      {
+        "id": "next-step",
+        "stage": "intent",
+        "format": "next_step",
+        "job": "Diagnostic visit",
+        "cta": "inquire",
+        "allowed_claim_ids": [
+          "offers-catalog",
+          "serves-geography"
+        ]
+      }
+    ]
+  },
+  "sequences": {
+    "welcome": {
+      "channel": "email",
+      "include_proof_step": false
+    }
+  },
+  "scoring": {
+    "aware_min": 5,
+    "engaged_min": 20,
+    "intent_min": 45
+  },
+  "communication": {
+    "language": "English",
+    "tone": "friendly, concise, and professional"
+  },
+  "compliance": {
+    "ai_disclosure_required": true,
+    "can_spam": true,
+    "tcpa_sms": true,
+    "physical_postal_address": "123 W Lake St, Chicago, IL 60601",
+    "unsubscribe_required": true,
+    "opt_in_required_for_loyalty": true
+  },
+  "handoff": {
+    "target": "business_process_engine",
+    "entry_state": "NEW_LEAD",
+    "source": "flywheel_demand"
+  },
+  "approved_claim_ids": [
+    "offers-catalog",
+    "serves-geography"
+  ],
+  "proof_claim_ids": []
+}

@@ -30,6 +30,16 @@ The MVP provides:
 
 Qualified website conversations continue through booking or quoting. Business DNA—not AI—selects the commercial path, availability and price authority remain deterministic, PostgreSQL coordinates capacity and optimistic updates, and payment requests prepare state without collecting money. The product includes staff authentication, the React staff UI, Lemon Squeezy subscription billing, CRM webhooks, and optional Twilio delivery. Real customer payment collection and calendar synchronization remain deferred.
 
+## Product 2 — Flywheel Demand
+
+Flywheel Demand is a separate attract-to-inquiry engine. It compiles **Marketing DNA** from Business DNA (audience, positioning, content briefs, permission-based sequences), runs a prospect to the point where that person inquires, and hands a normal inbound message to this process engine at `NEW_LEAD`. It does not qualify, book, quote, or sell, and it does not send cold outreach.
+
+See [the Demand foundation](docs/demand/00-product-foundation.md), [architecture](docs/demand/02-architecture.md), and [handoff contract](docs/demand/03-handoff-contract.md). Run the local chain:
+
+```bash
+PYTHONPATH=. python examples/demand_funnel_demo.py
+```
+
 ## Architecture
 
 Each step follows:
@@ -41,11 +51,12 @@ Each step follows:
 ## Repository structure
 
 ```text
-config/       Business DNA example and schema
-docs/         Product and architecture documentation
+config/       Business DNA and Marketing DNA examples and schemas
+docs/         Product and architecture documentation (including docs/demand/)
 migrations/   Reproducible Alembic database migrations
 src/api/      FastAPI application, contracts, dependencies, and routes
 src/ai/       Provider-neutral AI contracts, prompts, adapters, and providers
+src/demand/   Product 2: attract-to-inquiry domain and engine
 src/domain/   Domain types and state-transition rules
 src/engine/   Decision routing and process orchestration
 src/persistence/ Repository protocols and SQLAlchemy adapters

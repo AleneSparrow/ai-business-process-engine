@@ -1,0 +1,17 @@
+name: campaign_setup
+version: 1
+description: Tenant-facing Flywheel Demand setup from market analysis to a live campaign.
+initial_state: MARKET_ANALYSIS
+states:
+  MARKET_ANALYSIS: [SEGMENTS_READY, NEEDS_HUMAN]
+  SEGMENTS_READY: [POSITIONED, NEEDS_HUMAN]
+  POSITIONED: [MOTION_SELECTED, NEEDS_HUMAN]
+  MOTION_SELECTED: [ASSETS_READY, NEEDS_HUMAN]
+  ASSETS_READY: [LIVE, NEEDS_HUMAN]
+  LIVE: [PAUSED, NEEDS_HUMAN]
+  PAUSED: [LIVE, ASSETS_READY, NEEDS_HUMAN]
+  NEEDS_HUMAN: []
+decision_policy:
+  types: [RULE, AI, HUMAN]
+  low_confidence: NEEDS_HUMAN
+  high_risk: NEEDS_HUMAN
