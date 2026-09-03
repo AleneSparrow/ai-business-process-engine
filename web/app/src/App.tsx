@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
 import { RequireActiveSubscription, RequireAuth, RequireBusiness } from "./components/RouteGuards";
+import { FlywheelSalesWidget } from "./components/FlywheelSalesWidget";
 import Landing from "./pages/Landing";
 import LawyersLanding from "./pages/LawyersLanding";
 import Signup from "./pages/Signup";
@@ -39,6 +40,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <FlywheelSalesWidget />
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/lawyers" element={<LawyersLanding />} />

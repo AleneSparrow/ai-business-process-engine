@@ -84,5 +84,7 @@ AI не принимает решений — `decision_router` / `qualification
 Стратегия, GTM, анализ рынка и решения лежат в claude.ai Project «AI engine for
 business». Ключевой якорный документ — `product-foundation-goals-and-usp.md`.
 Скорость до первой выручки (две дорожки, что не обещать, UX воронки) —
-`docs/marketing/06-speed-to-revenue-playbook.md`. Волна 1 для соло-юристов —
+`docs/marketing/06-speed-to-revenue-playbook.md`. Первый клиент — сам
+Flywheel: тенант `flywheel`, сид `examples/seed_flywheel_sales.py`, виджет на
+лендинге через `VITE_SALES_BUSINESS_ID`. Волна 1 для соло-юристов —
 `docs/marketing/04-gtm-legal-vertical.md`; это вход, не позиционирование продукта.

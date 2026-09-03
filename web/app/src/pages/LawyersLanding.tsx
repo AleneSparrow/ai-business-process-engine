@@ -6,6 +6,7 @@ import {
   MARKETING_DISPLAY,
   usePrimaryCta,
 } from "../components/MarketingShell";
+import { salesWidgetConfigured } from "../components/FlywheelSalesWidget";
 
 /**
  * Wave 1 campaign page — solo family-law / general-practice attorneys in
@@ -72,6 +73,11 @@ export default function LawyersLanding() {
           </a>
         </div>
         <span className="block text-xs text-[#9C9488] mt-4">$199/mo after trial · card required, no charge until trial ends</span>
+        {salesWidgetConfigured() && (
+          <p className="text-sm mt-4" style={{ color: "#B87333" }}>
+            The chat in the corner is live Flywheel — this page is running the product, not a demo script.
+          </p>
+        )}
       </section>
 
       <section className="border-y border-[#E7E5DE] bg-white">

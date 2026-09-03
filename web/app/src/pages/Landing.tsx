@@ -7,6 +7,7 @@ import {
   MARKETING_DISPLAY,
   usePrimaryCta,
 } from "../components/MarketingShell";
+import { salesWidgetConfigured } from "../components/FlywheelSalesWidget";
 
 function ChatBubble() {
   const [step, setStep] = useState(1);
@@ -15,7 +16,7 @@ function ChatBubble() {
     <div className="bg-white rounded-2xl border border-[#E7E5DE] shadow-[0_1px_2px_rgba(0,0,0,0.03)] p-5 w-full max-w-sm">
       <div className="flex items-center justify-between mb-4 gap-3">
         <span className="text-xs font-medium text-[#9C9488]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-          your-site · web chat
+          preview · what your visitor sees
         </span>
         <span
           className="text-[11px] font-medium uppercase tracking-wide px-2 py-0.5 rounded-full shrink-0"
@@ -133,6 +134,11 @@ export default function Landing() {
           <p className="text-base text-[#6B6459] leading-relaxed mb-6 max-w-md">
             Flywheel answers the people who already reached out — qualifies them, books or quotes, follows up, and hands off the moment your rules say so. You don't rebuild a bot for each company.
           </p>
+          {salesWidgetConfigured() && (
+            <p className="text-sm mb-6 max-w-md" style={{ color: "#B87333" }}>
+              This site is Flywheel's first customer. The chat in the corner is the live engine, not a mock — same cycle you'd run on your own site.
+            </p>
+          )}
           <div className="mb-8">
             <DealCycle />
           </div>

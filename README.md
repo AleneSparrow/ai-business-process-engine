@@ -92,12 +92,13 @@ export APP_ENV=development
 export AI_PROVIDER=deterministic
 alembic upgrade head
 python examples/seed_example_business.py
+python examples/seed_flywheel_sales.py
 uvicorn src.api.app:app --reload --no-access-log
 ```
 
 The API is available at `http://localhost:8000`, Swagger UI at `http://localhost:8000/docs`, liveness at `/health`, and database/configuration readiness at `/ready`. `DATABASE_URL` and `AI_PROVIDER` are mandatory; runtime startup never falls back to in-memory persistence or from OpenAI to a deterministic provider. Create schema revisions with `alembic revision --autogenerate -m "description"`, inspect them, and apply them with `alembic upgrade head`. Production schema creation must use Alembic, not `Base.metadata.create_all()`.
 
-To run PostgreSQL and the API together, use `docker compose up --build`. The app waits for healthy PostgreSQL and runs `alembic upgrade head` before Uvicorn. Seed explicitly with `docker compose exec app python examples/seed_example_business.py`. The seed helper is idempotent and refuses to run unless `APP_ENV` is explicitly `development` or `local`. `POSTGRES_PORT` and `APP_PORT` control host ports; container-to-container database traffic always uses port 5432.
+To run PostgreSQL and the API together, use `docker compose up --build`. The app waits for healthy PostgreSQL and runs `alembic upgrade head` before Uvicorn. Seed explicitly with `docker compose exec app python examples/seed_example_business.py` (and `seed_flywheel_sales.py` to put the live marketing widget on tenant `flywheel`). The seed helpers are idempotent and refuse to run unless `APP_ENV` is explicitly `development` or `local` (`seed_flywheel_sales.py` also accepts `FLYWHEEL_SELF_SEED=1` for a one-time production bootstrap). `POSTGRES_PORT` and `APP_PORT` control host ports; container-to-container database traffic always uses port 5432.
 
 Submit a message after seeding:
 

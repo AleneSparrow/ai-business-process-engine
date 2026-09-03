@@ -25,6 +25,12 @@ def test_business_dna_example_validates_against_schema() -> None:
     Draft202012Validator(schema).validate(load_json("business_dna.example.json"))
 
 
+def test_flywheel_sales_dna_validates_against_schema() -> None:
+    """Customer-zero tenant: Flywheel sells Flywheel through the same cycle."""
+    schema = load_json("business_dna.schema.json")
+    Draft202012Validator(schema).validate(load_json("business_dna.flywheel.json"))
+
+
 def test_schema_rejects_secret_like_integration_keys_and_bad_times() -> None:
     schema = load_json("business_dna.schema.json")
     validator = Draft202012Validator(schema)

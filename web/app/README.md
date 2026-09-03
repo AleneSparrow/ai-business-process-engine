@@ -51,7 +51,7 @@ session token for one business cannot read or act on another's data.
 ```bash
 cd web/app
 npm install
-cp .env.example .env.local   # point VITE_API_BASE at your running API if not localhost:8000
+cp .env.example .env.local   # VITE_API_BASE; VITE_SALES_BUSINESS_ID=flywheel after seeding the sales tenant
 npm run dev
 ```
 

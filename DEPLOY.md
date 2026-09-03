@@ -77,8 +77,26 @@ launch, only mentioned in case you already have a Render account.)
 3. Build command: `npm run build`. Output directory: `dist`.
 4. Environment variable: `VITE_API_BASE` = the Railway backend URL from step
    1.4 above (e.g. `https://your-service.up.railway.app`).
-5. Deploy. You'll get a URL like `https://your-app.vercel.app` (or a
+5. After the Flywheel sales tenant exists (see below), also set
+   `VITE_SALES_BUSINESS_ID` = `flywheel`. That mounts the live chat widget on
+   `/`, `/lawyers`, and `/signup` so the marketing site is customer zero.
+6. Deploy. You'll get a URL like `https://your-app.vercel.app` (or a
    `.pages.dev` one on Cloudflare) — note it too.
+
+### Customer zero (Flywheel selling Flywheel)
+
+The product's own site should run the engine, not a fake chat. On the
+backend, once, with your own login already created:
+
+```
+FLYWHEEL_SELF_SEED=1 FLYWHEEL_OWNER_EMAIL=you@yourdomain.com \
+  python examples/seed_flywheel_sales.py
+```
+
+Locally, `APP_ENV=development` is enough (no `FLYWHEEL_SELF_SEED`). Then set
+`VITE_SALES_BUSINESS_ID=flywheel` on the frontend and redeploy. Conversations
+from the public widget show up on that account's dashboard. Start your own
+Starter trial so dashboard access is a real subscription, not a special case.
 
 ## 3. Connect them
 

@@ -1,0 +1,159 @@
+{
+  "schema_version": "1.1",
+  "business": {
+    "id": "flywheel",
+    "name": "Flywheel",
+    "industry": "SaaS",
+    "description": "Deterministic engine that carries an inbound inquiry through qualification, booking or quoting, follow-up, and handoff — for any business, without a custom build. Does not generate new customers; starts when someone has already reached out.",
+    "timezone": "America/New_York",
+    "currency": "USD"
+  },
+  "services": [
+    {
+      "id": "starter-trial",
+      "name": "Starter trial",
+      "description": "Seven-day trial of Flywheel Starter. Card on file, no charge until the trial ends, then $199 per month. Cancel anytime.",
+      "duration_minutes": 20,
+      "fulfillment_type": "direct_sale",
+      "direct_next_step_message": "Use Start 7-day free trial on this site to create your account. Starter is $199/mo after the trial. Card on file, no charge until day 8. Cancel anytime. We do not find you new customers — we take the people who already wrote in through to a booked deal.",
+      "pricing": {"model": "fixed", "amount": 199, "tax_included": false},
+      "service_area_ids": ["anywhere"],
+      "intake_keywords": ["trial", "starter", "signup", "sign up", "get started", "pricing", "199", "subscribe", "start trial"],
+      "booking_allowed": false,
+      "qualification_questions": [
+        {
+          "id": "already-getting-inquiries",
+          "prompt": "Do people already contact your business (website, form, referral), or are you hoping someone will find you new customers?",
+          "required": true,
+          "disqualifying_answers": []
+        },
+        {
+          "id": "business-type",
+          "prompt": "What kind of business is this?",
+          "required": true,
+          "disqualifying_answers": []
+        }
+      ]
+    },
+    {
+      "id": "setup-walkthrough",
+      "name": "Setup walkthrough",
+      "description": "A 20-minute call to put Flywheel on your site and walk through the first conversation.",
+      "duration_minutes": 20,
+      "fulfillment_type": "bookable",
+      "pricing": {"model": "fixed", "amount": 0, "tax_included": false},
+      "service_area_ids": ["anywhere"],
+      "intake_keywords": ["walkthrough", "demo", "call", "setup", "help me install", "onboarding call", "talk to someone"],
+      "booking_allowed": true,
+      "qualification_questions": [
+        {
+          "id": "business-type-walkthrough",
+          "prompt": "What kind of business would we be setting up?",
+          "required": true,
+          "disqualifying_answers": []
+        }
+      ]
+    }
+  ],
+  "service_areas": [
+    {"id": "anywhere", "type": "remote", "values": ["everywhere"]}
+  ],
+  "business_hours": {
+    "monday": [{"opens": "09:00", "closes": "18:00"}],
+    "tuesday": [{"opens": "09:00", "closes": "18:00"}],
+    "wednesday": [{"opens": "09:00", "closes": "18:00"}],
+    "thursday": [{"opens": "09:00", "closes": "18:00"}],
+    "friday": [{"opens": "09:00", "closes": "18:00"}]
+  },
+  "customer_information": {
+    "required_fields": ["name", "email"],
+    "optional_fields": ["phone", "notes"],
+    "field_questions": {
+      "name": "What name should we use?",
+      "email": "What email should we send the next step to?",
+      "phone": "Optional — a phone number if you prefer a call.",
+      "service_id": "Do you want to start the 7-day Starter trial, or book a 20-minute setup walkthrough?",
+      "customer_location": "What state are you in? (US — helps us schedule the walkthrough.)"
+    }
+  },
+  "qualification": {
+    "rules": [
+      {"field": "service_id", "operator": "exists", "value": true, "outcome": "qualified"}
+    ],
+    "default_outcome": "needs_human",
+    "enforce_service_area": false,
+    "lost_message": "Flywheel takes people who already reached out through to a booked deal. It does not find new customers. If that is what you need, this is not the right product — if you already get inquiries, say so and we will continue.",
+    "objection_responses": [
+      {
+        "trigger_description": "Wants us to generate or find new customers / leads",
+        "approved_response": "Flywheel starts after someone has already contacted you. It does not find new customers. If people already write in, we can carry those conversations to a booked deal."
+      },
+      {
+        "trigger_description": "Thinks this is a custom build or needs an integrator",
+        "approved_response": "There is no custom project per company. You describe services, questions, and who you can serve — about 20 minutes — then paste one snippet on your site."
+      },
+      {
+        "trigger_description": "Worried the AI will promise something they would not",
+        "approved_response": "The AI only rewrites wording inside the script you approve. If a request falls outside that script, it hands off to you instead of inventing an answer."
+      }
+    ]
+  },
+  "booking": {
+    "enabled": true,
+    "timezone": "America/New_York",
+    "minimum_notice_minutes": 120,
+    "maximum_advance_days": 14,
+    "slot_interval_minutes": 30,
+    "buffer_before_minutes": 10,
+    "buffer_after_minutes": 10,
+    "allowed_days": ["monday", "tuesday", "wednesday", "thursday", "friday"],
+    "allowed_times": [{"starts": "10:00", "ends": "17:00"}],
+    "capacity": 1,
+    "proposal_count": 3,
+    "proposal_ttl_minutes": 30,
+    "requires_confirmation": true,
+    "cancellation_notice_hours": 12,
+    "rescheduling": {"allowed": true, "minimum_notice_hours": 12},
+    "cancellation": {"allowed": true, "minimum_notice_hours": 12}
+  },
+  "sales": {
+    "quote_expiry_days": 14,
+    "follow_up": {"delays_hours": [24, 72, 168], "maximum_attempts": 3}
+  },
+  "payment": {
+    "currency": "USD",
+    "timing": "after_service",
+    "accepted_methods": ["card"],
+    "deposit": {"required": false, "type": "percentage", "percentage": null, "fixed_amount": null},
+    "request_expiry_hours": 72,
+    "human_approval_above": "10000.00"
+  },
+  "communication": {
+    "channels": ["webchat", "email"],
+    "default_channel": "webchat",
+    "language": "English",
+    "tone": "friendly, direct, and precise — no superlatives, no promises the script does not cover",
+    "quiet_hours": {"starts": "21:00", "ends": "08:00"},
+    "compliance_disclaimer": "I'm an AI assistant for Flywheel, not a person. I only follow the approved script."
+  },
+  "chat_widget": {
+    "enabled": true,
+    "title": "Chat with Flywheel",
+    "welcome_message": "This is Flywheel — the same engine you'd put on your site. Tell me what you need. I can start a 7-day Starter trial or book a 20-minute setup walkthrough.",
+    "qualified_message": "We have what we need. Next step is on you: trial signup on this site, or the walkthrough slot you just picked.",
+    "closed_message": "This conversation is complete. Use Start 7-day free trial on this page whenever you're ready.",
+    "ai_disclosure_text": "AI assistant"
+  },
+  "ai_permissions": {
+    "allowed": ["classify_intent", "extract_customer_details", "draft_message", "recommend_next_step"],
+    "forbidden": ["issue_refund", "change_price", "capture_payment", "make_legal_commitment"],
+    "minimum_confidence": 0.8
+  },
+  "human_escalation": {
+    "triggers": ["emergency"],
+    "queue": "founder",
+    "response_target_minutes": 60,
+    "customer_message": "A person on the Flywheel team will pick this up and follow through — the cycle does not stop here."
+  },
+  "integrations": {}
+}
