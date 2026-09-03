@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom
 import { AuthProvider } from "./auth/AuthContext";
 import { RequireActiveSubscription, RequireAuth, RequireBusiness } from "./components/RouteGuards";
 import Landing from "./pages/Landing";
+import Faq from "./pages/Faq";
 import LawyersLanding from "./pages/LawyersLanding";
 import Signup from "./pages/Signup";
 import Login from "./pages/Login";
@@ -41,6 +42,7 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/" element={<Landing />} />
+          <Route path="/faq" element={<Faq />} />
           <Route path="/lawyers" element={<LawyersLanding />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/login" element={<Login />} />
