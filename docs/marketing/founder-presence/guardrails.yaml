@@ -1,0 +1,53 @@
+# Guardrails for Flywheel founder content
+# Used by scripts/content_guard.py
+# Public copy is English. These patterns fail the lint.
+
+# Always fail if these appear in a public post body.
+forbidden_substrings:
+  - cold lead
+  - cold leads
+  - atelier
+  - intake assistant
+  - intake tool
+  - ai receptionist
+  - ai-receptionist
+  - for lawyers
+  - for law firms
+  - legal ai
+  - to payment
+  - green card
+  - visa sponsorship
+  - revolutionary
+  - disrupt the
+  - game-changing
+  - game changer
+  - guaranteed compliance
+  - compliance counsel
+  - we guarantee conversion
+  - 100x roi
+
+# Fail only when the phrase is a positive claim (not negated in the same sentence).
+claim_substrings:
+  - lead generation
+  - generates leads
+  - generate demand
+  - cold outreach
+
+# Claims that look like measured conversion without a source in-repo
+forbidden_regex:
+  - '\d+\s*%\s*(conversion|close rate|win rate)'
+  - 'converts?\s+\d+\s*%'
+
+# Self-description that collapses the USP into the beachhead
+forbidden_if_self_claim:
+  - "i built an ai intake"
+  - "we're a legal"
+  - "we are a legal"
+
+required_for_builder_posts:
+  - flywheel
+
+notes:
+  - "The word intake is allowed when contrasting other vendors, not as our product name."
+  - "Lawyer/attorney is allowed as beachhead context if the product is not defined as a legal tool."
+  - "Payment is allowed in 'payment request' / 'collection is not connected'."

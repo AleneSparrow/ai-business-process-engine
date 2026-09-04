@@ -83,3 +83,5 @@ AI не принимает решений — `decision_router` / `qualification
 
 Стратегия, GTM, анализ рынка и решения лежат в claude.ai Project «AI engine for
 business». Ключевой якорный документ — `product-foundation-goals-and-usp.md`.
+Личный контент основателя, календарь, сценарии съёмки и гейт автопубликации —
+`docs/marketing/founder-presence/`.
