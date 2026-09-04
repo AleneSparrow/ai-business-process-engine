@@ -20,7 +20,7 @@ DEFAULT_QUEUE = ROOT / "docs/marketing/founder-presence/06-post-queue.md"
 DEFAULT_RULES = ROOT / "docs/marketing/founder-presence/guardrails.yaml"
 
 POST_RE = re.compile(
-    r"^### (?P<id>[A-Z]+-\d+)\n"
+    r"^### (?P<id>[A-Z]+-[A-Z0-9]+)\n"
     r"(?P<meta>(?:[a-z_]+: [^\n]+\n)+)"
     r"\n---\n\n"
     r"(?P<body>[\s\S]*?)"
@@ -106,7 +106,7 @@ def lint_body(post_id: str, body: str, rules: dict) -> list[LintHit]:
         hits.append(LintHit(post_id, "conversion_percent", "unsourced conversion %"))
 
     if body.strip() and "flywheel" not in lowered:
-        if post_id.startswith("LI-"):
+        if post_id.startswith(("LI-", "FSV-")):
             hits.append(LintHit(post_id, "missing_product_name", "Flywheel"))
 
     return hits

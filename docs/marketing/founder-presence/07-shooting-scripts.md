@@ -109,6 +109,11 @@ TikTok library.
 Жест: на «rest of the cycle» — короткое движение рукой вперёд, не указательный
 палец в камеру. Улыбка лёгкая на последней фразе, не «инфлюенсер».
 
+В Zapier Tables это ряд `FSV-V01` (`01M1NAWV74S07HACBYBK3QMCRS`): `status = Skip`,
+notes `BLOCK_AUTOPOST_UNTIL_VIDEO`. Caption в таблице — одна строка, не этот
+сценарий. Text Zap **не** стреляет. После ручной загрузки native video:
+`Posted` + URL.
+
 ---
 
 ### V-02 — Capture vs cycle (неделя 1, пт)
@@ -278,7 +283,9 @@ TikTok library.
    Текст поста — 2–4 строки из очереди, не дубль всего сценария.
 4. YouTube Shorts / Reels / TikTok — тот же файл, тот же текст, **не** «link in bio»
    в каждом. В био уже сайт.
-5. В Sheet: `status = PUBLISHED`, ссылка, `media = V-0N`.
+5. В Zapier Tables: тот же ряд, `status = Posted`, `posted_url` = ссылка
+   LinkedIn, notes без `BLOCK_AUTOPOST_UNTIL_VIDEO` или с пометкой uploaded.
+   Не Google Sheet.
 
 Видео **не** гоняется через Zapier LinkedIn Share Update (там нет нормального
 native video). Только ручная загрузка.

@@ -64,3 +64,21 @@ LA или SF.
 
 Оба слоя нужны. Путать их в одном посте — нельзя. Правила разведения — в
 `02-strategy.md`.
+
+## Что закрыто 4 сентября 2026 (после пакета)
+
+Снимок выше — «чего не было». Ниже — что уже стоит в живом контуре, чтобы
+не чинить закрытое.
+
+| Дыра | Статус |
+| --- | --- |
+| Очередь + гейт | Zapier Tables, не Sheet. Brand 1 Posted, Brand 2–5 Ready. |
+| Авторство / модель / unfinished / DNA / design partner | FSV-01…05 в таблице, **Draft**, Ready только вручную. |
+| X @AleneVorobei | Brand-sv Posted. FSV-X01…03 Draft. Typefully social set `330124`. |
+| Лицо на камере | FSV-V01 = Skip + `BLOCK_AUTOPOST_UNTIL_VIDEO`. Сценарий V-01 готов. |
+| Длинные LI-001…016 | Не постить. `content-control.csv` — архив, не live. |
+| `wave1-lawyers` / CPL | Draft, не бренд-фид. |
+| Zap 378524885 | OFF, Copilot не включать. |
+
+Не закрыто и не врать в постах: платёж конечного клиента, live multi-service
+tenant, UPL. Это FSV-03, не «запуск».

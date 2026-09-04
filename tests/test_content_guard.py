@@ -22,10 +22,13 @@ def rules() -> dict:
 def test_queue_parses_linkedin_and_x_posts() -> None:
     posts = parse_posts(QUEUE.read_text(encoding="utf-8"))
     ids = {post.post_id for post in posts}
-    assert "LI-001" in ids
-    assert "X-001" in ids
-    assert len(posts) >= 24
+    assert "FSV-01" in ids
+    assert "FSV-V01" in ids
+    assert "X-01" in ids
+    assert len(posts) >= 9
     assert all(post.body.strip() for post in posts)
+    skip = next(post for post in posts if post.post_id == "FSV-V01")
+    assert skip.meta["status"] == "SKIP"
 
 
 def test_live_queue_passes_guardrails(rules: dict) -> None:
@@ -54,5 +57,5 @@ def test_intake_self_name_is_rejected(rules: dict) -> None:
 
 
 def test_missing_product_name_on_linkedin(rules: dict) -> None:
-    hits = lint_body("LI-999", "I shipped a state machine today.", rules)
+    hits = lint_body("FSV-99", "I shipped a state machine today.", rules)
     assert any(hit.rule == "missing_product_name" for hit in hits)

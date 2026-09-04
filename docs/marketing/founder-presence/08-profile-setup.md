@@ -37,7 +37,7 @@ Shipping in public from the build. US market.
 If you already get inbound inquiries and lose them after hours, I want a conversation.
 ```
 
-**Featured:** V-01, лендинг, один пост LI-002.
+**Featured:** native video V-01 (когда снимете), лендинг, уже вышедший Brand 1 — не длинный LI-002.
 **Опыт:** Flywheel, Founder, dates from when the repo started — не «2026 launch».
 **Контакт:** сайт, когда домен живой; GitHub.
 
@@ -48,15 +48,16 @@ If you already get inbound inquiries and lose them after hours, I want a convers
 ## X / Twitter
 
 **Имя:** Alena Vorobei
-**Хэндл:** что свободно из `alena_flywheel` / `alenavorobei` / `flywheel_alena`.
-Не обещать @flywheel — занятость проверяете вы.
+**Хэндл (уже есть):** [@AleneVorobei](https://x.com/AleneVorobei)
+Не менять и не обещать @flywheel.
 **Био:**
 
 ```
 Building Flywheel. Inbound inquiry → booked deal. Model rewrites, engine decides. US.
 ```
 
-**Pinned:** тред X-001 + X-002 + X-003 одним тредом (скопировать вручную).
+**Pinned:** уже вышедший Brand-sv пост, потом X-01, когда он Posted.
+Автопост X — только через Typefully, social set `330124`. Не кросс-постить LinkedIn-текстом.
 **Аватар:** то же фото, что LinkedIn (лицо, не логотип). Логотип — в banner.
 
 ## YouTube
@@ -99,9 +100,10 @@ README репозитория уже технический — не превр�
 
 - [ ] Headline и About на LinkedIn
 - [ ] То же фото на LinkedIn, X, YouTube
-- [ ] X-аккаунт, pinned
+- [ ] Pinned на @AleneVorobei
 - [ ] GitHub bio
 - [ ] Папка `Flywheel-media/` на диске
-- [ ] Google Calendar: shoot + approve
-- [ ] Собрать Zap A/B только после первого ручного поста
+- [ ] Снять V-01 (слот FSV-V01 в таблице — Skip, пока нет файла)
+- [ ] Zap 378524885 держать **OFF** (там Copilot/генерация)
 - [ ] Не покупать подписчиков, не включать автолайки
+- [ ] `founder-sv` в Ready ставите только вы
