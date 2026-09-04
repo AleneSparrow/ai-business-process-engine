@@ -2,12 +2,15 @@
 
 Distinct from `ProcessState.FOLLOW_UP` (a state used elsewhere, in
 `commercial_service.py`, for POST-commercial follow-up -- payment/review
-nudges after a booking or accepted quote). This module is about the earlier,
-more common failure mode: a lead goes cold mid-qualification, before ever
-reaching QUALIFIED/BOOKED/QUOTED. It never changes `case.current_state` --
-a sent follow-up is recorded purely as a `FOLLOW_UP_SENT` event plus a
+nudges after a booking or accepted quote). This module recovers a sale that
+went quiet: mid-qualification, after a slot offer (`QUALIFIED`), or after a
+quote that was not accepted (`QUOTED`). It never changes `case.current_state`
+-- a sent follow-up is recorded purely as a `FOLLOW_UP_SENT` event plus a
 `case.metadata["follow_up"]` attempt counter, the same bookkeeping pattern
 `LeadIntakeService` already uses for `MAX_REASSURANCE_ATTEMPTS`.
+
+It is not a CRM check-in. Copy comes from `sales_playbook`: restate the
+outstanding question or re-ask for the commitment already on the table.
 
 Everything here is dependency-free and pure (no DB, no AI provider, no
 datetime.now() call) so it's fully unit-testable -- the DB scan and the
@@ -18,11 +21,9 @@ Gating, all of which must hold before a follow-up is ever considered due:
 - `case.lead.sms_consent` is True -- a deliberate UI opt-in, never inferred
   by the AI (see Lead.sms_consent). No consent, no follow-up, ever.
 - `case.lead.phone` is set -- nothing to text otherwise.
-- `case.current_state` is one of the pre-qualification "stalled" states
-  (NEW_LEAD, CONTACTED, QUALIFYING) -- NOT NEEDS_HUMAN (a human is already
-  expected to be handling it; an automated nudge there could cross wires
-  with whatever the human is about to send) and not any resolved/closed
-  state (QUALIFIED and later, LOST, CANCELLED).
+- `case.current_state` is one of the stalled sales states (NEW_LEAD,
+  CONTACTED, QUALIFYING, QUALIFIED, QUOTED) -- NOT NEEDS_HUMAN (a human is
+  already expected to be handling it) and not BOOKED/WON/LOST/CANCELLED.
 - The business has configured `sales.follow_up` (delays_hours,
   maximum_attempts) -- if missing or malformed, treated as "not configured",
   never as an error that could crash a sweep over other businesses' cases.
@@ -40,8 +41,15 @@ from src.domain.events import EventType
 from src.domain.models import ProcessCase
 from src.domain.qualification import CustomerResponse, MissingInformationResult
 from src.domain.states import ProcessState
+from src.engine.sales_playbook import nurture_copy
 
-STALLED_STATES = frozenset({ProcessState.NEW_LEAD, ProcessState.CONTACTED, ProcessState.QUALIFYING})
+STALLED_STATES = frozenset({
+    ProcessState.NEW_LEAD,
+    ProcessState.CONTACTED,
+    ProcessState.QUALIFYING,
+    ProcessState.QUALIFIED,
+    ProcessState.QUOTED,
+})
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,17 +171,14 @@ class FollowUpMessageGenerator(Protocol):
         channel: str,
         case_id: str,
         attempt_number: int,
+        current_state: ProcessState | None = None,
     ) -> CustomerResponse: ...
 
 
 class DeterministicFollowUpMessageGenerator:
-    """Always-available fallback (and, for now, the only shipped path -- see
-    module docstring; an AI-adaptive version can follow the same pattern as
-    AIQuestionGenerator/AIReassuranceResponseGenerator later). Never invents
-    urgency, discounts, or promises -- only restates whatever question(s)
-    are still outstanding, or a plain check-in if none are."""
-
-    _CHECK_IN = "Just checking in on your request -- still interested? Happy to help whenever you're ready."
+    """Always-available fallback. Never invents urgency, discounts, or
+    promises — restates outstanding questions, or the sales-playbook close
+    already on the table."""
 
     def generate(
         self,
@@ -182,12 +187,14 @@ class DeterministicFollowUpMessageGenerator:
         channel: str,
         case_id: str,
         attempt_number: int,
+        current_state: ProcessState | None = None,
     ) -> CustomerResponse:
         business = business_dna.get("business", {})
         name = business.get("name") if isinstance(business, Mapping) else None
         greeting = f"Hi, this is {name.strip()}. " if isinstance(name, str) and name.strip() else "Hi -- "
-        if missing.complete:
-            text = greeting + self._CHECK_IN
+        close = nurture_copy(current_state or ProcessState.QUALIFYING, missing_complete=missing.complete)
+        if close:
+            text = greeting + close
         else:
             customer_information = business_dna.get("customer_information", {})
             field_questions = (
@@ -201,7 +208,9 @@ class DeterministicFollowUpMessageGenerator:
                 if isinstance(prompt, str) and prompt.strip():
                     prompts.append(prompt.strip())
             prompts.extend(question.strip() for question in missing.unanswered_questions)
-            body = " ".join(prompts) if prompts else self._CHECK_IN
+            body = " ".join(prompts) if prompts else nurture_copy(
+                ProcessState.QUALIFYING, missing_complete=True
+            )
             text = f"{greeting}just following up on your request -- {body}"
         return CustomerResponse(
             message_text=text,

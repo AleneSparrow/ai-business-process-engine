@@ -415,6 +415,29 @@ BUSINESSES: tuple[BusinessSpec, ...] = (
             ),
         ),
     ),
+    BusinessSpec(
+        business_id="flywheel",
+        name="Flywheel",
+        industry="SaaS / Software",
+        description=(
+            "Deterministic engine that takes an inbound inquiry all the way to a "
+            "booked or quoted deal, replacing the person who processes leads"
+        ),
+        segment="b2b",
+        setup="zero_config",
+        services=(
+            ServiceSpec(
+                "Product demo",
+                "Watch the engine take a real inbound lead from first message to a booked time or accepted quote",
+                "How many inbound leads do you handle in a typical week?",
+            ),
+            ServiceSpec(
+                "Starter trial",
+                "Seven-day trial of the engine on your own inbound conversations",
+                "What is the main service you sell?",
+            ),
+        ),
+    ),
 )
 
 
@@ -559,10 +582,10 @@ SCENARIOS: tuple[Scenario, ...] = (
     Scenario(
         scenario_id="wealth-retirement-zero-config",
         business_id="harbor-wealth",
-        usp_claims=("any_business", "zero_config", "zero_config_wording"),
+        usp_claims=("any_business", "zero_config", "zero_config_wording", "to_deal"),
         first_message="I need a plan for retiring in ten years. I'm in Oregon.",
         expected_service="retirement-planning",
-        expected_states=("NEEDS_HUMAN", "QUALIFIED"),
+        expected_states=("BOOKED",),
         name="Casey",
         phone="+1 503-555-0103",
         answers={"what-is-your-planning-horizon": "ten years"},
@@ -734,10 +757,10 @@ SCENARIOS: tuple[Scenario, ...] = (
     Scenario(
         scenario_id="saas-onboarding-zero-config",
         business_id="cloudnest",
-        usp_claims=("any_business", "zero_config", "zero_config_wording"),
+        usp_claims=("any_business", "zero_config", "zero_config_wording", "to_deal"),
         first_message="We need software to automate customer onboarding for a forty-person team.",
         expected_service="product-demo",
-        expected_states=("NEEDS_HUMAN", "QUALIFIED"),
+        expected_states=("BOOKED",),
         name="Riley Park",
         phone="+1 415-555-0170",
         answers={"how-many-people-will-use-the-software": "forty"},
@@ -792,10 +815,10 @@ SCENARIOS: tuple[Scenario, ...] = (
     Scenario(
         scenario_id="wealth-insurance-review",
         business_id="harbor-wealth",
-        usp_claims=("any_business", "zero_config", "zero_config_wording"),
+        usp_claims=("any_business", "zero_config", "zero_config_wording", "to_deal"),
         first_message="I need life coverage reviewed for my family.",
         expected_service="insurance-review",
-        expected_states=("NEEDS_HUMAN", "QUALIFIED"),
+        expected_states=("BOOKED",),
         name="Blake",
         phone="+1 503-555-0174",
         answers={"what-type-of-coverage-do-you-want-reviewed": "life"},
@@ -845,6 +868,20 @@ SCENARIOS: tuple[Scenario, ...] = (
         phone="+1 213-555-0178",
         zip_code="90015",
         answers={"how-many-guests-do-you-expect": "150"},
+    ),
+    Scenario(
+        scenario_id="flywheel-sells-itself-demo",
+        business_id="flywheel",
+        usp_claims=("any_business", "to_deal", "zero_config", "zero_config_wording"),
+        first_message=(
+            "We lose people after they fill out the form. I need the conversation "
+            "to go all the way to a booking without someone on my team handling each lead."
+        ),
+        expected_service="product-demo",
+        expected_states=("BOOKED",),
+        name="Alena",
+        phone="+1 415-555-0188",
+        answers={"how-many-inbound-leads-do-you-handle-in-a-typical-week": "about forty"},
     ),
 )
 

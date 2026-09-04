@@ -90,6 +90,7 @@ def test_objection_gets_reassurance_with_no_objection_responses_configured() -> 
     # Grounded in the actually-configured service fact (diagnostic-visit is
     # bookable), not a generic platitude and never a price/discount.
     assert "booking a time" in result.response.message_text
+    assert "hold a time" in result.response.message_text
     assert "What is the best phone number to reach you?" in result.response.message_text
 
 

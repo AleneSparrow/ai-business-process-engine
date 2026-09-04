@@ -22,6 +22,7 @@ from src.domain.risk_cues import (
     HUMAN_REQUEST_CUE as _HUMAN_REQUEST_CUE,
     SAFETY_CUE as _SAFETY_CUE,
 )
+from src.engine.sales_playbook import append_close_ask
 
 from .errors import AIConfigurationError, AIInvalidOutputError
 from .models import (
@@ -960,8 +961,15 @@ class AIUniversalReassuranceResponseGenerator:
                 "AI universal reassurance response made an unsafe commitment",
                 metadata=_invalid_metadata(result.metadata),
             )
+        service = self._service_context(business_dna, service_id)
+        fulfillment = service.get("fulfillment_type") if isinstance(service, Mapping) else None
+        message_text = append_close_ask(
+            result.output.message_text,
+            objection_phrase,
+            fulfillment if isinstance(fulfillment, str) else None,
+        )
         return CustomerResponse(
-            result.output.message_text.strip(),
+            message_text,
             channel,
             "objection_reassurance",
             case_id,

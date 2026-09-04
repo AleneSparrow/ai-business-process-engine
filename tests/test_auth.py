@@ -366,7 +366,7 @@ def test_generated_business_dna_validates_against_schema() -> None:
     Draft202012Validator(schema).validate(configuration)
 
 
-def test_generated_business_dna_defaults_every_service_to_human_review() -> None:
+def test_generated_business_dna_defaults_every_service_to_bookable() -> None:
     onboarding = OnboardingInput(
         business_id="ada-plumbing-2",
         business_name="Ada's Plumbing",
@@ -376,5 +376,6 @@ def test_generated_business_dna_defaults_every_service_to_human_review() -> None
         service_zip_codes=("60601",),
     )
     configuration = build_business_dna(onboarding)
-    assert all(service["fulfillment_type"] == "human_review" for service in configuration["services"])
-    assert all(service["booking_allowed"] is False for service in configuration["services"])
+    assert all(service["fulfillment_type"] == "bookable" for service in configuration["services"])
+    assert all(service["booking_allowed"] is True for service in configuration["services"])
+    assert configuration["booking"]["enabled"] is True

@@ -155,7 +155,7 @@ def test_vertical_onboarding_and_complete_lead_cycle(vertical: Vertical) -> None
     assert result.qualified
     assert result.recommended_next_state is ProcessState.QUALIFIED
     assert result.service_id == service["id"]
-    assert not result.booking_allowed  # zero-config never books without owner approval
+    assert result.booking_allowed  # zero-config close is a booked next step, not a CRM handoff
 
 
 @pytest.mark.parametrize("vertical", VERTICALS, ids=lambda value: value.industry)

@@ -33,10 +33,10 @@ from typing import Any
 
 from src.domain.events import EventType
 from src.domain.models import ProcessEvent
-from src.domain.states import ProcessState
 from src.engine.follow_up import (
     DeterministicFollowUpMessageGenerator,
     FollowUpMessageGenerator,
+    STALLED_STATES,
     decide_follow_up,
     missing_information_from_case,
     record_follow_up_sent,
@@ -48,11 +48,8 @@ from .sms_service import SmsService
 
 LOGGER = logging.getLogger("uvicorn.error")
 
-# Cases in any other state have either resolved (QUALIFIED and later) or
-# are already NEEDS_HUMAN, where a human -- not an automated nudge -- is
-# expected to be the next thing the customer hears from. See
-# src/engine/follow_up.py's STALLED_STATES, kept in sync with this.
-_STALLED_STATES = (ProcessState.NEW_LEAD, ProcessState.CONTACTED, ProcessState.QUALIFYING)
+# Keep the SQL scan in lockstep with src/engine/follow_up.py STALLED_STATES.
+_STALLED_STATES = tuple(STALLED_STATES)
 
 
 def _log_event(level: int, event: str, **fields: Any) -> None:
@@ -179,7 +176,12 @@ class PersistentFollowUpRunner:
 
             missing = missing_information_from_case(case)
             response = self.message_generator.generate(
-                missing, business_dna, "sms", case.case_id, attempt_number=decision.attempt_number,
+                missing,
+                business_dna,
+                "sms",
+                case.case_id,
+                attempt_number=decision.attempt_number,
+                current_state=case.current_state,
             )
             attempt, owns_send = uow.follow_up_deliveries.claim_attempt(
                 business_id, case_id, decision.attempt_number,

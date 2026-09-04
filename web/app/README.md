@@ -8,8 +8,9 @@ TypeScript app that talks to the actual backend in `src/api` (not a mockup).
 - **Sign up / log in / log out** — `POST /api/v1/auth/signup`, `POST /api/v1/auth/login`,
   `POST /api/v1/auth/logout`, `GET /api/v1/auth/me`.
 - **Self-serve onboarding** — the six-step wizard submits `POST /api/v1/businesses` on
-  "Launch engine" and creates a real, schema-valid Business DNA (every service starts on
-  `human_review`, nothing auto-books until you change that later).
+  "Launch engine" and creates a real, schema-valid Business DNA (every service starts
+  `bookable` with booking on: the engine holds a calendar time once the lead qualifies.
+  It never invents a price. Quotes and human handoff stay Settings).
 - **Sidebar business name** — reads the real business via `GET /api/v1/businesses/{id}`.
 - **Dashboard (leads & cases)** — real cases for your business via
   `GET /api/v1/businesses/{id}/cases`, mapped from the engine's actual `ProcessState`.

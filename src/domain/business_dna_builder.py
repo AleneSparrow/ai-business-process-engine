@@ -1,13 +1,12 @@
 """Translates the simplified self-serve onboarding shape into a schema-valid Business DNA.
 
 The onboarding wizard deliberately collects less than the full Business DNA
-schema requires (no price, duration, or booking hours). This module bridges
-that gap with one safe rule: every service defaults to
-`fulfillment_type: "human_review"`. That requires no commercial configuration
-at all and guarantees the engine can never auto-book or auto-price something
-the owner never actually set — it will qualify and escalate correctly from
-minute one. Pricing, availability, and payment configuration remain valid but
-inactive defaults until an owner deliberately turns them on later.
+schema requires (no price). This module bridges that gap with one sales rule:
+every service defaults to `fulfillment_type: "bookable"` with booking on.
+Without a price the engine must never invent one; the universal close is a
+scheduled next step (consult, visit, or call) on the hours already derived
+from the owner's ZIP codes. Quote/direct-sale/human-review stay owner
+Settings — they are not the zero-config sale.
 """
 
 import re
@@ -139,11 +138,11 @@ def _build_services(services: tuple[OnboardingService, ...]) -> list[dict]:
             "name": service.name,
             "description": service.description.strip() or service.name,
             "duration_minutes": 60,
-            "fulfillment_type": "human_review",
+            "fulfillment_type": "bookable",
             "pricing": {"model": "custom_quote", "tax_included": False},
             "service_area_ids": [_SERVICE_AREA_ID],
             "intake_keywords": [service.name.casefold()],
-            "booking_allowed": False,
+            "booking_allowed": True,
             "qualification_questions": questions_json,
         })
     return built
@@ -258,7 +257,7 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
             "objection_responses": [],
         },
         "booking": {
-            "enabled": False,
+            "enabled": True,
             "timezone": timezone,
             "minimum_notice_minutes": 120,
             "maximum_advance_days": 60,
@@ -303,7 +302,7 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
             "enabled": True,
             "title": f"Chat with {onboarding.business_name}",
             "welcome_message": "Hi! Tell us what you need help with.",
-            "qualified_message": "Thanks — we have what we need. Our team will follow up with next steps.",
+            "qualified_message": "I can hold a time. Pick one of the options below and I'll lock it in.",
             "closed_message": "This conversation is complete. Please reach out again if you need more help.",
             "ai_disclosure_text": "",
         },

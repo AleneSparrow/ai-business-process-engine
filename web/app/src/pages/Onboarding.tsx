@@ -275,7 +275,7 @@ export default function Onboarding() {
                   <>
                     <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>What do you offer?</h2>
                     <p className="text-sm text-[#6B6459] mb-7">
-                      Every service starts routed to you for review — nothing auto-books or auto-quotes until you turn that on later.
+                      Each service starts by holding a real time once the lead is qualified — no invented prices. You can switch a service to a fixed quote or a handoff later in Settings.
                     </p>
                     <div className="flex flex-wrap gap-2 mb-4">
                       {services.map((s) => (
@@ -418,7 +418,7 @@ export default function Onboarding() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 mt-5 text-xs" style={{ color: "#1E7B52" }}>
-                      <Check size={14} /> Every service starts on human review — nothing books or quotes itself until you turn that on.
+                      <Check size={14} /> Qualified leads are offered a time on the calendar. Quotes and handoff stay optional in Settings.
                     </div>
                     {error && (
                       <div className="mt-4 text-sm px-3.5 py-2.5 rounded-lg" style={{ color: "#B4483A", backgroundColor: "#FBEBE9" }}>

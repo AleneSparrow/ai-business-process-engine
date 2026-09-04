@@ -27,6 +27,7 @@ from hashlib import sha256
 from typing import Mapping, Protocol, Sequence
 
 from src.domain.qualification import CustomerResponse, CustomerTone
+from src.engine.sales_playbook import append_close_ask
 
 
 class ReassuranceResponseGenerator(Protocol):
@@ -118,7 +119,9 @@ class DeterministicUniversalReassuranceResponseGenerator:
         digest = sha256(objection_phrase.strip().casefold().encode("utf-8")).digest()
         acknowledgment = self._ACKNOWLEDGMENTS[digest[0] % len(self._ACKNOWLEDGMENTS)]
         fact = self._structural_fact(business_dna, service_id)
-        message_text = f"{acknowledgment} {fact}" if fact else acknowledgment
+        fulfillment = self._fulfillment_type(business_dna, service_id)
+        body = f"{acknowledgment} {fact}".strip() if fact else acknowledgment
+        message_text = append_close_ask(body, objection_phrase, fulfillment)
         return CustomerResponse(
             message_text=message_text,
             channel=channel,
@@ -144,4 +147,17 @@ class DeterministicUniversalReassuranceResponseGenerator:
             if fulfillment_type == "human_review":
                 return "A real person will review your specific situation before anything moves forward."
             return None
+        return None
+
+    @staticmethod
+    def _fulfillment_type(business_dna: Mapping[str, object], service_id: str | None) -> str | None:
+        if not service_id:
+            return None
+        services = business_dna.get("services", [])
+        if not isinstance(services, list):
+            return None
+        for service in services:
+            if isinstance(service, Mapping) and service.get("id") == service_id:
+                value = service.get("fulfillment_type")
+                return value if isinstance(value, str) else None
         return None

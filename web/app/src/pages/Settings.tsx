@@ -414,7 +414,7 @@ export default function Settings() {
       ...state,
       services: [
         ...state.services,
-        { key: nextClientKey(), id: null, name: v, description: "", questions: [], commercialPath: "human_review", quotePrice: "", nextStepMessage: "", intakeKeywords: "" },
+        { key: nextClientKey(), id: null, name: v, description: "", questions: [], commercialPath: "booking", quotePrice: "", nextStepMessage: "", intakeKeywords: "" },
       ],
     });
     setNewService("");
@@ -777,7 +777,7 @@ export default function Settings() {
                     />
                     <div>
                       <div className="text-sm font-medium">Turn on online booking</div>
-                      <div className="text-xs text-[#6B6459] mt-0.5">Off by default — until this is on, every qualified lead still goes to you instead of getting a slot.</div>
+                      <div className="text-xs text-[#6B6459] mt-0.5">On from the first lead — qualified customers get a real slot. Turn it off only if you want every qualified lead handed to you instead.</div>
                     </div>
                   </label>
 

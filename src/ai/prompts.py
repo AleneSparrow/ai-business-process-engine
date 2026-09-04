@@ -280,8 +280,8 @@ def universal_reassurance_prompt(*, context: Mapping[str, Any], customer_message
         "that booking doesn't commit them to anything, or that a person reviews their situation before "
         "anything moves forward) -- state only what BUSINESS_CONTEXT actually says, never a price, "
         "discount, guarantee, or timeline that isn't there. If no service fact applies, a short, warm "
-        "acknowledgment alone is correct -- do not invent a reason. message_text must not ask a "
-        "question or try to close the conversation; the caller appends the next step separately. Keep "
+        "acknowledgment alone is correct -- do not invent a reason. message_text must not invent a "
+        "price or a next step the caller has not already decided; the caller appends the close. Keep "
         "a calm, unhurried tone, and do not sound rushed or defensive -- this is a normal, expected "
         "part of the conversation, not a crisis to talk the customer out of."
         + TONE_ADAPTATION_INSTRUCTION,

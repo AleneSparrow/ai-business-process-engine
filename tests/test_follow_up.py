@@ -84,16 +84,18 @@ def test_not_due_without_phone() -> None:
     assert decision.reason == "no_phone"
 
 
-def test_not_due_once_qualified() -> None:
-    """A case that already progressed past qualification is not "stalled"
-    in section 8's sense -- QUALIFIED/BOOKED/QUOTED/etc. are out of scope
-    for this reactive-recovery layer (and QUALIFIED-but-not-booked nudging,
-    if wanted later, is a deliberately separate decision -- see the delivery
-    note to Alena)."""
-    case = make_case(ProcessState.QUALIFIED, last_activity=NOW - timedelta(hours=200))
+def test_due_once_qualified_without_a_booking() -> None:
+    """A qualified lead that never picked a slot is a stalled sale, not a CRM file."""
+    case = make_case(ProcessState.QUALIFIED, last_activity=NOW - timedelta(hours=200), missing_fields=())
     decision = decide_follow_up(case, BUSINESS_DNA, NOW)
-    assert decision.due is False
-    assert decision.reason == "case_not_in_stalled_state"
+    assert decision.due is True
+    assert decision.attempt_number == 1
+
+
+def test_due_once_quoted_without_acceptance() -> None:
+    case = make_case(ProcessState.QUOTED, last_activity=NOW - timedelta(hours=200), missing_fields=())
+    decision = decide_follow_up(case, BUSINESS_DNA, NOW)
+    assert decision.due is True
 
 
 def test_not_due_when_needs_human() -> None:
@@ -176,10 +178,25 @@ def test_deterministic_generator_restates_outstanding_question() -> None:
     assert response.related_case_id == "case-1"
 
 
-def test_deterministic_generator_falls_back_to_check_in_when_nothing_missing() -> None:
+def test_deterministic_generator_asks_for_the_next_step_when_nothing_missing() -> None:
     generator = DeterministicFollowUpMessageGenerator()
     response = generator.generate(MissingInformationResult(), BUSINESS_DNA, "sms", "case-1", attempt_number=2)
-    assert "still interested" in response.message_text
+    assert "still interested" not in response.message_text.casefold()
+    assert "hold a time" in response.message_text
+
+
+def test_deterministic_generator_nurtures_an_open_quote() -> None:
+    generator = DeterministicFollowUpMessageGenerator()
+    response = generator.generate(
+        MissingInformationResult(),
+        BUSINESS_DNA,
+        "sms",
+        "case-1",
+        attempt_number=1,
+        current_state=ProcessState.QUOTED,
+    )
+    assert "quote is still available" in response.message_text
+    assert "accept" in response.message_text
 
 
 def test_deterministic_generator_never_invents_a_business_name() -> None:

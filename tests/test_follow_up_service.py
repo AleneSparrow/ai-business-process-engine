@@ -165,7 +165,7 @@ def test_run_sends_follow_up_for_due_case_via_full_sweep(uow_factory) -> None:
     assert len(sms.send_calls) == 1
 
 
-@pytest.mark.parametrize("new_state", (ProcessState.QUALIFIED, ProcessState.NEEDS_HUMAN))
+@pytest.mark.parametrize("new_state", (ProcessState.BOOKED, ProcessState.NEEDS_HUMAN))
 def test_policy_change_after_delivery_claim_cancels_before_sms_send(
     uow_factory, monkeypatch: pytest.MonkeyPatch, new_state: ProcessState
 ) -> None:

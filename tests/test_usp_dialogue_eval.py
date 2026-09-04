@@ -21,11 +21,11 @@ def test_every_eval_business_builds_schema_valid_dna() -> None:
         assert len(dna["services"]) == len(spec.services)
 
 
-def test_zero_config_business_does_not_enable_booking() -> None:
+def test_zero_config_business_enables_booking_as_the_universal_close() -> None:
     spec = next(item for item in MODULE["BUSINESSES"] if item.setup == "zero_config")
     dna = MODULE["build_dna"](spec)
-    assert dna["booking"]["enabled"] is False
-    assert all(service["fulfillment_type"] == "human_review" for service in dna["services"])
+    assert dna["booking"]["enabled"] is True
+    assert all(service["fulfillment_type"] == "bookable" for service in dna["services"])
 
 
 def test_owner_settings_can_enable_booking_and_fixed_quotes() -> None:
