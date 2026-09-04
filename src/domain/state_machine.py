@@ -15,7 +15,7 @@ TRANSITIONS: dict[ProcessState, frozenset[ProcessState]] = {
     ProcessState.NEW_LEAD: frozenset({ProcessState.CONTACTED, ProcessState.NEEDS_HUMAN, ProcessState.LOST}),
     ProcessState.CONTACTED: frozenset({ProcessState.QUALIFYING, ProcessState.NEEDS_HUMAN, ProcessState.LOST}),
     ProcessState.QUALIFYING: frozenset({ProcessState.QUALIFIED, ProcessState.NEEDS_HUMAN, ProcessState.LOST}),
-    ProcessState.QUALIFIED: frozenset({ProcessState.BOOKED, ProcessState.QUOTED, ProcessState.NEEDS_HUMAN, ProcessState.LOST}),
+    ProcessState.QUALIFIED: frozenset({ProcessState.BOOKED, ProcessState.QUOTED, ProcessState.FOLLOW_UP, ProcessState.NEEDS_HUMAN, ProcessState.LOST}),
     ProcessState.BOOKED: frozenset({ProcessState.FOLLOW_UP, ProcessState.CANCELLED, ProcessState.NEEDS_HUMAN}),
     ProcessState.QUOTED: frozenset({ProcessState.FOLLOW_UP, ProcessState.LOST, ProcessState.NEEDS_HUMAN}),
     ProcessState.FOLLOW_UP: frozenset({ProcessState.WON, ProcessState.LOST, ProcessState.NEEDS_HUMAN}),

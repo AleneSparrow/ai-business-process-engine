@@ -195,6 +195,8 @@ export interface DashboardLead {
   phone: string | null;
 }
 
+export type LifecycleAction = "record_payment" | "mark_completed" | "request_review" | "confirm_next_step";
+
 export interface DashboardCaseSummary {
   case_id: string;
   lead: DashboardLead;
@@ -206,6 +208,7 @@ export interface DashboardCaseSummary {
   category: string | null;
   escalation_reason: string | null;
   is_test: boolean;
+  lifecycle_actions: LifecycleAction[];
 }
 
 export interface DashboardCaseListResponse {
@@ -269,6 +272,7 @@ export interface DashboardCaseDetail {
   updated_at: string;
   events: DashboardEvent[];
   escalation_reason: string | null;
+  lifecycle_actions: LifecycleAction[];
 }
 
 export interface DashboardConversationSummary {
@@ -548,6 +552,18 @@ export const api = {
     request<StaffActionResponse>(
       `/api/v1/businesses/${businessId}/conversations/${conversationId}/resolve`,
       { method: "POST", body: JSON.stringify({}) },
+      token,
+    ),
+
+  advanceCaseLifecycle: (
+    token: string,
+    businessId: string,
+    caseId: string,
+    action: LifecycleAction,
+  ) =>
+    request<StaffActionResponse>(
+      `/api/v1/businesses/${businessId}/cases/${caseId}/lifecycle`,
+      { method: "POST", body: JSON.stringify({ action }) },
       token,
     ),
 

@@ -55,6 +55,12 @@ class CaseNotAwaitingApprovalError(PersistenceError):
     (see ProcessEngine.receive / DecisionRouter._escalation)."""
 
 
+class InvalidLifecycleActionError(PersistenceError):
+    """A staff lifecycle action is not valid from this case's current state
+    or commercial path (for example recording payment before WON, or
+    confirming a next step that is not the direct-next-step path)."""
+
+
 class ConversationClosedError(PersistenceError):
     """A staff action was requested on a conversation that is already closed."""
 

@@ -14,6 +14,7 @@ from pydantic import (
     model_validator,
 )
 
+from src.domain.lifecycle import actions_for_state
 from src.domain.models import Lead, ProcessCase, ProcessEvent
 from src.domain.qualification import LeadIntakeResult
 from src.domain.states import ProcessState
@@ -693,6 +694,7 @@ class DashboardCaseSummarySchema(ApiModel):
     category: str | None = None
     escalation_reason: str | None = None
     is_test: bool = False
+    lifecycle_actions: tuple[str, ...] = ()
 
     @staticmethod
     def escalation_reason_from_domain(case: ProcessCase) -> str | None:
@@ -798,6 +800,7 @@ class DashboardCaseSummarySchema(ApiModel):
             category=category,
             escalation_reason=cls.escalation_reason_from_domain(case),
             is_test=case.is_test,
+            lifecycle_actions=actions_for_state(case.current_state),
         )
 
 
@@ -894,6 +897,7 @@ class DashboardCaseDetailResponse(ApiModel):
     updated_at: datetime
     events: tuple[DashboardEventSchema, ...]
     escalation_reason: str | None = None
+    lifecycle_actions: tuple[str, ...] = ()
 
     @classmethod
     def from_domain(cls, case: ProcessCase) -> "DashboardCaseDetailResponse":
@@ -905,6 +909,7 @@ class DashboardCaseDetailResponse(ApiModel):
             updated_at=case.updated_at,
             events=tuple(DashboardEventSchema.from_domain(event) for event in case.event_history),
             escalation_reason=DashboardCaseSummarySchema.escalation_reason_from_domain(case),
+            lifecycle_actions=actions_for_state(case.current_state),
         )
 
 
@@ -968,6 +973,15 @@ class DashboardConversationDetailResponse(ApiModel):
 
 class StaffReplyRequest(ApiModel):
     message: Annotated[str, Field(min_length=1, max_length=10_000)]
+
+
+class StaffLifecycleRequest(ApiModel):
+    action: Literal[
+        "record_payment",
+        "mark_completed",
+        "request_review",
+        "confirm_next_step",
+    ]
 
 
 class EscalationFeedbackRequest(ApiModel):

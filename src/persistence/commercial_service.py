@@ -24,8 +24,10 @@ from src.domain.commercial import (
     TimeSlot,
 )
 from src.domain.events import EventType
+from src.domain.lifecycle import LifecycleAction
 from src.domain.models import DecisionType, Lead, ProcessCase, ProcessEvent
 from src.domain.states import ProcessState
+from src.persistence.errors import InvalidLifecycleActionError
 from src.engine.commercial import (
     CommercialPathSelector,
     DeterministicAvailabilityEngine,
@@ -56,7 +58,13 @@ def _log_event(level: int, event: str, **fields: Any) -> None:
 
 
 UTC = timezone.utc
-_PAYMENT_FOLLOW_UP = " The business will follow up about any payment due."
+_PAYMENT_FOLLOW_UP = (
+    " A payment is due; the business will confirm when it has been received."
+)
+_DEFAULT_REVIEW_MESSAGE = (
+    "Thanks for working with us. If you have a moment, a short review or "
+    "referral helps other customers find the business."
+)
 _ACTIVE_BOOKING_STATUSES = {
     BookingStatus.PENDING,
     BookingStatus.CONFIRMED,
@@ -253,7 +261,16 @@ class CommercialWorkflowService:
             return self._handle_quote(
                 uow, case, business_dna, commercial, text, occurred_at=occurred_at
             )
-        if case.current_state is ProcessState.BOOKED:
+        if case.current_state is ProcessState.FOLLOW_UP:
+            quote = uow.quotes.get_for_case(case.business_id, case.case_id)
+            if quote is not None and quote.status is QuoteStatus.PRESENTED:
+                return self._handle_quote(
+                    uow, case, business_dna, commercial, text, occurred_at=occurred_at
+                )
+        if case.current_state is ProcessState.BOOKED or (
+            case.current_state is ProcessState.WON
+            and uow.bookings.get_for_case(case.business_id, case.case_id) is not None
+        ):
             if commercial.get("mode") == "awaiting_reschedule_slot":
                 return self._select_reschedule_slot(
                     uow,
@@ -275,31 +292,60 @@ class CommercialWorkflowService:
                     commercial,
                     occurred_at=occurred_at,
                 )
-            booking = uow.bookings.get_for_case(case.business_id, case.case_id)
-            if booking is None:
-                raise RuntimeError("BOOKED case has no tenant booking")
-            return CommercialResponse(
-                self._booking_confirmation(booking, business_dna, case),
-                "booking_already_confirmed",
-                case.current_state.value,
-                booking_id=booking.booking_id,
-            )
+            if case.current_state is ProcessState.BOOKED:
+                booking = uow.bookings.get_for_case(case.business_id, case.case_id)
+                if booking is None:
+                    raise RuntimeError("BOOKED case has no tenant booking")
+                return CommercialResponse(
+                    self._booking_confirmation(booking, business_dna, case),
+                    "booking_already_confirmed",
+                    case.current_state.value,
+                    booking_id=booking.booking_id,
+                )
         if case.current_state is ProcessState.WON:
             payment = uow.payment_requests.get_for_case_type(
                 case.business_id, case.case_id, PaymentType.DEPOSIT
             ) or uow.payment_requests.get_for_case_type(
                 case.business_id, case.case_id, PaymentType.FINAL
             )
-            message = (
-                "Your payment request is ready. No payment has been collected by this system."
-                if payment is not None
-                else "Your quote is accepted. The business will coordinate the next step."
-            )
+            if payment is not None and payment.status is PaymentStatus.PAID:
+                message = "Payment is recorded. The business will complete the work and follow up."
+            elif payment is not None:
+                message = (
+                    "Your payment request is ready. The business will confirm when "
+                    "payment has been received — this system does not charge a card."
+                )
+            else:
+                message = "You're all set. The business will coordinate the next step."
             return CommercialResponse(
                 message,
                 "commercial_won",
                 case.current_state.value,
                 payment_request_id=(payment.payment_request_id if payment else None),
+            )
+        if case.current_state is ProcessState.PAID:
+            return CommercialResponse(
+                "Payment is recorded. The business will complete the work and follow up.",
+                "commercial_paid",
+                case.current_state.value,
+            )
+        if case.current_state is ProcessState.COMPLETED:
+            return CommercialResponse(
+                "The work is complete. We'll follow up with a review request.",
+                "commercial_completed",
+                case.current_state.value,
+            )
+        if case.current_state is ProcessState.REVIEW_REQUESTED:
+            return CommercialResponse(
+                "Thank you — we received your note. Reach out anytime you need us again.",
+                "review_received",
+                case.current_state.value,
+            )
+        if case.current_state is ProcessState.FOLLOW_UP:
+            return CommercialResponse(
+                "The business will follow up shortly.",
+                "commercial_follow_up",
+                case.current_state.value,
             )
         raise ValueError(f"case state is not autonomous for commerce: {case.current_state.value}")
 
@@ -650,6 +696,7 @@ class CommercialWorkflowService:
                 booking_id=booking.booking_id,
                 payment_request_id=payment.payment_request_id,
             )
+        self._close_commercial_win(uow, case, occurred_at)
         message = self._booking_confirmation(booking, dna, case)
         if payment is not None:
             message += _PAYMENT_FOLLOW_UP
@@ -948,23 +995,6 @@ class CommercialWorkflowService:
                 quote_id=quote.quote_id,
             )
             commercial["mode"] = "quote_accepted"
-            if payment is not None and payment.status is PaymentStatus.PENDING:
-                escalation = self._escalate(
-                    uow,
-                    case,
-                    dna,
-                    ProcessState.PAID,
-                    occurred_at,
-                    "Payment policy requires human approval",
-                )
-                return CommercialResponse(
-                    escalation.message_text,
-                    escalation.reason,
-                    escalation.current_state,
-                    True,
-                    quote_id=quote.quote_id,
-                    payment_request_id=payment.payment_request_id,
-                )
             message = "Thank you — your quote is accepted. The business will coordinate the next step."
             if payment is not None:
                 message += _PAYMENT_FOLLOW_UP
@@ -1281,6 +1311,271 @@ class CommercialWorkflowService:
             },
         )
         return payment
+
+    def complete_win_if_ready(
+        self,
+        uow: UnitOfWork,
+        case: ProcessCase,
+        *,
+        occurred_at: datetime,
+    ) -> bool:
+        """If FOLLOW_UP already has a confirmed booking or accepted quote, close to WON.
+
+        Used after a human resolves a high-value payment approval that parked
+        the case at FOLLOW_UP instead of skipping straight to PAID.
+        """
+        self._require_utc(occurred_at)
+        if case.current_state is not ProcessState.FOLLOW_UP:
+            return False
+        booking = uow.bookings.get_for_case(case.business_id, case.case_id)
+        quote = uow.quotes.get_for_case(case.business_id, case.case_id)
+        has_win = (
+            booking is not None
+            and booking.status in {BookingStatus.CONFIRMED, BookingStatus.RESCHEDULED}
+        ) or (quote is not None and quote.status is QuoteStatus.ACCEPTED)
+        if not has_win:
+            return False
+        self._close_commercial_win(uow, case, occurred_at)
+        return True
+
+    def record_customer_payment(
+        self,
+        uow: UnitOfWork,
+        case: ProcessCase,
+        *,
+        occurred_at: datetime,
+        recorded_by: str,
+    ) -> CommercialResponse:
+        """Staff-recorded receipt of the customer's payment. Does not charge a card."""
+        self._require_utc(occurred_at)
+        if case.current_state is not ProcessState.WON:
+            raise InvalidLifecycleActionError(
+                "Payment can only be recorded after the deal is won"
+            )
+        payment = self._case_payment(uow, case, for_update=True)
+        if payment is not None:
+            if payment.status is PaymentStatus.PENDING:
+                expected = payment.version
+                payment.change_status(PaymentStatus.READY, occurred_at)
+                uow.payment_requests.save(payment, expected)
+            if payment.status is PaymentStatus.READY:
+                expected = payment.version
+                payment.change_status(PaymentStatus.PAID, occurred_at)
+                uow.payment_requests.save(payment, expected)
+            elif payment.status is not PaymentStatus.PAID:
+                raise InvalidLifecycleActionError(
+                    "This payment request cannot be marked paid from its current status"
+                )
+            self._audit(
+                uow,
+                case,
+                EventType.PAYMENT_RECORDED,
+                occurred_at,
+                {
+                    "payment_request_id": payment.payment_request_id,
+                    "recorded_by": recorded_by,
+                    "amount": str(payment.amount),
+                    "currency": payment.currency,
+                },
+            )
+        self._transition(uow, case, ProcessState.PAID, occurred_at, "Customer payment recorded")
+        return CommercialResponse(
+            "Thank you — payment is recorded. The business will complete the work and follow up.",
+            "payment_recorded",
+            case.current_state.value,
+            payment_request_id=(payment.payment_request_id if payment else None),
+        )
+
+    def mark_service_completed(
+        self,
+        uow: UnitOfWork,
+        case: ProcessCase,
+        *,
+        occurred_at: datetime,
+        recorded_by: str,
+    ) -> CommercialResponse:
+        self._require_utc(occurred_at)
+        payment = self._case_payment(uow, case)
+        if case.current_state is ProcessState.WON:
+            if payment is not None and payment.status is not PaymentStatus.PAID:
+                raise InvalidLifecycleActionError(
+                    "Record payment before marking the work complete"
+                )
+            reason = (
+                "No customer payment was due"
+                if payment is None
+                else "Customer payment already settled"
+            )
+            self._transition(uow, case, ProcessState.PAID, occurred_at, reason)
+        if case.current_state is not ProcessState.PAID:
+            raise InvalidLifecycleActionError(
+                "Work can only be marked complete after payment is settled"
+            )
+        booking = uow.bookings.get_for_case(
+            case.business_id, case.case_id, for_update=True
+        )
+        if booking is not None and booking.status in {
+            BookingStatus.CONFIRMED,
+            BookingStatus.RESCHEDULED,
+        }:
+            expected = booking.version
+            booking.complete(occurred_at)
+            uow.bookings.save(booking, expected)
+            self._audit(
+                uow,
+                case,
+                EventType.BOOKING_COMPLETED,
+                occurred_at,
+                {"booking_id": booking.booking_id, "recorded_by": recorded_by},
+            )
+        self._audit(
+            uow,
+            case,
+            EventType.SERVICE_COMPLETED,
+            occurred_at,
+            {"recorded_by": recorded_by},
+        )
+        self._transition(
+            uow, case, ProcessState.COMPLETED, occurred_at, "Service marked complete"
+        )
+        return CommercialResponse(
+            "The work is complete. We'll follow up with a review request.",
+            "service_completed",
+            case.current_state.value,
+            booking_id=(booking.booking_id if booking is not None else None),
+        )
+
+    def request_review(
+        self,
+        uow: UnitOfWork,
+        case: ProcessCase,
+        dna: Mapping[str, Any],
+        *,
+        occurred_at: datetime,
+        recorded_by: str,
+    ) -> CommercialResponse:
+        self._require_utc(occurred_at)
+        if case.current_state is not ProcessState.COMPLETED:
+            raise InvalidLifecycleActionError(
+                "A review can only be requested after the work is complete"
+            )
+        sales = dna.get("sales", {})
+        configured = sales.get("review_request_message") if isinstance(sales, Mapping) else None
+        message = (
+            configured.strip()
+            if isinstance(configured, str) and configured.strip()
+            else _DEFAULT_REVIEW_MESSAGE
+        )
+        self._audit(
+            uow,
+            case,
+            EventType.REVIEW_REQUEST_SENT,
+            occurred_at,
+            {"recorded_by": recorded_by},
+        )
+        self._transition(
+            uow, case, ProcessState.REVIEW_REQUESTED, occurred_at, "Review request sent"
+        )
+        return CommercialResponse(message, "review_requested", case.current_state.value)
+
+    def confirm_direct_next_step(
+        self,
+        uow: UnitOfWork,
+        case: ProcessCase,
+        conversation_metadata: Mapping[str, Any],
+        *,
+        occurred_at: datetime,
+        recorded_by: str,
+    ) -> CommercialResponse:
+        self._require_utc(occurred_at)
+        if case.current_state is not ProcessState.QUALIFIED:
+            raise InvalidLifecycleActionError(
+                "An external next step can only be confirmed while the case is qualified"
+            )
+        commercial = conversation_metadata.get("commercial")
+        mode = commercial.get("mode") if isinstance(commercial, Mapping) else None
+        if mode != "direct_next_step":
+            raise InvalidLifecycleActionError(
+                "This case isn't waiting on an external next step"
+            )
+        self._transition(
+            uow,
+            case,
+            ProcessState.FOLLOW_UP,
+            occurred_at,
+            "Staff verified the external next step",
+        )
+        self._close_commercial_win(uow, case, occurred_at)
+        return CommercialResponse(
+            "Thanks — the next step is confirmed. The business will coordinate from here.",
+            "direct_next_step_confirmed",
+            case.current_state.value,
+        )
+
+    def apply_lifecycle_action(
+        self,
+        uow: UnitOfWork,
+        case: ProcessCase,
+        dna: Mapping[str, Any],
+        conversation_metadata: Mapping[str, Any],
+        action: str,
+        *,
+        occurred_at: datetime,
+        recorded_by: str,
+    ) -> CommercialResponse:
+        if action == LifecycleAction.RECORD_PAYMENT:
+            return self.record_customer_payment(
+                uow, case, occurred_at=occurred_at, recorded_by=recorded_by
+            )
+        if action == LifecycleAction.MARK_COMPLETED:
+            return self.mark_service_completed(
+                uow, case, occurred_at=occurred_at, recorded_by=recorded_by
+            )
+        if action == LifecycleAction.REQUEST_REVIEW:
+            return self.request_review(
+                uow, case, dna, occurred_at=occurred_at, recorded_by=recorded_by
+            )
+        if action == LifecycleAction.CONFIRM_NEXT_STEP:
+            return self.confirm_direct_next_step(
+                uow,
+                case,
+                conversation_metadata,
+                occurred_at=occurred_at,
+                recorded_by=recorded_by,
+            )
+        raise InvalidLifecycleActionError("Unsupported lifecycle action")
+
+    def _close_commercial_win(
+        self,
+        uow: UnitOfWork,
+        case: ProcessCase,
+        occurred_at: datetime,
+    ) -> None:
+        if case.current_state is ProcessState.BOOKED:
+            self._transition(
+                uow, case, ProcessState.FOLLOW_UP, occurred_at, "Booking entered follow-up"
+            )
+        if case.current_state is ProcessState.FOLLOW_UP:
+            self._transition(
+                uow, case, ProcessState.WON, occurred_at, "Commercial outcome won"
+            )
+        elif case.current_state is not ProcessState.WON:
+            raise InvalidLifecycleActionError(
+                f"Cannot close a commercial win from {case.current_state.value}"
+            )
+
+    def _case_payment(
+        self,
+        uow: UnitOfWork,
+        case: ProcessCase,
+        *,
+        for_update: bool = False,
+    ) -> PaymentRequest | None:
+        return uow.payment_requests.get_for_case_type(
+            case.business_id, case.case_id, PaymentType.DEPOSIT, for_update=for_update
+        ) or uow.payment_requests.get_for_case_type(
+            case.business_id, case.case_id, PaymentType.FINAL, for_update=for_update
+        )
 
     def _escalate(
         self,

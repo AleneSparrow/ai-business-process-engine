@@ -96,9 +96,10 @@
     "rescheduling": {"allowed": true, "minimum_notice_hours": 24},
     "cancellation": {"allowed": true, "minimum_notice_hours": 24}
   },
-  "sales": {
+    "sales": {
     "quote_expiry_days": 14,
-    "follow_up": {"delays_hours": [24, 72, 168], "maximum_attempts": 3}
+    "follow_up": {"delays_hours": [24, 72, 168], "maximum_attempts": 3},
+    "review_request_message": "Thanks for working with Acme. If the visit went well, a short review helps neighbors find us."
   },
   "payment": {
     "currency": "USD",

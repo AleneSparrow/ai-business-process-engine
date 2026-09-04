@@ -49,16 +49,13 @@ AI не принимает решений — `decision_router` / `qualification
 
 1. **«От обращения до сделки»** — цикл замкнут:
    `NEW_LEAD → CONTACTED → QUALIFYING → QUALIFIED → QUOTED/BOOKED → FOLLOW_UP → WON →
-   PAID → COMPLETED`, плюс `LOST/CANCELLED → REACTIVATION`.
+   PAID → COMPLETED → REVIEW_REQUESTED`, плюс `LOST/CANCELLED/REVIEW_REQUESTED → REACTIVATION`.
 2. **«Под любой бизнес»** — проверяется тестом на не-юридической вертикали, не рассуждением.
 3. **«Без индивидуальной настройки»** — zero-config это требование, а не пожелание.
 
 ## Известные открытые пункты
 
-- **Платёж на границе цикла**: движок доходит до `WON` и создаёт payment request, но в
-  коде стоит `"payment integration is not connected"` — деньги с конечного клиента не
-  собираются. Решение не принято: считать «продажей» принятую смету/запись либо
-  подключать платёжную ссылку.
+- **Платёж на границе цикла**: движок доходит до `WON`, создаёт payment request и даёт сотруднику закрыть `PAID → COMPLETED → REVIEW_REQUESTED`. Сбора денег картой с конечного клиента нет — сотрудник фиксирует факт оплаты. Решение по платёжной ссылке (Stripe/Lemon Squeezy checkout на `PaymentRequest`) по-прежнему открыто.
 - **Живого подтверждения на проде нет** для разделов 7 (тон), 8 (follow-up) и
   zero-config. Нужен реальный диалог на мультисервисном не-юридическом бизнесе.
 - **География зашита под США**: извлечение почтового индекса — `\b\d{5}(?:-\d{4})?\b`.
@@ -73,7 +70,7 @@ AI не принимает решений — `decision_router` / `qualification
 - Интеграционные тесты требуют `TEST_DATABASE_URL` на мигрированную базу; внутри сети
   Docker хост называется `postgres:5432`, снаружи — `localhost:5433`.
 - Внутренние sweep-эндпоинты (`follow-up/run`, `integrations/deliver`,
-  `commercial/expire`) требуют `INTERNAL_TASK_SECRET` на деплое, иначе отказывают
+  `commercial/expire`, `lifecycle/advance`) требуют `INTERNAL_TASK_SECRET` на деплое, иначе отказывают
   всем запросам (by design). Секрет задаёт Alena.
 - Облачная песочница Cowork **не имеет** pytest/fastapi/sqlalchemy и доступа к PyPI —
   если тесты там «проверены вручную», это значит самодельный раннер, а не pytest.

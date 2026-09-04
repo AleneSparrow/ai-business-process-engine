@@ -278,6 +278,7 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
         "sales": {
             "quote_expiry_days": 14,
             "follow_up": {"delays_hours": [24, 72, 168], "maximum_attempts": 3},
+            "review_request_message": "Thanks for working with us. If you have a moment, a short review or referral helps other customers find the business.",
         },
         "payment": {
             "currency": "USD",

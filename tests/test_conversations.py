@@ -202,7 +202,7 @@ def test_conversation_books_valid_proposed_slot_and_public_status_is_token_scope
 
     booked = send(client, token, "The second option works", "commercial-booking-select")
     assert booked.status_code == 200
-    assert booked.json()["current_state"] == "BOOKED"
+    assert booked.json()["current_state"] == "WON"
     assert "confirmed" in booked.json()["messages"][-1]["text"]
 
     owned = client.get(
@@ -604,7 +604,9 @@ def test_needs_human_bounces_back_for_ai_uncertainty_reason(conversation_environ
     assert follow_up.json()["requires_human"] is False
 
 
-def test_externally_terminal_case_does_not_restart_qualification(conversation_environment) -> None:
+def test_cancelled_case_reactivates_on_the_next_message(conversation_environment) -> None:
+    """CANCELLED -> REACTIVATION is in the graph; a new customer message now
+    drives it the same way LOST already did."""
     client, factory, extractor = conversation_environment
     first = create_conversation(client, "I need AC help", "terminal-1")
     token = first.json()["conversation_token"]
@@ -626,9 +628,64 @@ def test_externally_terminal_case_does_not_restart_qualification(conversation_en
     follow_up = send(client, token, "Please restart this", "terminal-2")
 
     assert follow_up.status_code == 200
-    assert follow_up.json()["status"] == "closed"
-    assert follow_up.json()["current_state"] == "CANCELLED"
+    assert extractor.calls == 2
+    assert follow_up.json()["status"] == "ai_active"
+    assert follow_up.json()["current_state"] != "CANCELLED"
+
+
+def test_paid_case_does_not_restart_qualification(conversation_environment) -> None:
+    """PAID is mid-fulfillment, not a new sale. A follow-up message must not
+    bounce the case back to CONTACTED the way LOST/CANCELLED now do."""
+    client, factory, extractor = conversation_environment
+    first = create_conversation(client, "I need AC help", "paid-1")
+    token = first.json()["conversation_token"]
+    with factory() as uow:
+        conversation = uow.session.scalar(select(ConversationRow).where(
+            ConversationRow.business_id == "tenant-a"
+        ))
+        assert conversation is not None and conversation.case_id is not None
+        uow.session.execute(
+            update(ProcessCaseRow)
+            .where(
+                ProcessCaseRow.business_id == "tenant-a",
+                ProcessCaseRow.id == conversation.case_id,
+            )
+            .values(current_state="PAID", version=ProcessCaseRow.version + 1)
+        )
+        uow.commit()
+
+    follow_up = send(client, token, "Please restart this", "paid-2")
+
+    assert follow_up.status_code == 200
+    assert follow_up.json()["current_state"] == "PAID"
     assert extractor.calls == 1
+
+
+def test_review_requested_case_starts_a_new_cycle_on_the_next_message(conversation_environment) -> None:
+    client, factory, extractor = conversation_environment
+    first = create_conversation(client, "I need AC help", "review-1")
+    token = first.json()["conversation_token"]
+    with factory() as uow:
+        conversation = uow.session.scalar(select(ConversationRow).where(
+            ConversationRow.business_id == "tenant-a"
+        ))
+        assert conversation is not None and conversation.case_id is not None
+        uow.session.execute(
+            update(ProcessCaseRow)
+            .where(
+                ProcessCaseRow.business_id == "tenant-a",
+                ProcessCaseRow.id == conversation.case_id,
+            )
+            .values(current_state="REVIEW_REQUESTED", version=ProcessCaseRow.version + 1)
+        )
+        uow.commit()
+
+    follow_up = send(client, token, "I also need a new thermostat this time", "review-2")
+
+    assert follow_up.status_code == 200
+    assert extractor.calls == 2
+    assert follow_up.json()["current_state"] != "REVIEW_REQUESTED"
+    assert follow_up.json()["status"] == "ai_active"
 
 
 def test_lost_case_reactivates_and_reevaluates_next_message(conversation_environment) -> None:

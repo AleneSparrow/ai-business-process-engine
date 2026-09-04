@@ -158,7 +158,7 @@
         "cancellation": {"type": "object", "additionalProperties": false, "required": ["allowed", "minimum_notice_hours"], "properties": {"allowed": {"type": "boolean"}, "minimum_notice_hours": {"type": "integer", "minimum": 0, "maximum": 8760}}}
       }
     },
-    "sales": {"type": "object", "additionalProperties": false, "required": ["quote_expiry_days", "follow_up"], "properties": {"quote_expiry_days": {"type": "integer", "minimum": 1}, "follow_up": {"type": "object", "additionalProperties": false, "required": ["delays_hours", "maximum_attempts"], "properties": {"delays_hours": {"type": "array", "items": {"type": "integer", "minimum": 1}}, "maximum_attempts": {"type": "integer", "minimum": 0}}}}},
+        "sales": {"type": "object", "additionalProperties": false, "required": ["quote_expiry_days", "follow_up"], "properties": {"quote_expiry_days": {"type": "integer", "minimum": 1}, "follow_up": {"type": "object", "additionalProperties": false, "required": ["delays_hours", "maximum_attempts"], "properties": {"delays_hours": {"type": "array", "items": {"type": "integer", "minimum": 1}}, "maximum_attempts": {"type": "integer", "minimum": 0}}}, "review_request_message": {"type": "string", "maxLength": 1000}}},
     "payment": {
       "type": "object",
       "additionalProperties": false,

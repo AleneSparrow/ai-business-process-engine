@@ -229,7 +229,10 @@ replies to a number that texted in still go out until that person sends STOP.
 The public chat and account-security rate limiter (`src/api/rate_limit.py`)
 is shared across workers via the `rate_limit_hits` table (migration `0020`).
 A second Railway replica is therefore no longer blocked on abuse control.
-Calendar sync for the tenant's own Google/Outlook calendar, and collection
-of money from the tenant's end customer, remain deferred.
+Calendar sync for the tenant's own Google/Outlook calendar, and charging a
+card for the tenant's end customer, remain deferred. Staff can record that
+a customer payment arrived and close the case through completed work and a
+review request (`POST /api/v1/internal/lifecycle/advance` after a booking
+ends, or the dashboard buttons).
 Migrations used to race when they ran inside every container's start
 command. They now run once, as `preDeployCommand` in `railway.toml`.

@@ -28,7 +28,7 @@ The MVP provides:
 - explicit CORS configuration, request limits, and a PostgreSQL-backed abuse-control boundary;
 - tests for transitions, rejection, audit history, escalation, idempotency, and end-to-end progression.
 
-Qualified website conversations continue through booking or quoting. Business DNA—not AI—selects the commercial path, availability and price authority remain deterministic, PostgreSQL coordinates capacity and optimistic updates, and payment requests prepare state without collecting money. The product includes staff authentication, the React staff UI, Lemon Squeezy subscription billing, CRM webhooks, and optional Twilio delivery. Real customer payment collection and calendar synchronization remain deferred.
+Qualified website conversations continue through booking or quoting. Business DNA—not AI—selects the commercial path, availability and price authority remain deterministic, PostgreSQL coordinates capacity and optimistic updates, and a won deal can be taken through payment, completed work, and a review request by staff (or by the post-sale sweep after a booking ends). Card collection from the tenant's customer is still not connected; staff record when money actually arrived. The product includes staff authentication, the React staff UI, Lemon Squeezy subscription billing, CRM webhooks, and optional Twilio delivery. Calendar synchronization with Google/Outlook remains deferred.
 
 ## Architecture
 
@@ -155,7 +155,7 @@ The AI receives at most eight recent redacted customer/assistant messages, selec
 
 For each service, `fulfillment_type` selects `bookable`, `quote_required`, `direct_sale`, or `human_review`. Bookable services receive at most ten real slots derived from business hours, service duration, configured booking windows, notice, buffers, capacity, existing active bookings, and an IANA timezone. Proposed slots expire and a customer's natural-language preference can select only a persisted proposal. Final capacity is rechecked transactionally; PostgreSQL uses a tenant/service advisory lock so overlapping buffered appointments cannot both consume capacity one.
 
-Quote-required services collect configured numeric inputs and calculate fixed or formula prices with `Decimal`. Starting-price and range rules require an explicit automatic amount or human review; configured approval thresholds route to `NEEDS_HUMAN`. Quotes are persisted with lines and validity, then accepted, rejected, or lazily expired. Booking confirmation or quote acceptance can prepare a deposit/final `PaymentRequest`; it is only an internal `READY` record and never charges a customer.
+Quote-required services collect configured numeric inputs and calculate fixed or formula prices with `Decimal`. Starting-price and range rules require an explicit automatic amount or human review; configured approval thresholds route to `NEEDS_HUMAN`. Quotes are persisted with lines and validity, then accepted, rejected, or lazily expired. Booking confirmation or quote acceptance can prepare a deposit/final `PaymentRequest`. Staff record when that payment is received (`WON → PAID`); they then mark the work complete (`PAID → COMPLETED`) and can send a review request (`COMPLETED → REVIEW_REQUESTED`). A later customer message after a review request, a cancellation, or a lost case re-enters at `CONTACTED`. The system still does not charge a customer's card.
 
 Run the provider-free booking and quote demonstration:
 
@@ -220,6 +220,6 @@ Every tenant-owned repository lookup requires `business_id`, and composite forei
 
 ## Next milestone
 
-The public rate limiter is shared across workers via PostgreSQL (`rate_limit_hits`). CRM webhook delivery and conversational SMS replies use a durable `integration_outbox` row plus `POST /api/v1/internal/integrations/deliver`. Inbound SMS threads show up on Conversations; a staff reply on an `sms` conversation is delivered through the same outbox. Real calendar synchronization and collection of a customer's payment remain deferred.
+The public rate limiter is shared across workers via PostgreSQL (`rate_limit_hits`). CRM webhook delivery and conversational SMS replies use a durable `integration_outbox` row plus `POST /api/v1/internal/integrations/deliver`. Inbound SMS threads show up on Conversations; a staff reply on an `sms` conversation is delivered through the same outbox. Staff can record customer payment, mark work complete, and send a review request; `POST /api/v1/internal/lifecycle/advance` does the same after a booking's end time when payment is already settled. Charging a customer's card and Google/Outlook calendar sync remain deferred.
 
 SMS follow-up already has its own attempt table. Twilio's Messages API has no client-supplied idempotency key, so a crash between Twilio confirming dispatch and the outbox mark can still duplicate one message.

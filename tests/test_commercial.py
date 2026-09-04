@@ -94,7 +94,7 @@ def test_bookable_case_proposes_bounded_real_slots_and_books_second_option(tmp_p
         )
         uow.commit()
         assert response.reason == "booking_confirmed"
-        assert case.current_state is ProcessState.BOOKED
+        assert case.current_state is ProcessState.WON
 
     with factory() as uow:
         booking = uow.bookings.get_for_case(dna["business"]["id"], case_id)
@@ -682,7 +682,7 @@ def test_option_two_please_books_second_slot(tmp_path) -> None:
             uow, case, dna, metadata, "Option 2 please", occurred_at=NOW
         )
         assert response.reason == "booking_confirmed"
-        assert case.current_state is ProcessState.BOOKED
+        assert case.current_state is ProcessState.WON
         uow.commit()
     engine.dispose()
 

@@ -49,8 +49,6 @@ _PHONE = re.compile(r"(?<!\w)(?:\+?\d[\d .()\-]{5,}\d)(?!\w)")
 _TERMINAL_CASE_STATES = frozenset({
     ProcessState.LOST,
     ProcessState.CANCELLED,
-    ProcessState.PAID,
-    ProcessState.COMPLETED,
 })
 _AUTONOMOUS_CASE_STATES = frozenset({
     ProcessState.NEW_LEAD,
@@ -59,7 +57,16 @@ _AUTONOMOUS_CASE_STATES = frozenset({
     ProcessState.QUALIFIED,
     ProcessState.QUOTED,
     ProcessState.BOOKED,
+    ProcessState.FOLLOW_UP,
     ProcessState.WON,
+    ProcessState.PAID,
+    ProcessState.COMPLETED,
+    ProcessState.REVIEW_REQUESTED,
+})
+_REACTIVATABLE_CASE_STATES = frozenset({
+    ProcessState.LOST,
+    ProcessState.CANCELLED,
+    ProcessState.REVIEW_REQUESTED,
 })
 # Which QualificationReasonCode a NEEDS_HUMAN case escalated for is allowed
 # to bounce back into the qualification loop automatically -- see
@@ -453,7 +460,7 @@ class ConversationService:
             correlation_id=correlation_id,
         ))
 
-        self._maybe_reactivate_lost_case(uow, conversation, occurred_at)
+        self._maybe_reactivate_case(uow, conversation, occurred_at)
         self._maybe_requalify_needs_human_case(uow, conversation, occurred_at)
 
         if conversation.status is ConversationStatus.AI_ACTIVE:
@@ -466,7 +473,11 @@ class ConversationService:
                 ProcessState.QUALIFIED,
                 ProcessState.QUOTED,
                 ProcessState.BOOKED,
+                ProcessState.FOLLOW_UP,
                 ProcessState.WON,
+                ProcessState.PAID,
+                ProcessState.COMPLETED,
+                ProcessState.REVIEW_REQUESTED,
             }:
                 commercial_response = self.commercial.handle_message(
                     uow,
@@ -580,38 +591,35 @@ class ConversationService:
         elif case.current_state not in _AUTONOMOUS_CASE_STATES:
             conversation.set_status(ConversationStatus.CLOSED, occurred_at)
 
-    def _maybe_reactivate_lost_case(
+    def _maybe_reactivate_case(
         self,
         uow: UnitOfWork,
         conversation: Conversation,
         occurred_at: datetime,
     ) -> None:
-        """Give a LOST case one more real evaluation instead of leaving the
-        conversation stuck on the same static qualification.lost_message
-        forever. state_machine.py already models LOST -> REACTIVATION ->
-        CONTACTED, but nothing drove those transitions -- _process_message
-        closed the conversation on LOST (see _synchronize_case_status /
-        _AUTONOMOUS_CASE_STATES) and every later message just hit
-        _paused_response.
+        """Re-open a finished case when the customer writes again.
 
-        Only reactivates ProcessState.LOST specifically -- CANCELLED, PAID,
-        and COMPLETED stay genuinely terminal (state_machine.py has no
-        REACTIVATION transition defined from any of them either). This can
-        only help: the very next message goes through the normal
-        qualification path again, so a real correction (wrong zip, typo)
-        gets genuinely re-qualified, while a customer who's still
-        correctly out of scope reaches the same LOST outcome and sees the
-        same lost_message either way -- no worse than before.
+        LOST and CANCELLED conversations are closed, so this both drives
+        LOST/CANCELLED -> REACTIVATION -> CONTACTED and flips the conversation
+        back to AI_ACTIVE. REVIEW_REQUESTED stays AI_ACTIVE (the review
+        request is the last outbound of this deal); the next inbound starts
+        the next cycle at CONTACTED.
         """
-        if conversation.case_id is None or conversation.status is not ConversationStatus.CLOSED:
+        if conversation.case_id is None:
             return
         case = uow.cases.get(conversation.business_id, conversation.case_id)
-        if case is None or case.current_state is not ProcessState.LOST:
+        if case is None or case.current_state not in _REACTIVATABLE_CASE_STATES:
+            return
+        if (
+            case.current_state in {ProcessState.LOST, ProcessState.CANCELLED}
+            and conversation.status is not ConversationStatus.CLOSED
+        ):
             return
         attempts = int(conversation.metadata.get("reactivation_attempts", 0) or 0)
         if attempts >= self.MAX_REACTIVATION_ATTEMPTS:
             return
 
+        origin = case.current_state.value
         for target in (ProcessState.REACTIVATION, ProcessState.CONTACTED):
             expected = case.version
             existing_event_count = len(case.event_history)
@@ -620,7 +628,7 @@ class ConversationService:
                 occurred_at=occurred_at,
                 source="conversation_service",
                 payload={
-                    "reason": "Customer sent a new message after LOST",
+                    "reason": f"Customer sent a new message after {origin}",
                     "requested_target": target.value,
                 },
             )
@@ -631,7 +639,8 @@ class ConversationService:
             )
 
         conversation.metadata["reactivation_attempts"] = attempts + 1
-        conversation.set_status(ConversationStatus.AI_ACTIVE, occurred_at)
+        if conversation.status is ConversationStatus.CLOSED:
+            conversation.set_status(ConversationStatus.AI_ACTIVE, occurred_at)
 
     def _maybe_requalify_needs_human_case(
         self,

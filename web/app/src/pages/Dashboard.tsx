@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Search, Bell, ArrowUpRight, Clock, Phone, Mail, Loader2, ArrowDown, ArrowUp } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { useAuth, describeError } from "../auth/AuthContext";
-import { api, type DashboardCaseSummary } from "../api/client";
+import { api, type DashboardCaseSummary, type LifecycleAction } from "../api/client";
 import { ESCALATION_ACTIONS, ESCALATION_LABELS, ESCALATION_OUTCOMES } from "../lib/escalationCopy";
 import {
   STATE_META,
@@ -20,14 +20,26 @@ const FILTERS: (CaseState | "ALL")[] = ["ALL", "NEEDS_HUMAN", "QUALIFYING", "BOO
 type SortKey = "date" | "name";
 type SortDirection = "asc" | "desc";
 
-function nextStep(state: CaseState): string {
+function nextStep(state: string): string {
   if (state === "NEEDS_HUMAN") return "Review the conversation and reply";
-  if (state === "QUALIFYING") return "Collect the remaining qualification details";
-  if (state === "BOOKED") return "Prepare for the appointment";
-  if (state === "LOST") return "Review whether reactivation is appropriate";
-  if (state === "COMPLETED") return "Request a review or referral";
+  if (state === "QUALIFYING" || state === "CONTACTED" || state === "NEW_LEAD") {
+    return "Collect the remaining qualification details";
+  }
+  if (state === "BOOKED" || state === "QUOTED") return "Finish the booking or quote with the customer";
+  if (state === "WON") return "Record payment when you receive it, or mark the work complete if none is due";
+  if (state === "PAID") return "Mark the work complete when the job is done";
+  if (state === "COMPLETED") return "Send a review request";
+  if (state === "REVIEW_REQUESTED") return "Waiting on a review — the next message starts a new cycle";
+  if (state === "LOST" || state === "CANCELLED") return "A new customer message can reopen this case";
   return "Open the conversation to review the next action";
 }
+
+const LIFECYCLE_LABELS: Record<string, string> = {
+  record_payment: "Record payment received",
+  mark_completed: "Mark work complete",
+  request_review: "Request a review",
+  confirm_next_step: "Customer completed the next step",
+};
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -40,6 +52,7 @@ export default function Dashboard() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [lifecycleBusy, setLifecycleBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -163,6 +176,23 @@ export default function Dashboard() {
       setActionError(describeError(err));
     } finally {
       setResolvingId(null);
+    }
+  };
+
+  const handleLifecycle = async (action: LifecycleAction) => {
+    if (!token || !businessId || !selected) return;
+    setLifecycleBusy(selected.case_id);
+    setActionError(null);
+    try {
+      const result = await api.advanceCaseLifecycle(token, businessId, selected.case_id, action);
+      if (result.case) {
+        const updated = result.case;
+        setCases((prev) => (prev ?? []).map((c) => (c.case_id === updated.case_id ? updated : c)));
+      }
+    } catch (err) {
+      setActionError(describeError(err));
+    } finally {
+      setLifecycleBusy(null);
     }
   };
 
@@ -332,7 +362,7 @@ export default function Dashboard() {
                   )}
                   <div className="mb-5">
                     <div className="text-xs font-medium text-[#9C9488] mb-1">Recommended next step</div>
-                    <p className="text-sm">{nextStep(selected.caseState)}</p>
+                    <p className="text-sm">{nextStep(selected.current_state)}</p>
                   </div>
                   {actionError && (
                     <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ backgroundColor: "#FBEBE9", color: "#8A3225" }}>
@@ -353,6 +383,17 @@ export default function Dashboard() {
                         Mark resolved
                       </button>
                     )}
+                    {(selected.lifecycle_actions ?? []).map((action) => (
+                      <button
+                        key={action}
+                        onClick={() => handleLifecycle(action)}
+                        disabled={lifecycleBusy === selected.case_id}
+                        className="w-full py-2.5 rounded-lg text-sm font-medium border border-[#E7E5DE] flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        {lifecycleBusy === selected.case_id && <Loader2 size={14} className="animate-spin" />}
+                        {LIFECYCLE_LABELS[action] ?? action}
+                      </button>
+                    ))}
                   </div>
                   <div className="mt-5 pt-4 border-t border-[#F0EFE9] flex items-center gap-4 text-xs text-[#6B6459]">
                     <span className="flex items-center gap-1.5"><Phone size={12} /> {selected.lead.phone || "Not on file"}</span>

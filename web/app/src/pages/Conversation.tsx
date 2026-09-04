@@ -9,6 +9,7 @@ import {
   type DashboardConversationSummary,
   type DashboardConversationDetail,
   type DashboardCaseDetail,
+  type LifecycleAction,
 } from "../api/client";
 
 /**
@@ -55,6 +56,7 @@ export default function Conversation() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const [lifecycleBusy, setLifecycleBusy] = useState(false);
   const [feedbackSending, setFeedbackSending] = useState<string | null>(null);
   const [feedbackSaved, setFeedbackSaved] = useState<string | null>(null);
 
@@ -183,6 +185,21 @@ export default function Conversation() {
       setActionError(describeError(err));
     } finally {
       setResolving(false);
+    }
+  };
+
+  const handleLifecycle = async (action: LifecycleAction) => {
+    if (!token || !businessId || !caseDetail) return;
+    setLifecycleBusy(true);
+    setActionError(null);
+    try {
+      await api.advanceCaseLifecycle(token, businessId, caseDetail.case_id, action);
+      if (selectedId) await refreshDetail(selectedId);
+      refreshList();
+    } catch (err) {
+      setActionError(describeError(err));
+    } finally {
+      setLifecycleBusy(false);
     }
   };
 
@@ -412,6 +429,28 @@ export default function Conversation() {
                       Mark resolved
                     </button>
                   </div>
+                  {(caseDetail?.lifecycle_actions ?? []).length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {(caseDetail?.lifecycle_actions ?? []).map((action) => (
+                        <button
+                          key={action}
+                          onClick={() => handleLifecycle(action)}
+                          disabled={lifecycleBusy}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border disabled:opacity-40 disabled:cursor-not-allowed"
+                          style={{ borderColor: "#E7E5DE", color: "#151515" }}
+                        >
+                          {lifecycleBusy && <Loader2 size={12} className="animate-spin" />}
+                          {action === "record_payment"
+                            ? "Record payment received"
+                            : action === "mark_completed"
+                              ? "Mark work complete"
+                              : action === "request_review"
+                                ? "Request a review"
+                                : "Customer completed the next step"}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </>
             )}

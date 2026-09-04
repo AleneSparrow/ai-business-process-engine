@@ -187,6 +187,13 @@ class Booking:
         self.status = BookingStatus.CANCELLED
         self.updated_at = max(self.updated_at, occurred_at)
 
+    def complete(self, occurred_at: datetime) -> None:
+        require_utc(occurred_at, "occurred_at")
+        if self.status not in {BookingStatus.CONFIRMED, BookingStatus.RESCHEDULED}:
+            raise ValueError("booking cannot be completed from its current status")
+        self.status = BookingStatus.COMPLETED
+        self.updated_at = max(self.updated_at, occurred_at)
+
     def reschedule(self, slot: TimeSlot, occurred_at: datetime) -> None:
         require_utc(occurred_at, "occurred_at")
         if self.status not in {BookingStatus.CONFIRMED, BookingStatus.RESCHEDULED}:
