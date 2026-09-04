@@ -428,12 +428,12 @@ BUSINESSES: tuple[BusinessSpec, ...] = (
         services=(
             ServiceSpec(
                 "Product demo",
-                "Watch the engine take a real inbound lead from first message to a booked time or accepted quote",
+                "Live walkthrough of an inbound form-fill going to a booked time without a person handling the lead",
                 "How many inbound leads do you handle in a typical week?",
             ),
             ServiceSpec(
                 "Starter trial",
-                "Seven-day trial of the engine on your own inbound conversations",
+                "Seven-day trial of the engine on your own conversations",
                 "What is the main service you sell?",
             ),
         ),
@@ -874,14 +874,18 @@ SCENARIOS: tuple[Scenario, ...] = (
         business_id="flywheel",
         usp_claims=("any_business", "to_deal", "zero_config", "zero_config_wording"),
         first_message=(
-            "We lose people after they fill out the form. I need the conversation "
-            "to go all the way to a booking without someone on my team handling each lead."
+            "We lose people after they fill out the form. I want a live walkthrough "
+            "of a conversation going all the way to a booked time without someone "
+            "on my team handling each lead."
         ),
         expected_service="product-demo",
         expected_states=("BOOKED",),
         name="Alena",
         phone="+1 415-555-0188",
         answers={"how-many-inbound-leads-do-you-handle-in-a-typical-week": "about forty"},
+        clarify_service=(
+            "The live walkthrough — I want to watch an inbound lead go to a booked time."
+        ),
     ),
 )
 

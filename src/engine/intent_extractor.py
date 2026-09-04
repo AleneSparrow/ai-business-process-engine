@@ -231,7 +231,6 @@ class DeterministicIntentExtractor:
         elif any(term in text for term in ("emergency", "urgent", "asap")):
             urgency = Urgency.EMERGENCY if "emergency" in text else Urgency.HIGH
 
-        ambiguous = len(unique_matches) > 1
         advice_request = bool(ADVICE_OR_COMMITMENT_CUE.search(raw_text))
         unsupported_service_name = None
         if (
@@ -248,13 +247,15 @@ class DeterministicIntentExtractor:
         contextual_answer = context is not None and bool(
             postal_match or email_match or phone or customer_name or answers or unique_matches
         )
+        # Two catalog hits is "which of these?" — a person processing leads
+        # would ask, so the engine asks. Advice and safety still escalate.
         return IntentResult(
             service_requested=unique_matches[0] if len(unique_matches) == 1 else None,
             urgency=urgency,
             customer_location=postal_match.group(0) if postal_match else None,
             notes=message.raw_text,
-            confidence=0.4 if ambiguous else (0.95 if unique_matches or contextual_answer else 0.6),
-            requires_human=ambiguous or advice_request,
+            confidence=0.95 if len(unique_matches) == 1 or contextual_answer else 0.6,
+            requires_human=advice_request,
             qualification_answers=answers,
             customer_name=customer_name,
             phone=phone,

@@ -170,3 +170,53 @@ def test_first_turn_ambiguous_house_noise_is_not_marked_unsupported() -> None:
         _northstar(),
     )
     assert intent.unsupported_service_name is None
+
+
+def test_two_catalog_hits_ask_instead_of_handing_to_a_person() -> None:
+    """A human processor would ask which job to start; so does the engine."""
+    intent = DeterministicIntentExtractor().extract(
+        _incoming("The furnace and the toilet are both leaking."),
+        _northstar(),
+    )
+    assert intent.service_requested is None
+    assert not intent.requires_human
+
+
+def test_flywheel_inbound_selects_the_demo_without_catalog_names() -> None:
+    dna = build_business_dna(OnboardingInput(
+        business_id="flywheel",
+        business_name="Flywheel",
+        industry="SaaS / Software",
+        description="Takes an inbound inquiry to a booked deal without a person processing each lead",
+        tone="Friendly & direct",
+        services=(
+            OnboardingService(
+                "Product demo",
+                ("How many inbound leads do you handle in a typical week?",),
+                "Live walkthrough of an inbound form-fill going to a booked time without a person handling the lead",
+            ),
+            OnboardingService(
+                "Starter trial",
+                ("What is the main service you sell?",),
+                "Seven-day trial of the engine on your own conversations",
+            ),
+        ),
+        service_zip_codes=(),
+        enforce_service_area=False,
+    ))
+    intent = DeterministicIntentExtractor().extract(
+        IncomingMessage(
+            business_id="flywheel",
+            channel="webchat",
+            external_message_id="eval-3",
+            raw_text=(
+                "We lose people after they fill out the form. I want a live walkthrough "
+                "of a conversation going all the way to a booked time without someone "
+                "on my team handling each lead."
+            ),
+            timestamp=NOW,
+        ),
+        dna,
+    )
+    assert intent.service_requested == "product-demo"
+    assert not intent.requires_human
