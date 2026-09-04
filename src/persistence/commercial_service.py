@@ -38,6 +38,7 @@ from src.engine.commercial import (
 )
 from src.engine.decision_router import DecisionRequest
 from src.engine.process_engine import ProcessEngine
+from src.engine.sales_playbook import ObjectionKind, classify_objection, close_ask_for_objection
 
 from .repositories import UnitOfWork
 
@@ -534,6 +535,14 @@ class CommercialWorkflowService:
                 return CommercialResponse(
                     "I found more than one matching option. Please reply with its option number.",
                     "slot_ambiguous",
+                    case.current_state.value,
+                )
+            kind = classify_objection(customer_text)
+            if kind is not ObjectionKind.OTHER:
+                ask = close_ask_for_objection(kind, "bookable")
+                return CommercialResponse(
+                    f"That's a fair concern. {ask}",
+                    "slot_objection",
                     case.current_state.value,
                 )
             return CommercialResponse(

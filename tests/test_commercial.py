@@ -108,6 +108,38 @@ def test_bookable_case_proposes_bounded_real_slots_and_books_second_option(tmp_p
     engine.dispose()
 
 
+def test_price_objection_during_slot_offer_keeps_the_close(tmp_path) -> None:
+    """A customer who flinches at the times is still in a sale, not a CRM file."""
+    engine, factory, dna, case_id = make_factory(tmp_path, "diagnostic-visit")
+    service = CommercialWorkflowService()
+    metadata: dict = {}
+    with factory() as uow:
+        case = uow.cases.get(dna["business"]["id"], case_id)
+        service.initialize(uow, case, dna, metadata, occurred_at=NOW)
+        uow.commit()
+
+    with factory() as uow:
+        case = uow.cases.get(dna["business"]["id"], case_id)
+        response = service.handle_message(
+            uow, case, dna, metadata, "that's too expensive for me", occurred_at=NOW
+        )
+        uow.commit()
+        assert response.reason == "slot_objection"
+        assert case.current_state is ProcessState.QUALIFIED
+        assert "hold a time" in response.message_text
+        assert "$" not in response.message_text
+
+    with factory() as uow:
+        case = uow.cases.get(dna["business"]["id"], case_id)
+        response = service.handle_message(
+            uow, case, dna, metadata, "2", occurred_at=NOW
+        )
+        uow.commit()
+        assert response.reason == "booking_confirmed"
+        assert case.current_state is ProcessState.BOOKED
+    engine.dispose()
+
+
 def test_availability_respects_hours_duration_buffers_capacity_and_dst() -> None:
     dna = load_dna()
     engine = DeterministicAvailabilityEngine()
