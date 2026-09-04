@@ -1,65 +1,39 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, MessageSquare, Workflow, ShieldCheck, Zap, ChevronRight, Check, Menu, X } from "lucide-react";
+import { ArrowRight, MessageSquare, Workflow, ShieldCheck, Zap, Check, Menu, X } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { FaqSection } from "../components/FaqSection";
 import { FlywheelMark } from "../components/Shared";
 
-// Amber, not bronze -- this stepper visualizes a cycle in motion, and amber
-// is the brand book's functional accent for "active, in motion" states.
-function Stepper({ stage, color = "#D97B29" }: { stage: number; color?: string }) {
-  const STAGES = ["Trigger", "Context", "Decision", "Action", "Result"];
-  return (
-    <div className="flex items-center gap-1.5">
-      {STAGES.map((label, i) => (
-        <div key={label} className="flex items-center gap-1.5">
-          <div
-            className="w-2 h-2 rounded-full"
-            style={{
-              backgroundColor: i <= stage ? color : "#DEDBD2",
-              boxShadow: i === stage ? `0 0 0 3px ${color}22` : "none",
-            }}
-            title={label}
-          />
-          {i < STAGES.length - 1 && (
-            <div className="h-px w-4" style={{ backgroundColor: i < stage ? color : "#DEDBD2" }} />
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function ChatBubble() {
-  const [step, setStep] = useState(2);
   return (
     <div className="bg-white rounded-2xl border border-[#E7E5DE] shadow-[0_1px_2px_rgba(0,0,0,0.03)] p-5 w-full max-w-sm">
       <div className="flex items-center justify-between mb-4">
         <span className="text-xs font-medium text-[#9C9488]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-          acme-co · web chat
+          flywheel · web chat
         </span>
-        <Stepper stage={step} />
+        <span className="text-[10px] uppercase tracking-wide text-[#1E7B52]">Qualified → booked</span>
       </div>
       <div className="flex flex-col gap-2.5">
         <div className="self-start bg-[#F1F1EF] rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm max-w-[85%]">
-          Hi, I saw your pricing page — can someone walk me through getting started?
+          We get about 40 leads a month and most die in voicemail. Can this actually run sales for us?
         </div>
         <div
           className="self-end text-white rounded-2xl rounded-br-sm px-3.5 py-2.5 text-sm max-w-[85%]"
           style={{ backgroundColor: "#B87333" }}
         >
-          Happy to help. What are you looking to get done, and what's your timeline?
+          Yes — I qualify, book or quote, follow up, and close. Same cycle every business already runs. What do you sell?
         </div>
         <div className="self-start bg-[#F1F1EF] rounded-2xl rounded-bl-sm px-3.5 py-2.5 text-sm max-w-[85%]">
-          Onboarding automation for ~50 leads/month, ideally live this month
+          Home services. I need something live this week.
+        </div>
+        <div
+          className="self-end text-white rounded-2xl rounded-br-sm px-3.5 py-2.5 text-sm max-w-[85%]"
+          style={{ backgroundColor: "#B87333" }}
+        >
+          I can start you on a 7-day trial. Tuesday 10:00am or Wednesday 2:00pm — which works?
         </div>
       </div>
-      <button
-        onClick={() => setStep((s) => (s < 4 ? s + 1 : 2))}
-        className="mt-4 text-xs font-medium text-[#B87333] flex items-center gap-1"
-      >
-        Advance step <ChevronRight size={12} />
-      </button>
     </div>
   );
 }
@@ -183,11 +157,11 @@ export default function Landing() {
             <Zap size={12} /> Adaptive to any business
           </div>
           <h1 className="text-4xl md:text-5xl leading-[1.08] mb-5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
-            Every lead gets answered.<br />Every step gets logged.
+            The sales process,<br />without the sales manager.
           </h1>
           <p className="text-base text-[#6B6459] leading-relaxed mb-8 max-w-md">
-            Flywheel qualifies, books, and follows up with your customers the moment they message —
-            then hands off to you the moment it should. Nothing happens off the record.
+            A lead messages. Flywheel qualifies, books or quotes, follows up, and closes —
+            the same cycle every business already runs. You step in only when a rule cannot continue.
           </p>
           <div className="flex flex-wrap items-center gap-3 mb-10">
             <button
@@ -219,26 +193,26 @@ export default function Landing() {
       <section id="how" className="max-w-6xl mx-auto px-6 py-20 md:py-28">
         <div className="max-w-lg mb-14">
           <span className="text-xs font-medium text-[#B87333] uppercase tracking-wide">How it works</span>
-          <h2 className="text-3xl mt-2" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>One path, five steps, no surprises</h2>
+          <h2 className="text-3xl mt-2" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>The same sales cycle, run without a person on every step</h2>
         </div>
         <div className="grid md:grid-cols-2 gap-x-16">
           <div>
-            <StepRow n="1" title="A customer messages your business" body="Through your website chat or a text — Flywheel picks it up the moment it arrives." />
-            <StepRow n="2" title="It qualifies against your rules" body="Your questions, required details, urgency — defined by you, applied every time, the same way." />
-            <StepRow n="3" title="It decides, or it asks you" body="Clear cases move forward on their own. Anything ambiguous escalates to you, in plain language." last />
+            <StepRow n="1" title="A customer reaches out" body="Website chat or a text. Flywheel picks it up the moment it arrives — no voicemail, no waiting on a manager." />
+            <StepRow n="2" title="It qualifies against your rules" body="Your services, questions, and disqualifiers. Applied the same way every time, for any business." />
+            <StepRow n="3" title="It books, quotes, or gives the next step" body="Whatever that business's sales process already does — the stages are the same; only the catalog changes." last />
           </div>
           <div className="mt-2 md:mt-[52px]">
-            <StepRow n="4" title="It books, quotes, or follows up" body="The action your rules allow — never more, never assumed." />
-            <StepRow n="5" title="Every step stays on the record" body="You can open any case and see exactly what happened, in order, at any time." last />
+            <StepRow n="4" title="It follows through to a close" body="Follow-up, payment confirmation, completed work, review. The assistant keeps the cycle moving in the conversation." />
+            <StepRow n="5" title="You only hear from it when a rule cannot continue" body="Ambiguity, safety, or a high-value exception pauses for you. Everything else stays on the record and keeps going." last />
           </div>
         </div>
       </section>
 
       <section id="features" className="max-w-6xl mx-auto px-6 pb-20 md:pb-28">
         <div className="grid md:grid-cols-3 gap-5">
-          <FeatureCard icon={MessageSquare} title="Answers instantly, in your voice" body="Configured tone, language, and channel per business — customers never feel handed to a machine." />
-          <FeatureCard icon={Workflow} title="Runs your process, not a generic script" body="Business DNA encodes your services, questions, and escalation rules — no two setups behave alike." />
-          <FeatureCard icon={ShieldCheck} title="Escalates instead of guessing" body="When something falls outside your rules, it stops and asks — it never improvises a commitment." />
+          <FeatureCard icon={MessageSquare} title="Does the sales manager's job" body="Qualify, book or quote, follow up, close. The customer stays in one conversation — you are not updating a pipeline." />
+          <FeatureCard icon={Workflow} title="One process, any business" body="The stages do not change by industry. Business DNA fills in services, prices, and wording — not a custom build per company." />
+          <FeatureCard icon={ShieldCheck} title="Pauses instead of guessing" body="When something falls outside your rules, it stops and asks you. It never improvises a price, discount, or promise." />
         </div>
       </section>
 

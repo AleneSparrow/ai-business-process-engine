@@ -31,19 +31,37 @@ from src.domain.conversations import (
     MessageRole,
 )
 from src.domain.events import EventType
+from src.domain.lifecycle import ALLOWED_LIFECYCLE_ACTIONS
 from src.domain.models import DecisionType, ProcessCase, ProcessEvent, utc_now
 from src.domain.states import ProcessState
 from src.engine.decision_router import DecisionRequest
 from src.engine.process_engine import ProcessEngine
 
+from .commercial_service import CommercialWorkflowService
 from .errors import (
     CaseNotAwaitingApprovalError,
     ConversationClosedError,
     ConversationNotLinkedError,
+    InvalidLifecycleActionError,
     StaffConversationNotFoundError,
 )
 from .repositories import UnitOfWork
 from .sms_service import SmsService
+
+
+_KEEP_CONVERSATION_OPEN_STATES = frozenset({
+    ProcessState.NEW_LEAD,
+    ProcessState.CONTACTED,
+    ProcessState.QUALIFYING,
+    ProcessState.QUALIFIED,
+    ProcessState.QUOTED,
+    ProcessState.BOOKED,
+    ProcessState.FOLLOW_UP,
+    ProcessState.WON,
+    ProcessState.PAID,
+    ProcessState.COMPLETED,
+    ProcessState.REVIEW_REQUESTED,
+})
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,10 +77,14 @@ class StaffActionService:
         *,
         process_engine: ProcessEngine | None = None,
         sms_service: SmsService | None = None,
+        commercial: CommercialWorkflowService | None = None,
     ) -> None:
         self._unit_of_work_factory = unit_of_work_factory
         self.process_engine = process_engine or ProcessEngine()
         self.sms_service = sms_service
+        self.commercial = commercial or CommercialWorkflowService(
+            process_engine=self.process_engine
+        )
 
     def reply(
         self,
@@ -177,14 +199,109 @@ class StaffActionService:
             unit_of_work.events.add_many(
                 business_id, case.case_id, case.event_history[existing_event_count:]
             )
+            self.commercial.complete_win_if_ready(
+                unit_of_work, case, occurred_at=occurred_at
+            )
 
-            if conversation.status is not ConversationStatus.CLOSED:
-                expected_conversation_version = conversation.version
-                conversation.set_status(ConversationStatus.CLOSED, occurred_at)
-                unit_of_work.conversations.save(conversation, expected_conversation_version)
+            expected_conversation_version = conversation.version
+            self._sync_conversation_to_case(conversation, case, occurred_at)
+            unit_of_work.conversations.save(conversation, expected_conversation_version)
 
             unit_of_work.commit()
             return StaffActionResult(conversation=conversation, case=case)
+
+    def advance_lifecycle(
+        self,
+        business_id: str,
+        case_id: str,
+        staff_user: StaffUser,
+        action: str,
+    ) -> StaffActionResult:
+        if action not in ALLOWED_LIFECYCLE_ACTIONS:
+            raise InvalidLifecycleActionError("Unsupported lifecycle action")
+        outbound_text: str | None = None
+        with self._unit_of_work_factory() as unit_of_work:
+            case = unit_of_work.cases.get(business_id, case_id)
+            if case is None:
+                raise ConversationNotLinkedError("The case was not found")
+            conversations = unit_of_work.conversations.list_for_case(business_id, case_id)
+            if not conversations:
+                raise ConversationNotLinkedError("This case isn't linked to a conversation yet")
+            conversation = unit_of_work.conversations.get(
+                business_id, conversations[0].conversation_id, for_update=True
+            )
+            if conversation is None:
+                raise StaffConversationNotFoundError("Conversation was not found")
+            dna_version = unit_of_work.business_dna.get_active(business_id)
+            dna = dna_version.configuration if dna_version is not None else {}
+            occurred_at = utc_now()
+            response = self.commercial.apply_lifecycle_action(
+                unit_of_work,
+                case,
+                dna,
+                conversation.metadata,
+                action,
+                occurred_at=occurred_at,
+                recorded_by=staff_user.email,
+            )
+            expected_conversation_version = conversation.version
+            sequence = unit_of_work.conversation_messages.next_sequence(
+                business_id, conversation.conversation_id
+            )
+            unit_of_work.conversation_messages.add(ConversationMessage(
+                message_id=str(uuid4()),
+                business_id=business_id,
+                conversation_id=conversation.conversation_id,
+                sequence_number=sequence,
+                direction=MessageDirection.OUTBOUND,
+                role=MessageRole.ASSISTANT,
+                text=response.message_text,
+                created_at=occurred_at,
+                metadata={
+                    "reason": response.reason,
+                    "staff_user_id": staff_user.user_id,
+                    "lifecycle_action": action,
+                },
+            ))
+            self._sync_conversation_to_case(conversation, case, occurred_at)
+            unit_of_work.conversations.save(conversation, expected_conversation_version)
+            unit_of_work.commit()
+            result = StaffActionResult(conversation=conversation, case=case)
+            outbound_text = response.message_text
+
+        if (
+            self.sms_service is not None
+            and result.conversation.channel == "sms"
+            and result.conversation.external_session_id
+            and outbound_text
+        ):
+            self.sms_service.enqueue_reply(
+                business_id,
+                to_number=result.conversation.external_session_id,
+                body=outbound_text,
+                inbound_message_id=f"lifecycle:{result.conversation.conversation_id}:{action}",
+            )
+        return result
+
+    @staticmethod
+    def _sync_conversation_to_case(
+        conversation: Conversation,
+        case: ProcessCase,
+        occurred_at,
+    ) -> None:
+        conversation.metadata["current_state"] = case.current_state.value
+        if case.current_state in _KEEP_CONVERSATION_OPEN_STATES:
+            if conversation.status in {
+                ConversationStatus.HUMAN_TAKEOVER_REQUESTED,
+                ConversationStatus.HUMAN_TAKEOVER_ACTIVE,
+                ConversationStatus.CLOSED,
+            }:
+                conversation.set_status(ConversationStatus.AI_ACTIVE, occurred_at)
+            else:
+                conversation.touch(occurred_at)
+            return
+        if conversation.status is not ConversationStatus.CLOSED:
+            conversation.set_status(ConversationStatus.CLOSED, occurred_at)
 
     def record_escalation_feedback(
         self,

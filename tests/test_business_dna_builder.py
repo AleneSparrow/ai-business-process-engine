@@ -65,3 +65,13 @@ def test_customer_voice_presets_create_distinct_promptable_business_tones(
     dna = build_business_dna(_onboarding(tone=preset))
 
     assert dna["communication"]["tone"] == expected
+
+
+def test_onboarding_ships_a_sales_opening_built_from_the_business_itself() -> None:
+    dna = build_business_dna(_onboarding())
+
+    pitch = dna["sales"]["opening_pitch"]
+    assert "Riverside Home Repairs" in pitch
+    assert "Drain cleaning" in pitch
+    assert "Tell me what you're trying to get done" in pitch
+    assert dna["chat_widget"]["welcome_message"].startswith("Hi — this is Riverside Home Repairs")

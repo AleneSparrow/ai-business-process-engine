@@ -1,7 +1,7 @@
 """Operator-triggered internal tasks -- not part of the tenant-facing API.
 
-Currently three endpoints behind the same secret: stalled-lead follow-up,
-CRM/SMS outbox delivery, and commercial expiry. See DEPLOY.md.
+Currently four endpoints behind the same secret: stalled-lead follow-up,
+CRM/SMS outbox delivery, commercial expiry, and post-sale lifecycle. See DEPLOY.md.
 """
 
 import hmac
@@ -13,6 +13,7 @@ from src.domain.models import utc_now
 from src.persistence.commercial_expiry import CommercialExpirySweep
 from src.persistence.crm_webhook_service import CrmWebhookService
 from src.persistence.follow_up_service import FollowUpSweepResult, PersistentFollowUpRunner
+from src.persistence.lifecycle_sweep import LifecycleSweep
 from src.persistence.sms_service import SmsService
 
 from ..dependencies import ApplicationContainer, get_container
@@ -88,3 +89,23 @@ def expire_due_commercial_items(
 ) -> dict[str, int]:
     _require_task_secret(container, x_internal_task_secret)
     return CommercialExpirySweep(container.unit_of_work_factory).run(utc_now())
+
+
+@router.post(
+    "/lifecycle/advance",
+    summary="Mark finished bookings complete and send review requests",
+)
+def advance_post_sale_lifecycle(
+    container: Annotated[ApplicationContainer, Depends(get_container)],
+    x_internal_task_secret: Annotated[str | None, Header()] = None,
+) -> dict[str, int]:
+    _require_task_secret(container, x_internal_task_secret)
+    sms_service = SmsService(
+        container.unit_of_work_factory,
+        account_sid=container.settings.twilio_account_sid,
+        auth_token=container.settings.twilio_auth_token,
+        public_api_base_url=container.settings.public_api_base_url,
+    )
+    return LifecycleSweep(
+        container.unit_of_work_factory, sms_service=sms_service
+    ).run(utc_now())

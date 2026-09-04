@@ -19,6 +19,7 @@ def test_quote_and_booking_are_alternative_qualified_paths() -> None:
     machine = StateMachine()
     assert machine.can_transition(ProcessState.QUALIFIED, ProcessState.BOOKED)
     assert machine.can_transition(ProcessState.QUALIFIED, ProcessState.QUOTED)
+    assert machine.can_transition(ProcessState.QUALIFIED, ProcessState.FOLLOW_UP)
 
 
 def test_booking_and_quote_must_enter_follow_up_before_won() -> None:

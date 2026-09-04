@@ -24,6 +24,7 @@ from src.persistence.errors import (
     ConversationTokenExpiredError,
     IdempotencyCollisionError,
     IdempotencyInProgressError,
+    InvalidLifecycleActionError,
     InvalidPlanError,
     MessageScopeError,
     StaffConversationNotFoundError,
@@ -201,6 +202,14 @@ def install_error_handlers(app: FastAPI) -> None:
         code = "case_not_awaiting_approval"
         _log_error(request, code, 409, type(exc).__name__)
         return _response(request, 409, code, "This case isn't waiting on human approval right now")
+
+    @app.exception_handler(InvalidLifecycleActionError)
+    async def invalid_lifecycle_action_handler(
+        request: Request, exc: InvalidLifecycleActionError
+    ) -> JSONResponse:
+        code = "invalid_lifecycle_action"
+        _log_error(request, code, 409, type(exc).__name__)
+        return _response(request, 409, code, str(exc) or "This action isn't available for the case right now")
 
     @app.exception_handler(MessageScopeError)
     async def message_scope_handler(request: Request, exc: MessageScopeError) -> JSONResponse:

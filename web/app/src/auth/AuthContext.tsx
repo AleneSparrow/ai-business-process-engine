@@ -161,6 +161,8 @@ export function describeError(err: unknown): string {
         return "This conversation is already closed.";
       case "case_not_awaiting_approval":
         return "This case isn't waiting on your review anymore — someone may have already resolved it.";
+      case "invalid_lifecycle_action":
+        return err.message || "That next step isn't available for this case right now.";
       case "conversation_not_found":
         return "That conversation couldn't be found.";
       case "billing_not_configured":

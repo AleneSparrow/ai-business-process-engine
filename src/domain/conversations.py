@@ -169,7 +169,14 @@ class Conversation:
                 # reclaim it out from under them.
                 ConversationStatus.AI_ACTIVE,
             },
-            ConversationStatus.HUMAN_TAKEOVER_ACTIVE: {ConversationStatus.CLOSED},
+            ConversationStatus.HUMAN_TAKEOVER_ACTIVE: {
+                ConversationStatus.CLOSED,
+                # Staff resolved a commercial/human gate and the case is back
+                # on an autonomous post-sale state (WON/PAID/...). The engine
+                # must be allowed to keep talking; closing the thread here
+                # used to dead-end the cycle after the first human approval.
+                ConversationStatus.AI_ACTIVE,
+            },
             # CLOSED -> AI_ACTIVE: reopening a LOST case's conversation for
             # one more real evaluation (see ConversationService.
             # _maybe_reactivate_lost_case). Found live (2026-08-19): that
@@ -183,10 +190,9 @@ class Conversation:
             # practical effect was every LOST-then-follow-up message getting
             # a 500 instead of ever being reactivated. CLOSED otherwise stays
             # terminal for every other reason a conversation closes
-            # (CANCELLED/PAID/COMPLETED cases, human takeover finished) --
-            # only this one path ever calls set_status(AI_ACTIVE) on a
-            # CLOSED conversation, and it's already gated on case.
-            # current_state is ProcessState.LOST specifically.
+            # (staff takeover finished without returning the case to the
+            # engine). Reactivation of LOST, CANCELLED, and REVIEW_REQUESTED
+            # cases also uses this edge.
             ConversationStatus.CLOSED: {ConversationStatus.AI_ACTIVE},
         }
         if status is self.status:

@@ -145,6 +145,20 @@ def test_case_summary_exposes_human_readable_service_category() -> None:
     )
 
     assert summary.category == "Drain cleaning"
+    assert summary.lifecycle_actions == ()
+
+
+def test_won_case_summary_exposes_payment_and_completion_actions() -> None:
+    case = ProcessCase(
+        "case-won",
+        "biz-1",
+        Lead("lead-won", name="Ada"),
+        ProcessState.WON,
+        NOW,
+        NOW,
+    )
+    summary = DashboardCaseSummarySchema.from_domain(case)
+    assert summary.lifecycle_actions == ("record_payment", "mark_completed")
 
 
 def test_case_summary_exposes_latest_non_sensitive_escalation_reason() -> None:
@@ -499,6 +513,7 @@ def test_list_cases_returns_seeded_case(dashboard_environment) -> None:
     assert case["current_state"] == "NEEDS_HUMAN"
     assert case["lead"]["name"] == "Ada Lovelace"
     assert case["event_count"] == 2
+    assert case["lifecycle_actions"] == []
 
 
 def test_case_detail_includes_event_history(dashboard_environment) -> None:
@@ -552,3 +567,37 @@ def test_dashboard_endpoints_require_auth(dashboard_environment) -> None:
 
     response = client.get("/api/v1/businesses/biz-1/cases")
     assert response.status_code == 401
+
+
+def test_staff_can_record_payment_on_a_won_case(dashboard_environment) -> None:
+    client, factory = dashboard_environment
+    token = signup_and_login(client, "lifecycle-owner@example.com")
+    me = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {token}"}).json()
+    seed_case_with_conversation(factory, business_id="biz-lifecycle", case_id="case-won", lead_id="lead-won")
+    link_business(factory, business_id="biz-lifecycle", user_id=me["user_id"])
+    with factory() as unit_of_work:
+        unit_of_work.session.execute(
+            update(ProcessCaseRow)
+            .where(ProcessCaseRow.id == "case-won")
+            .values(current_state="WON", version=ProcessCaseRow.version + 1)
+        )
+        unit_of_work.commit()
+
+    blocked = client.post(
+        "/api/v1/businesses/biz-lifecycle/cases/case-won/lifecycle",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"action": "request_review"},
+    )
+    assert blocked.status_code == 409
+    assert blocked.json()["error"]["code"] == "invalid_lifecycle_action"
+
+    paid = client.post(
+        "/api/v1/businesses/biz-lifecycle/cases/case-won/lifecycle",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"action": "record_payment"},
+    )
+    assert paid.status_code == 200
+    body = paid.json()
+    assert body["case"]["current_state"] == "PAID"
+    assert body["case"]["lifecycle_actions"] == ["mark_completed"]
+    assert body["conversation"]["case_state"] == "PAID"

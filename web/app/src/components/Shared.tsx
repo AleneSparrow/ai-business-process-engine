@@ -96,7 +96,7 @@ export function mapProcessState(state: ProcessState): { caseState: CaseState; st
       return { caseState: "QUALIFYING", stage: 3 };
     case "WON":
     case "PAID":
-      return { caseState: "BOOKED", stage: 4 };
+      return { caseState: "BOOKED", stage: 3 };
     case "COMPLETED":
     case "REVIEW_REQUESTED":
       return { caseState: "COMPLETED", stage: 4 };
@@ -131,6 +131,11 @@ const EVENT_TYPE_META: Record<string, { stage: string; label: string }> = {
   DUPLICATE_IGNORED: { stage: "Updated", label: "Duplicate message ignored" },
   LEAD_QUALIFICATION_TRANSITION: { stage: "Decided", label: "Qualification stage updated" },
   HUMAN_REPLY_SENT: { stage: "Replied", label: "Staff replied to customer" },
+  PAYMENT_REQUEST_CREATED: { stage: "Updated", label: "Payment request prepared" },
+  PAYMENT_RECORDED: { stage: "Updated", label: "Customer payment recorded" },
+  BOOKING_COMPLETED: { stage: "Updated", label: "Appointment marked complete" },
+  SERVICE_COMPLETED: { stage: "Updated", label: "Work marked complete" },
+  REVIEW_REQUEST_SENT: { stage: "Replied", label: "Review request sent" },
 };
 
 export function describeEvent(eventType: string): { stage: string; label: string } {

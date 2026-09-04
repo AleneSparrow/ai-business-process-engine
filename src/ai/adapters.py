@@ -727,6 +727,7 @@ class AIQuestionGenerator:
         customer_tone: CustomerTone = CustomerTone.NEUTRAL,
     ) -> CustomerResponse:
         _require_permissions(business_dna, "draft_message")
+        missing = missing.next_beat()
         customer_information = business_dna.get("customer_information", {})
         field_questions = (
             customer_information.get("field_questions", {})
@@ -811,7 +812,7 @@ class AICustomerResponseGenerator:
         customer_tone: CustomerTone = CustomerTone.NEUTRAL,
     ) -> CustomerResponse:
         _require_permissions(business_dna, "draft_message")
-        if response_type not in {"not_qualified", "human_escalation"}:
+        if response_type not in {"not_qualified", "human_escalation", "sales_opening"}:
             raise ValueError("unsupported AI customer response type")
         communication = _communication(business_dna)
         prompt = customer_response_prompt(

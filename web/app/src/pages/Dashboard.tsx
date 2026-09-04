@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Search, Bell, ArrowUpRight, Clock, Phone, Mail, Loader2, ArrowDown, ArrowUp } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { useAuth, describeError } from "../auth/AuthContext";
-import { api, type DashboardCaseSummary } from "../api/client";
+import { api, type DashboardCaseSummary, type LifecycleAction } from "../api/client";
 import { ESCALATION_ACTIONS, ESCALATION_LABELS, ESCALATION_OUTCOMES } from "../lib/escalationCopy";
 import {
   STATE_META,
@@ -20,14 +20,30 @@ const FILTERS: (CaseState | "ALL")[] = ["ALL", "NEEDS_HUMAN", "QUALIFYING", "BOO
 type SortKey = "date" | "name";
 type SortDirection = "asc" | "desc";
 
-function nextStep(state: CaseState): string {
-  if (state === "NEEDS_HUMAN") return "Review the conversation and reply";
-  if (state === "QUALIFYING") return "Collect the remaining qualification details";
-  if (state === "BOOKED") return "Prepare for the appointment";
-  if (state === "LOST") return "Review whether reactivation is appropriate";
-  if (state === "COMPLETED") return "Request a review or referral";
-  return "Open the conversation to review the next action";
+function nextStep(state: string): string {
+  if (state === "NEEDS_HUMAN") return "The assistant paused — a rule needs you before it can continue";
+  if (state === "QUALIFYING" || state === "CONTACTED" || state === "NEW_LEAD") {
+    return "The assistant is still qualifying this lead";
+  }
+  if (state === "BOOKED" || state === "QUOTED") {
+    return "The assistant is finishing the booking or quote with the customer";
+  }
+  if (state === "WON") {
+    return "The assistant is waiting for the customer to confirm payment in the conversation";
+  }
+  if (state === "PAID") return "The assistant will close this after the work is done";
+  if (state === "COMPLETED") return "The assistant is sending the review request";
+  if (state === "REVIEW_REQUESTED") return "This cycle is closed. A new message starts the next one.";
+  if (state === "LOST" || state === "CANCELLED") return "A new customer message reopens this conversation";
+  return "Open the conversation to see what the assistant is doing";
 }
+
+const LIFECYCLE_LABELS: Record<string, string> = {
+  record_payment: "Paid outside this chat",
+  mark_completed: "Finished outside this chat",
+  request_review: "Send the review message now",
+  confirm_next_step: "Finished the next step outside this chat",
+};
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -40,6 +56,7 @@ export default function Dashboard() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [lifecycleBusy, setLifecycleBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -166,14 +183,31 @@ export default function Dashboard() {
     }
   };
 
+  const handleLifecycle = async (action: LifecycleAction) => {
+    if (!token || !businessId || !selected) return;
+    setLifecycleBusy(selected.case_id);
+    setActionError(null);
+    try {
+      const result = await api.advanceCaseLifecycle(token, businessId, selected.case_id, action);
+      if (result.case) {
+        const updated = result.case;
+        setCases((prev) => (prev ?? []).map((c) => (c.case_id === updated.case_id ? updated : c)));
+      }
+    } catch (err) {
+      setActionError(describeError(err));
+    } finally {
+      setLifecycleBusy(null);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full flex" style={{ backgroundColor: "#F5F1EA", fontFamily: "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif", color: "#151515" }}>
       <Sidebar />
       <main className="flex-1 min-w-0 flex flex-col pt-14 md:pt-0">
         <header className="flex items-center justify-between px-6 md:px-8 py-4 border-b border-[#E7E5DE]">
           <div>
-            <h1 className="text-xl" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Leads & cases</h1>
-            <p className="text-sm text-[#6B6459] mt-0.5">Every conversation your engine has handled</p>
+            <h1 className="text-xl" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Conversations</h1>
+            <p className="text-sm text-[#6B6459] mt-0.5">The assistant is running these. You step in only when it asks.</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative hidden sm:block">
@@ -332,7 +366,7 @@ export default function Dashboard() {
                   )}
                   <div className="mb-5">
                     <div className="text-xs font-medium text-[#9C9488] mb-1">Recommended next step</div>
-                    <p className="text-sm">{nextStep(selected.caseState)}</p>
+                    <p className="text-sm">{nextStep(selected.current_state)}</p>
                   </div>
                   {actionError && (
                     <div className="mb-3 px-3 py-2 rounded-lg text-xs" style={{ backgroundColor: "#FBEBE9", color: "#8A3225" }}>
@@ -353,6 +387,20 @@ export default function Dashboard() {
                         Mark resolved
                       </button>
                     )}
+                    {(selected.lifecycle_actions ?? []).length > 0 && (
+                      <p className="text-xs text-[#9C9488]">Only if this happened outside the conversation. The assistant already runs these steps in chat.</p>
+                    )}
+                    {(selected.lifecycle_actions ?? []).map((action) => (
+                      <button
+                        key={action}
+                        onClick={() => handleLifecycle(action)}
+                        disabled={lifecycleBusy === selected.case_id}
+                        className="w-full py-2.5 rounded-lg text-sm font-medium border border-[#E7E5DE] flex items-center justify-center gap-1.5 disabled:opacity-50"
+                      >
+                        {lifecycleBusy === selected.case_id && <Loader2 size={14} className="animate-spin" />}
+                        {LIFECYCLE_LABELS[action] ?? action}
+                      </button>
+                    ))}
                   </div>
                   <div className="mt-5 pt-4 border-t border-[#F0EFE9] flex items-center gap-4 text-xs text-[#6B6459]">
                     <span className="flex items-center gap-1.5"><Phone size={12} /> {selected.lead.phone || "Not on file"}</span>

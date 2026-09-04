@@ -197,6 +197,21 @@ class IntentResult:
         object.__setattr__(self, "ai_metadata", _freeze(self.ai_metadata))
 
 
+# Sales conversation, not an intake form: one beat per turn. Understand the
+# need, check fit, then take contact details. Concatenating every missing
+# prompt ("ZIP? Which service? What name? What phone?") is what made the
+# first reply read as a scheduler instead of a salesperson.
+_QUESTION_FIELD_PRIORITY = (
+    "service_id",
+    "service_address",
+    "customer_location",
+    "name",
+    "phone",
+    "email",
+    "preferred_time",
+)
+
+
 @dataclass(frozen=True, slots=True)
 class MissingInformationResult:
     missing_fields: tuple[str, ...] = ()
@@ -209,6 +224,21 @@ class MissingInformationResult:
     @property
     def complete(self) -> bool:
         return not self.missing_fields and not self.unanswered_questions
+
+    def next_beat(self) -> "MissingInformationResult":
+        """Keep the full missing set on the case; ask only the next sales beat."""
+        fields = tuple(self.missing_fields)
+        questions = tuple(question for question in self.unanswered_questions if question.strip())
+        if "service_id" in fields:
+            return MissingInformationResult(("service_id",), ())
+        if questions:
+            return MissingInformationResult((), (questions[0],))
+        prioritized = tuple(name for name in _QUESTION_FIELD_PRIORITY if name in fields)
+        leftover = tuple(name for name in fields if name not in _QUESTION_FIELD_PRIORITY)
+        ordered = prioritized + leftover
+        if ordered:
+            return MissingInformationResult((ordered[0],), ())
+        return MissingInformationResult((), ())
 
 
 @dataclass(frozen=True, slots=True)

@@ -98,12 +98,12 @@ def test_two_customers_cannot_take_same_capacity_one_slot(commercial_pg_factory)
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = list(executor.map(select_last_slot, (0, 1)))
 
-    assert sum(result.current_state == ProcessState.BOOKED.value for result in results) == 1
+    assert sum(result.current_state == ProcessState.WON.value for result in results) == 1
     assert sum(result.reason == "booking_slots_proposed" for result in results) == 1
     winner_index = next(
         index
         for index, result in enumerate(results)
-        if result.current_state == ProcessState.BOOKED.value
+        if result.current_state == ProcessState.WON.value
     )
     with commercial_pg_factory() as uow:
         winner_case = uow.cases.get(business_id, case_ids[winner_index])
@@ -116,7 +116,8 @@ def test_two_customers_cannot_take_same_capacity_one_slot(commercial_pg_factory)
             occurred_at=now,
         )
         uow.commit()
-        assert duplicate.reason == "booking_already_confirmed"
+        assert duplicate.current_state == ProcessState.WON.value
+        assert duplicate.reason in {"commercial_won", "awaiting_payment_confirmation"}
     other_business, _, _ = seed_cases(commercial_pg_factory, ())
     with commercial_pg_factory() as uow:
         assert uow.session.scalar(select(func.count()).select_from(BookingRow).where(
@@ -167,7 +168,7 @@ def test_simultaneous_duplicate_booking_converges_on_one_booking(
         "booking_confirmed",
         "booking_duplicate",
     }
-    assert {result.current_state for result in results} == {ProcessState.BOOKED.value}
+    assert {result.current_state for result in results} == {ProcessState.WON.value}
     with commercial_pg_factory() as uow:
         assert uow.session.scalar(select(func.count()).select_from(BookingRow).where(
             BookingRow.business_id == business_id
@@ -293,4 +294,4 @@ def test_booking_failure_rolls_back_all_commercial_effects_and_can_retry(
         case = uow.cases.get(business_id, case_id)
         result = service.handle_message(uow, case, dna, metadata, "1", occurred_at=now)
         uow.commit()
-        assert result.current_state == ProcessState.BOOKED.value
+        assert result.current_state == ProcessState.WON.value

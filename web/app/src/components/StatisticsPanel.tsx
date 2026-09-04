@@ -201,14 +201,23 @@ export function StatisticsPanel({
   );
 
   const periodConversations = useMemo(
-    () =>
-      (conversations ?? []).filter((conversation) => {
+    () => {
+      // Cases already respect stats_since / the date range. Conversations are
+      // listed without that baseline, so after a statistics reset the lead
+      // cards went to zero while conversation cards still counted older threads
+      // by last activity. Keep the two tables on the same set of cases.
+      const periodCaseIds = cases === null ? null : new Set(cases.map((item) => item.case_id));
+      return (conversations ?? []).filter((conversation) => {
+        if (periodCaseIds !== null && conversation.case_id && !periodCaseIds.has(conversation.case_id)) {
+          return false;
+        }
         if (!includeTestData) {
           const linked = (cases ?? []).find((c) => c.case_id === conversation.case_id);
           if (linked?.is_test) return false;
         }
         return inPeriod(conversation.last_activity_at, startDate, endDate);
-      }),
+      });
+    },
     [conversations, cases, includeTestData, startDate, endDate],
   );
 

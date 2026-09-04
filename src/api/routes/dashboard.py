@@ -40,6 +40,7 @@ from ..schemas import (
     ReportingSettingsSchema,
     ReportingSettingsUpdateRequest,
     StaffActionResponse,
+    StaffLifecycleRequest,
     StaffReplyRequest,
 )
 
@@ -422,6 +423,22 @@ def resolve_conversation_case(
     unit_of_work_factory: Annotated[UnitOfWorkFactory, Depends(get_unit_of_work_factory)],
 ) -> StaffActionResponse:
     result = staff_actions.resolve(business_id, conversation_id, user)
+    return _staff_action_response(unit_of_work_factory, business_id, result)
+
+
+@router.post(
+    "/cases/{case_id}/lifecycle",
+    response_model=StaffActionResponse,
+)
+def advance_case_lifecycle(
+    business_id: BusinessIdPath,
+    case_id: str,
+    body: StaffLifecycleRequest,
+    user: Annotated[StaffUser, Depends(require_own_business)],
+    staff_actions: Annotated[StaffActionService, Depends(get_staff_action_service)],
+    unit_of_work_factory: Annotated[UnitOfWorkFactory, Depends(get_unit_of_work_factory)],
+) -> StaffActionResponse:
+    result = staff_actions.advance_lifecycle(business_id, case_id, user, body.action)
     return _staff_action_response(unit_of_work_factory, business_id, result)
 
 

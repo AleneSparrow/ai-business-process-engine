@@ -61,6 +61,17 @@ def test_closed_conversation_still_rejects_every_other_transition(target: Conver
         conversation.set_status(target, datetime(2026, 1, 2, tzinfo=timezone.utc))
 
 
+def test_human_takeover_active_can_return_to_ai_active() -> None:
+    conversation = _conversation(ConversationStatus.AI_ACTIVE)
+    conversation.set_status(
+        ConversationStatus.HUMAN_TAKEOVER_ACTIVE, datetime(2026, 1, 2, tzinfo=timezone.utc)
+    )
+    conversation.set_status(
+        ConversationStatus.AI_ACTIVE, datetime(2026, 1, 3, tzinfo=timezone.utc)
+    )
+    assert conversation.status is ConversationStatus.AI_ACTIVE
+
+
 def test_ai_active_conversation_can_move_to_human_takeover_active() -> None:
     """Staff reply from Conversations is an explicit takeover; the engine
     must not keep answering that session."""

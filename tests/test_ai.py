@@ -329,8 +329,8 @@ def test_random_characters_are_clarified_not_escalated(raw_text: str) -> None:
             unintelligible=True,
         ),
         {
-            "addressed_items": ["field:service_address", "field:service_id"],
-            "message_text": "Could you tell me your ZIP code and which service you need?",
+            "response_type": "sales_opening",
+            "message_text": "Hi — this is Acme Home Services. Tell me what you're trying to get done.",
         },
     ])
 

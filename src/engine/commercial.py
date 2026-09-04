@@ -361,6 +361,93 @@ class DeterministicSlotPreferenceInterpreter:
 
 
 @dataclass(frozen=True, slots=True)
+class PostSalePreference:
+    """Customer reply after the commercial path is already in motion.
+
+    Same job as QuoteReplyPreference: the conversation is the loop, not a
+    staff pipeline. Ambiguity is "unclear", never a guessed payment or
+    guessed completion.
+    """
+
+    signal: str
+
+    def __post_init__(self) -> None:
+        if self.signal not in {
+            "payment_received",
+            "done",
+            "declined",
+            "question",
+            "unclear",
+        }:
+            raise ValueError(f"unknown post-sale signal: {self.signal!r}")
+
+
+class DeterministicPostSaleReplyInterpreter:
+    """Reads payment / done / decline from ordinary customer wording.
+
+    Used after a quote is accepted, a booking is won, or a direct next step
+    is waiting — the same class of evidence as "the second option works".
+    """
+
+    _PAID_PHRASES = (
+        "i paid", "i've paid", "ive paid", "we paid", "we've paid",
+        "payment sent", "sent payment", "just paid", "paid in full",
+        "paid cash", "already paid", "i sent the payment", "payment is done",
+    )
+    _DONE_PHRASES = (
+        "i did it", "i've done it", "ive done it", "i uploaded", "i've uploaded",
+        "i submitted", "i sent the", "documents are in", "went well",
+        "it went well", "job is done", "work is done", "all done", "all finished",
+        "it's done", "its done", "we're all set", "we are all set",
+    )
+    _DONE_WORDS = ("uploaded", "submitted", "finished", "completed")
+    _DECLINE_PHRASES = (
+        "no thanks", "no thank you", "i won't", "i will not", "not going to",
+        "i'm not going to", "im not going to",
+    )
+    _DECLINE_WORDS = ("refuse", "won't")
+    _QUESTION_MARKERS = (
+        "?", "where do i", "how do i", "what link", "which link", "can you send",
+    )
+    _DEFERRAL_MARKERS = (
+        "not yet", "not right now", "haven't paid", "have not paid",
+        "will pay", "i'll pay", "ill pay", "maybe later",
+    )
+
+    def interpret(self, customer_text: str) -> PostSalePreference:
+        text = customer_text.strip().casefold()
+        if not text:
+            return PostSalePreference("unclear")
+        if self._has_phrase(text, self._DEFERRAL_MARKERS):
+            return PostSalePreference("unclear")
+        declined = self._has_phrase(text, self._DECLINE_PHRASES) or self._has_word(
+            text, self._DECLINE_WORDS
+        )
+        paid = self._has_phrase(text, self._PAID_PHRASES)
+        done = self._has_phrase(text, self._DONE_PHRASES) or self._has_word(
+            text, self._DONE_WORDS
+        )
+        question = self._has_phrase(text, self._QUESTION_MARKERS)
+        if declined and not paid and not done:
+            return PostSalePreference("declined")
+        if paid and not declined:
+            return PostSalePreference("payment_received")
+        if done and not declined:
+            return PostSalePreference("done")
+        if question:
+            return PostSalePreference("question")
+        return PostSalePreference("unclear")
+
+    @staticmethod
+    def _has_phrase(text: str, phrases: tuple[str, ...]) -> bool:
+        return any(phrase in text for phrase in phrases)
+
+    @staticmethod
+    def _has_word(text: str, words: tuple[str, ...]) -> bool:
+        return any(re.search(rf"(?<!\w){re.escape(word)}(?!\w)", text) for word in words)
+
+
+@dataclass(frozen=True, slots=True)
 class QuoteReplyPreference:
     """Resolves ONLY to "accept" or "decline" when the customer's reply is
     genuinely unambiguous; everything else -- including any negation,

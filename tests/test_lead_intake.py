@@ -30,6 +30,7 @@ def message(
     phone: str | None = "+1 312 555 0100",
     email: str | None = None,
     case_id: str | None = None,
+    raw_text: str = "I need help",
 ) -> IncomingMessage:
     return IncomingMessage(
         business_id="acme-home-services",
@@ -38,7 +39,7 @@ def message(
         customer_name=name,
         phone=phone,
         email=email,
-        raw_text="I need help",
+        raw_text=raw_text,
         timestamp=NOW,
         case_id=case_id,
     )
@@ -217,13 +218,11 @@ def test_low_confidence_intent_requires_human() -> None:
 
 
 def test_unintelligible_input_requests_clarification_without_escalation() -> None:
-    """Live defect (2026-08-23): a customer message the AI could not
+    """    Live defect (2026-08-23): a customer message the AI could not
     interpret at all (e.g. "ропапа" in answer to a name/phone question) used
     to escalate straight to NEEDS_HUMAN. It must instead be treated like "no
-    new information this turn" -- missing fields computed exactly as they
-    would be for any other turn, not a hardcoded stand-in. Here the service
-    was never established, so re-asking about it (among other missing
-    fields) is correct."""
+    new information this turn". Before any need is named, that first reply
+    is the sales opening — not a concatenated ZIP-and-service form."""
     intake = service_with({
         "msg-gibberish": IntentResult(
             confidence=0.95,
@@ -238,9 +237,10 @@ def test_unintelligible_input_requests_clarification_without_escalation() -> Non
     assert not result.qualification.requires_human
     assert result.qualification.missing_fields == ("service_address", "service_id")
     assert result.response is not None
-    assert result.response.message_text == (
-        "Sorry, I didn't quite catch that — What is the service ZIP code? Which service do you need?"
-    )
+    assert result.response.reason == "sales_opening"
+    assert "Acme Home Services" in result.response.message_text
+    assert "ZIP" not in result.response.message_text
+    assert "Which service" not in result.response.message_text
 
 
 def test_unintelligible_input_after_service_established_repeats_specific_missing_fields() -> None:
@@ -267,7 +267,7 @@ def test_unintelligible_input_after_service_established_repeats_specific_missing
     assert "service" not in second.response.message_text.casefold()
     assert second.response.message_text == (
         "Sorry, I didn't quite catch that — "
-        "What name should we use for the request? What is the best phone number to reach you?"
+        "What name should we use for the request?"
     )
 
 
@@ -627,4 +627,111 @@ def test_a_complete_case_read_with_low_confidence_still_goes_to_a_person() -> No
     result = intake.receive(message("complete"))
 
     assert result.current_state is ProcessState.NEEDS_HUMAN
+
+
+def test_greeting_only_gets_the_sales_opening_not_a_form() -> None:
+    """A customer who just says hi must hear who we are and what we do.
+
+    Concatenating every missing field (ZIP, service, name, phone) on that
+    first turn is what made the widget read as an appointment form instead
+    of a salesperson. The approved opening_pitch is the first beat; logistics
+    wait until a need is named.
+    """
+    intake = LeadIntakeService(
+        business_dna(),
+        DeterministicIntentExtractor(),
+        DeterministicQuestionGenerator(),
+    )
+
+    result = intake.receive(message("hello", name=None, phone=None, raw_text="hi"))
+
+    assert result.current_state is ProcessState.QUALIFYING
+    assert result.response is not None
+    assert result.response.reason == "sales_opening"
+    assert "Acme Home Services" in result.response.message_text
+    assert "Tell me what's going on" in result.response.message_text
+    assert "ZIP" not in result.response.message_text
+    assert "Which service" not in result.response.message_text
+    assert "phone" not in result.response.message_text.casefold()
+    assert intake.get_case(result.case_id).metadata["sales_opening_sent"] is True
+
+
+@pytest.mark.parametrize("raw_text", ("здравствуйте", "здрасьте", "hello there", "Good morning!"))
+def test_plain_hello_in_any_common_greeting_still_gets_the_pitch(raw_text: str) -> None:
+    intake = LeadIntakeService(
+        business_dna(),
+        DeterministicIntentExtractor(),
+        DeterministicQuestionGenerator(),
+    )
+
+    result = intake.receive(message("greet", name=None, phone=None, raw_text=raw_text))
+
+    assert result.response is not None
+    assert result.response.reason == "sales_opening"
+    assert "ZIP" not in result.response.message_text
+
+
+def test_named_need_asks_one_sales_beat_not_the_whole_form() -> None:
+    intake = LeadIntakeService(
+        business_dna(),
+        DeterministicIntentExtractor(),
+        DeterministicQuestionGenerator(),
+    )
+
+    first = intake.receive(message("need", name=None, phone=None, raw_text="My AC isn't cooling"))
+
+    assert first.current_state is ProcessState.QUALIFYING
+    assert first.response is not None
+    assert first.response.reason == "missing_information"
+    assert first.response.message_text == "What is the service ZIP code?"
+    assert "phone" not in first.response.message_text.casefold()
+    assert "Which service" not in first.response.message_text
+
+
+def test_greeting_then_need_then_objection_is_a_sales_conversation() -> None:
+    intake = LeadIntakeService(
+        business_dna(),
+        DeterministicIntentExtractor(),
+        DeterministicQuestionGenerator(),
+    )
+
+    hello = intake.receive(message("hello", name=None, phone=None, raw_text="hi"))
+    need = intake.receive(
+        message("need", name=None, phone=None, case_id=hello.case_id, raw_text="the AC isn't cooling"),
+    )
+    objection = intake.receive(
+        message(
+            "pushback",
+            name=None,
+            phone=None,
+            case_id=hello.case_id,
+            raw_text="that's too expensive, I need to think",
+        ),
+    )
+
+    assert hello.response is not None and hello.response.reason == "sales_opening"
+    assert need.response is not None
+    assert need.response.message_text == "What is the service ZIP code?"
+    assert objection.response is not None
+    assert objection.response.reason == "objection_reassurance_and_missing_information"
+    assert "no obligation" in objection.response.message_text.casefold() or "booking a time" in objection.response.message_text
+    assert "What is the service ZIP code?" in objection.response.message_text
+
+
+def test_opening_pitch_falls_back_to_name_and_services_when_dna_has_none() -> None:
+    dna = business_dna()
+    del dna["sales"]["opening_pitch"]
+    intake = LeadIntakeService(
+        dna,
+        DeterministicIntentExtractor(),
+        DeterministicQuestionGenerator(),
+    )
+
+    result = intake.receive(message("hello", name=None, phone=None, raw_text="hi"))
+
+    assert result.response is not None
+    assert result.response.reason == "sales_opening"
+    assert "Acme Home Services" in result.response.message_text
+    assert "Diagnostic visit" in result.response.message_text
+    assert "Tell me what you're trying to get done" in result.response.message_text
 
