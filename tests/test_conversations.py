@@ -140,6 +140,26 @@ def test_create_public_conversation_without_internal_identifiers(conversation_en
         assert body["conversation_token"] != row.id
 
 
+def test_hello_gets_a_sales_presentation_not_a_form_dump(conversation_environment) -> None:
+    client, _, _ = conversation_environment
+    first = create_conversation(client, "hi", "hello-1")
+
+    assert first.status_code == 200
+    body = first.json()
+    assert body["current_state"] == "QUALIFYING"
+    assert len(body["messages"]) == 2
+    reply = body["messages"][-1]["text"]
+    assert "walk you through the next step" in reply
+    assert "ZIP" not in reply
+    assert "Which service" not in reply
+
+    second = send(client, body["conversation_token"], "the AC isn't cooling", "hello-2")
+    assert second.status_code == 200
+    follow = second.json()["messages"][-1]["text"]
+    assert follow == "What is the service ZIP code?"
+    assert "phone" not in follow.casefold()
+
+
 def test_multi_turn_messages_reuse_conversation_lead_and_case(conversation_environment) -> None:
     client, factory, _ = conversation_environment
     first = create_conversation(client, "I need someone to look at my AC", "turn-1")

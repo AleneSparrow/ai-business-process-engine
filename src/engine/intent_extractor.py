@@ -6,6 +6,50 @@ from typing import Mapping, Protocol
 from src.domain.qualification import IncomingMessage, IntentResult, Urgency
 
 
+_GREETING_ONLY = re.compile(
+    r"^(?:"
+    r"hi+|h[i']?ya|hello|hey+|howdy|yo|sup|"
+    r"hi\s+there|hello\s+there|hey\s+there|"
+    r"good\s+(?:morning|afternoon|evening|day)|"
+    r"morning|evening|greetings|"
+    r"thanks|thank\s+you|"
+    r"здравствуй(?:те)?|здрась?те|привет(?:ик)?|"
+    r"добр(?:ый|ое)\s+(?:день|вечер|утро)|"
+    r"хай|хелло"
+    r")[\s!.?,]*$",
+    re.IGNORECASE,
+)
+
+
+def is_greeting_only(text: str) -> bool:
+    """True when the customer only said hello — not a need, not an answer."""
+    stripped = text.strip()
+    if not stripped or len(stripped) > 80:
+        return False
+    return _GREETING_ONLY.fullmatch(stripped) is not None
+
+
+_OBJECTION = re.compile(
+    r"(?:"
+    r"too expensive|too much(?: money)?|can'?t afford|so expensive|"
+    r"need to think(?: about it)?|let me think|i'?ll think|"
+    r"maybe later|not ready(?: yet)?|i'?ll (?:pass|wait|get back|call back)|"
+    r"shop around|other (?:quotes?|companies|options)|"
+    r"talk to my (?:wife|husband|partner|spouse|boss)|"
+    r"don'?t trust|sounds like a scam|"
+    r"слишком дорого|надо подумать|я подумаю|дороговат"
+    r")",
+    re.IGNORECASE,
+)
+
+
+def _objection_phrase(raw_text: str) -> str | None:
+    match = _OBJECTION.search(raw_text)
+    if match is None:
+        return None
+    return match.group(0)
+
+
 class IntentExtractor(Protocol):
     def extract(self, message: IncomingMessage, business_dna: Mapping[str, object]) -> IntentResult: ...
 
@@ -30,6 +74,11 @@ class DeterministicIntentExtractor:
 
         raw_text = message.raw_text.strip()
         text = raw_text.casefold()
+        if is_greeting_only(raw_text):
+            return IntentResult(
+                notes=message.raw_text,
+                confidence=0.95,
+            )
         services = business_dna.get("services", [])
         matches: list[str] = []
         if isinstance(services, list):
@@ -100,6 +149,7 @@ class DeterministicIntentExtractor:
         if (
             customer_name is None
             and not suspicious_instruction
+            and not is_greeting_only(raw_text)
             and "field:name" in unresolved
             and len(raw_text.split()) <= 6
         ):
@@ -136,4 +186,5 @@ class DeterministicIntentExtractor:
             customer_name=customer_name,
             phone=phone,
             email=email_match.group(0) if email_match else None,
+            objection_phrase=_objection_phrase(raw_text),
         )

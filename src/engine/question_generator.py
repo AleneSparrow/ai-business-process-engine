@@ -33,6 +33,7 @@ class DeterministicQuestionGenerator:
         customer_message: str = "",
         customer_tone: CustomerTone = CustomerTone.NEUTRAL,
     ) -> CustomerResponse:
+        selected = missing.next_beat()
         customer_information = business_dna.get("customer_information", {})
         field_questions = (
             customer_information.get("field_questions", {})
@@ -40,16 +41,16 @@ class DeterministicQuestionGenerator:
             else {}
         )
         prompts: list[str] = []
-        for field_name in missing.missing_fields:
+        for field_name in selected.missing_fields:
             prompt = field_questions.get(field_name) if isinstance(field_questions, Mapping) else None
             if not isinstance(prompt, str) or not prompt.strip():
                 raise ValueError(f"Business DNA has no question configured for required field: {field_name}")
             prompts.append(prompt.strip())
-        prompts.extend(question.strip() for question in missing.unanswered_questions)
+        prompts.extend(question.strip() for question in selected.unanswered_questions)
         if not prompts:
             raise ValueError("cannot generate a missing-information response without questions")
         return CustomerResponse(
-            message_text=" ".join(prompts),
+            message_text=prompts[0],
             channel=channel,
             reason="missing_information",
             related_case_id=case_id,

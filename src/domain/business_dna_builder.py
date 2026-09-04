@@ -12,6 +12,7 @@ inactive defaults until an owner deliberately turns them on later.
 
 import re
 from dataclasses import dataclass
+from src.domain.sales_opening import compose_opening_pitch
 from src.domain.us_postal_timezones import (
     DEFAULT_TIMEZONE,
     timezone_for_service_area,
@@ -279,6 +280,11 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
             "quote_expiry_days": 14,
             "follow_up": {"delays_hours": [24, 72, 168], "maximum_attempts": 3},
             "review_request_message": "Thanks for working with us. If you have a moment, a short review or referral helps other customers find the business.",
+            "opening_pitch": compose_opening_pitch(
+                onboarding.business_name,
+                onboarding.description,
+                tuple(service.name for service in onboarding.services),
+            ),
         },
         "payment": {
             "currency": "USD",
@@ -303,7 +309,10 @@ def build_business_dna(onboarding: OnboardingInput) -> dict:
         "chat_widget": {
             "enabled": True,
             "title": f"Chat with {onboarding.business_name}",
-            "welcome_message": "Hi! Tell us what you need help with.",
+            "welcome_message": (
+                f"Hi — this is {onboarding.business_name}. "
+                "Tell me what's going on and I'll help you from there."
+            ),
             "qualified_message": "Thanks — we have what we need. Our team will follow up with next steps.",
             "closed_message": "This conversation is complete. Please reach out again if you need more help.",
             "ai_disclosure_text": "",

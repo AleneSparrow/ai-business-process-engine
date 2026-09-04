@@ -23,6 +23,7 @@ from src.domain.qualification import (
     QualificationResult,
     Urgency,
 )
+from src.domain.sales_opening import opening_pitch_from_dna
 from src.domain.states import ProcessState
 
 from .decision_router import DecisionRequest
@@ -375,6 +376,10 @@ class LeadIntakeService:
     ) -> CustomerResponse | None:
         state = qualification.recommended_next_state
         if state is ProcessState.QUALIFYING:
+            if self._should_send_sales_opening(case, qualification, intent):
+                opening = self._sales_opening_response(case, message, intent)
+                case.metadata["sales_opening_sent"] = True
+                return self._with_reassurance(case, message, qualification, intent, opening)
             missing = MissingInformationResult(
                 qualification.missing_fields,
                 qualification.unanswered_questions,
@@ -438,6 +443,59 @@ class LeadIntakeService:
                 customer_tone=intent.customer_tone,
             )
         return None
+
+    def _should_send_sales_opening(
+        self,
+        case: ProcessCase,
+        qualification: QualificationResult,
+        intent: IntentResult,
+    ) -> bool:
+        """First qualifying turn with no named need is a presentation, not a form.
+
+        Once the customer has named a service, skip the intro and ask the next
+        sales beat. Greeting-only and "I don't know yet" both land here.
+        """
+        if case.metadata.get("sales_opening_sent"):
+            return False
+        if qualification.service_id or intent.service_requested:
+            return False
+        return True
+
+    def _sales_opening_response(
+        self,
+        case: ProcessCase,
+        message: IncomingMessage,
+        intent: IntentResult,
+    ) -> CustomerResponse:
+        approved = opening_pitch_from_dna(self.business_dna)
+        try:
+            return self.customer_response_generator.generate(
+                response_type="sales_opening",
+                approved_message=approved,
+                business_dna=self.business_dna,
+                channel=message.channel,
+                case_id=case.case_id,
+                requires_human=False,
+                customer_message=message.raw_text,
+                customer_tone=intent.customer_tone,
+            )
+        except (AIInvalidOutputError, ValueError) as exc:
+            _log_event(
+                logging.WARNING,
+                "sales_opening_fallback_to_deterministic",
+                business_id=self.business_dna.get("business", {}).get("id"),
+                reason=str(exc),
+            )
+            return DeterministicCustomerResponseGenerator().generate(
+                response_type="sales_opening",
+                approved_message=approved,
+                business_dna=self.business_dna,
+                channel=message.channel,
+                case_id=case.case_id,
+                requires_human=False,
+                customer_message=message.raw_text,
+                customer_tone=intent.customer_tone,
+            )
 
     def _with_reassurance(
         self,

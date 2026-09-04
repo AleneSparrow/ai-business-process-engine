@@ -99,7 +99,8 @@
     "sales": {
     "quote_expiry_days": 14,
     "follow_up": {"delays_hours": [24, 72, 168], "maximum_attempts": 3},
-    "review_request_message": "Thanks for working with Acme. If the visit went well, a short review helps neighbors find us."
+    "review_request_message": "Thanks for working with Acme. If the visit went well, a short review helps neighbors find us.",
+    "opening_pitch": "Hi — this is Acme Home Services. We diagnose and fix residential plumbing and AC problems, from an on-site diagnostic visit to a full equipment replacement when that's what the job needs. Tell me what's going on at the house and I'll walk you through the next step."
   },
   "payment": {
     "currency": "USD",
@@ -124,7 +125,7 @@
   "chat_widget": {
     "enabled": true,
     "title": "Chat with Acme Home Services",
-    "welcome_message": "Hi! Tell us what you need help with.",
+    "welcome_message": "Hi — thanks for reaching out. Tell me what's going on and I'll take it from there.",
     "qualified_message": "Thanks — we have the information we need. Our team will review the next step with you.",
     "closed_message": "This conversation is complete. Please contact us if you need more help."
   },

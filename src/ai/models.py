@@ -115,7 +115,7 @@ class ClarificationOutput(StrictAIModel):
 
 
 class CustomerMessageOutput(StrictAIModel):
-    response_type: Literal["not_qualified", "human_escalation"]
+    response_type: Literal["not_qualified", "human_escalation", "sales_opening"]
     message_text: str = Field(min_length=1, max_length=1_500)
 
 
