@@ -90,4 +90,5 @@ Dunford, Rumelt, JTBD, Traction, Reforge, LinkedIn B2B Institute, Edelman),
 Он не заменяет УТП и GTM. Рабочая память (законы и шаги) — раздел 11 того файла.
 Любой новый маркетинговый артефакт проходит чеклист раздела 8. Скилл агента:
 `.cursor/skills/marketing-canon/SKILL.md`. Рекомендация стратегии из канона:
-`docs/marketing/06-strategy-from-canon.md`.
+`docs/marketing/06-strategy-from-canon.md`. Как осуществляем:
+`docs/marketing/07-how-we-execute.md`.

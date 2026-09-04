@@ -5,7 +5,7 @@ description: Evidence-based marketing operating system from Sharp, Binet/Field, 
 
 # Marketing canon (learned)
 
-Full text: `docs/marketing/00-third-party-marketing-canon.md`. Working memory (laws, steps, pitch beats): section 11. Product USP in `CLAUDE.md` wins on claims. Recommended strategy from this canon: `docs/marketing/06-strategy-from-canon.md` (two speeds, one Job, beachhead as kindling, no selling into an empty Day 1 List).
+Full text: `docs/marketing/00-third-party-marketing-canon.md`. Working memory (laws, steps, pitch beats): section 11. Product USP in `CLAUDE.md` wins on claims. Recommended strategy: `docs/marketing/06-strategy-from-canon.md`. How we execute it: `docs/marketing/07-how-we-execute.md` (queue, CEP rotation, unfreeze gates, first freeze-safe drafts). Do not Ready sales rows or lift the freeze.
 
 ## Loaded knowledge (do not re-derive from guru blogs)
 
