@@ -31,6 +31,7 @@ from src.persistence.errors import InvalidLifecycleActionError
 from src.engine.commercial import (
     CommercialPathSelector,
     DeterministicAvailabilityEngine,
+    DeterministicPostSaleReplyInterpreter,
     DeterministicPricingEngine,
     DeterministicQuoteReplyInterpreter,
     DeterministicSlotPreferenceInterpreter,
@@ -59,7 +60,7 @@ def _log_event(level: int, event: str, **fields: Any) -> None:
 
 UTC = timezone.utc
 _PAYMENT_FOLLOW_UP = (
-    " A payment is due; the business will confirm when it has been received."
+    " When you've sent payment, reply here and I'll mark it received."
 )
 _DEFAULT_REVIEW_MESSAGE = (
     "Thanks for working with us. If you have a moment, a short review or "
@@ -84,6 +85,7 @@ class CommercialWorkflowService:
     # without a cap a customer who never sends a clear answer would loop
     # with the bot forever.
     MAX_QUOTE_REPLY_ATTEMPTS = 3
+    MAX_NEXT_STEP_REPLY_ATTEMPTS = 3
 
     def __init__(
         self,
@@ -99,6 +101,7 @@ class CommercialWorkflowService:
         self.availability = availability or DeterministicAvailabilityEngine()
         self.slot_interpreter = slot_interpreter or DeterministicSlotPreferenceInterpreter()
         self.quote_reply_interpreter = quote_reply_interpreter or DeterministicQuoteReplyInterpreter()
+        self.post_sale_interpreter = DeterministicPostSaleReplyInterpreter()
         self.pricing = pricing or DeterministicPricingEngine()
         self.process_engine = process_engine or ProcessEngine()
 
@@ -217,20 +220,13 @@ class CommercialWorkflowService:
         text = customer_text.strip().casefold()
         if case.current_state is ProcessState.QUALIFIED:
             if commercial.get("mode") == "direct_next_step":
-                # An external link is an instruction, not evidence that an
-                # upload, payment, or booking happened. A follow-up message
-                # can be a question, refusal, complaint, or an unverifiable
-                # "I did it"; none may silently advance the commercial case
-                # or cause the same link to be sent forever. Human review is
-                # the only safe generic continuation until an integration
-                # supplies a verifiable event.
-                return self._escalate(
+                return self._handle_direct_next_step_reply(
                     uow,
                     case,
                     business_dna,
-                    ProcessState.FOLLOW_UP,
-                    occurred_at,
-                    "Customer replied after an external next step; completion requires verification",
+                    conversation_metadata,
+                    customer_text,
+                    occurred_at=occurred_at,
                 )
             if commercial.get("mode") == "awaiting_slot":
                 return self._select_slot(
@@ -303,37 +299,16 @@ class CommercialWorkflowService:
                     booking_id=booking.booking_id,
                 )
         if case.current_state is ProcessState.WON:
-            payment = uow.payment_requests.get_for_case_type(
-                case.business_id, case.case_id, PaymentType.DEPOSIT
-            ) or uow.payment_requests.get_for_case_type(
-                case.business_id, case.case_id, PaymentType.FINAL
-            )
-            if payment is not None and payment.status is PaymentStatus.PAID:
-                message = "Payment is recorded. The business will complete the work and follow up."
-            elif payment is not None:
-                message = (
-                    "Your payment request is ready. The business will confirm when "
-                    "payment has been received — this system does not charge a card."
-                )
-            else:
-                message = "You're all set. The business will coordinate the next step."
-            return CommercialResponse(
-                message,
-                "commercial_won",
-                case.current_state.value,
-                payment_request_id=(payment.payment_request_id if payment else None),
+            return self._handle_won_reply(
+                uow, case, business_dna, customer_text, occurred_at=occurred_at
             )
         if case.current_state is ProcessState.PAID:
-            return CommercialResponse(
-                "Payment is recorded. The business will complete the work and follow up.",
-                "commercial_paid",
-                case.current_state.value,
+            return self._handle_paid_reply(
+                uow, case, business_dna, customer_text, occurred_at=occurred_at
             )
         if case.current_state is ProcessState.COMPLETED:
-            return CommercialResponse(
-                "The work is complete. We'll follow up with a review request.",
-                "commercial_completed",
-                case.current_state.value,
+            return self.request_review(
+                uow, case, business_dna, occurred_at=occurred_at, recorded_by="customer"
             )
         if case.current_state is ProcessState.REVIEW_REQUESTED:
             return CommercialResponse(
@@ -343,11 +318,132 @@ class CommercialWorkflowService:
             )
         if case.current_state is ProcessState.FOLLOW_UP:
             return CommercialResponse(
-                "The business will follow up shortly.",
+                "I'll follow up shortly.",
                 "commercial_follow_up",
                 case.current_state.value,
             )
         raise ValueError(f"case state is not autonomous for commerce: {case.current_state.value}")
+
+    def _handle_direct_next_step_reply(
+        self,
+        uow: UnitOfWork,
+        case: ProcessCase,
+        business_dna: Mapping[str, Any],
+        conversation_metadata: MutableMapping[str, Any],
+        customer_text: str,
+        *,
+        occurred_at: datetime,
+    ) -> CommercialResponse:
+        commercial = self._commercial_metadata(conversation_metadata)
+        preference = self.post_sale_interpreter.interpret(customer_text)
+        if preference.signal == "done":
+            commercial.pop("next_step_reply_attempts", None)
+            return self.confirm_direct_next_step(
+                uow,
+                case,
+                conversation_metadata,
+                occurred_at=occurred_at,
+                recorded_by="customer",
+            )
+        if preference.signal == "declined":
+            self._transition(
+                uow, case, ProcessState.LOST, occurred_at, "Customer declined the next step"
+            )
+            return CommercialResponse(
+                "Understood — I won't move this forward. Message us if you want to pick it up later.",
+                "direct_next_step_declined",
+                case.current_state.value,
+            )
+        configured = commercial.get("message")
+        instruction = (
+            configured.strip()
+            if isinstance(configured, str) and configured.strip()
+            else "Please complete the next step we sent."
+        )
+        follow = f"{instruction} When that's done, reply here and I'll continue."
+        if preference.signal == "question":
+            return CommercialResponse(follow, "direct_next_step_repeated", case.current_state.value)
+        attempts = int(commercial.get("next_step_reply_attempts", 0) or 0) + 1
+        commercial["next_step_reply_attempts"] = attempts
+        if attempts >= self.MAX_NEXT_STEP_REPLY_ATTEMPTS:
+            return self._escalate(
+                uow,
+                case,
+                business_dna,
+                ProcessState.FOLLOW_UP,
+                occurred_at,
+                "Direct next step reply stayed unclear",
+            )
+        return CommercialResponse(follow, "direct_next_step_unclear", case.current_state.value)
+
+    def _handle_won_reply(
+        self,
+        uow: UnitOfWork,
+        case: ProcessCase,
+        business_dna: Mapping[str, Any],
+        customer_text: str,
+        *,
+        occurred_at: datetime,
+    ) -> CommercialResponse:
+        signal = self.post_sale_interpreter.interpret(customer_text).signal
+        payment = self._case_payment(uow, case)
+        unpaid = payment is not None and payment.status is not PaymentStatus.PAID
+        if unpaid and signal == "payment_received":
+            return self.record_customer_payment(
+                uow, case, occurred_at=occurred_at, recorded_by="customer"
+            )
+        if not unpaid and signal == "done":
+            return self._finish_work_and_request_review(
+                uow, case, business_dna, occurred_at=occurred_at, recorded_by="customer"
+            )
+        if unpaid:
+            return CommercialResponse(
+                "When you've sent payment, reply here and I'll mark it received.",
+                "awaiting_payment_confirmation",
+                case.current_state.value,
+                payment_request_id=(payment.payment_request_id if payment else None),
+            )
+        return CommercialResponse(
+            "I'll follow up when the work is done. If it's already finished, reply here.",
+            "commercial_won",
+            case.current_state.value,
+            payment_request_id=(payment.payment_request_id if payment else None),
+        )
+
+    def _handle_paid_reply(
+        self,
+        uow: UnitOfWork,
+        case: ProcessCase,
+        business_dna: Mapping[str, Any],
+        customer_text: str,
+        *,
+        occurred_at: datetime,
+    ) -> CommercialResponse:
+        if self.post_sale_interpreter.interpret(customer_text).signal == "done":
+            return self._finish_work_and_request_review(
+                uow, case, business_dna, occurred_at=occurred_at, recorded_by="customer"
+            )
+        return CommercialResponse(
+            "I'll close this out when the work is finished. Reply here if it already is.",
+            "commercial_paid",
+            case.current_state.value,
+        )
+
+    def _finish_work_and_request_review(
+        self,
+        uow: UnitOfWork,
+        case: ProcessCase,
+        dna: Mapping[str, Any],
+        *,
+        occurred_at: datetime,
+        recorded_by: str,
+    ) -> CommercialResponse:
+        self.mark_service_completed(
+            uow, case, occurred_at=occurred_at, recorded_by=recorded_by
+        )
+        return self.request_review(
+            uow, case, dna, occurred_at=occurred_at, recorded_by=recorded_by
+        )
 
     def expire_due_items(
         self,
@@ -995,7 +1091,7 @@ class CommercialWorkflowService:
                 quote_id=quote.quote_id,
             )
             commercial["mode"] = "quote_accepted"
-            message = "Thank you — your quote is accepted. The business will coordinate the next step."
+            message = "Thanks — the quote is accepted. I'll take the next step from here."
             if payment is not None:
                 message += _PAYMENT_FOLLOW_UP
             return CommercialResponse(
@@ -1346,7 +1442,11 @@ class CommercialWorkflowService:
         occurred_at: datetime,
         recorded_by: str,
     ) -> CommercialResponse:
-        """Staff-recorded receipt of the customer's payment. Does not charge a card."""
+        """Record that payment arrived. Does not charge a card.
+
+        Called from the customer conversation ("I paid") or as a staff
+        override when the customer paid outside chat.
+        """
         self._require_utc(occurred_at)
         if case.current_state is not ProcessState.WON:
             raise InvalidLifecycleActionError(
@@ -1380,7 +1480,8 @@ class CommercialWorkflowService:
             )
         self._transition(uow, case, ProcessState.PAID, occurred_at, "Customer payment recorded")
         return CommercialResponse(
-            "Thank you — payment is recorded. The business will complete the work and follow up.",
+            "Thanks — payment is recorded. I'll follow up when the work is finished. "
+            "If it already is, reply here.",
             "payment_recorded",
             case.current_state.value,
             payment_request_id=(payment.payment_request_id if payment else None),
@@ -1503,11 +1604,13 @@ class CommercialWorkflowService:
             case,
             ProcessState.FOLLOW_UP,
             occurred_at,
-            "Staff verified the external next step",
+            "Customer confirmed the external next step"
+            if recorded_by == "customer"
+            else "Staff verified the external next step",
         )
         self._close_commercial_win(uow, case, occurred_at)
         return CommercialResponse(
-            "Thanks — the next step is confirmed. The business will coordinate from here.",
+            "Thanks — that's confirmed. I'll take the next step from here.",
             "direct_next_step_confirmed",
             case.current_state.value,
         )

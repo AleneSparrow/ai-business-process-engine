@@ -248,3 +248,48 @@ def test_lifecycle_sweep_waits_for_payment_then_completes_and_asks_for_review(tm
     assert advanced["completed"] == 1
     assert advanced["reviews_requested"] == 1
     engine.dispose()
+
+
+def test_customer_confirms_payment_in_chat(tmp_path) -> None:
+    engine, factory, dna, case_id = make_factory(tmp_path, "diagnostic-visit")
+    service = CommercialWorkflowService()
+    metadata: dict = {}
+    with factory() as uow:
+        case = uow.cases.get(dna["business"]["id"], case_id)
+        service.initialize(uow, case, dna, metadata, occurred_at=NOW)
+        service.handle_message(
+            uow, case, dna, metadata, "The second option works", occurred_at=NOW
+        )
+        uow.commit()
+
+    with factory() as uow:
+        case = uow.cases.get(dna["business"]["id"], case_id)
+        response = service.handle_message(
+            uow, case, dna, metadata, "I paid just now", occurred_at=NOW
+        )
+        assert response.reason == "payment_recorded"
+        assert case.current_state is ProcessState.PAID
+        uow.commit()
+    engine.dispose()
+
+
+def test_customer_says_work_went_well_closes_the_cycle(tmp_path) -> None:
+    engine, factory, dna, case_id = make_factory(tmp_path, "diagnostic-visit")
+    service = CommercialWorkflowService()
+    metadata: dict = {}
+    with factory() as uow:
+        case = uow.cases.get(dna["business"]["id"], case_id)
+        service.initialize(uow, case, dna, metadata, occurred_at=NOW)
+        service.handle_message(
+            uow, case, dna, metadata, "The second option works", occurred_at=NOW
+        )
+        service.record_customer_payment(
+            uow, case, occurred_at=NOW, recorded_by="customer"
+        )
+        response = service.handle_message(
+            uow, case, dna, metadata, "The visit went well", occurred_at=NOW
+        )
+        assert response.reason == "review_requested"
+        assert case.current_state is ProcessState.REVIEW_REQUESTED
+        uow.commit()
+    engine.dispose()

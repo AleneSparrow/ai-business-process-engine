@@ -441,12 +441,12 @@ export default function Conversation() {
                         >
                           {lifecycleBusy && <Loader2 size={12} className="animate-spin" />}
                           {action === "record_payment"
-                            ? "Record payment received"
+                            ? "Paid outside this chat"
                             : action === "mark_completed"
-                              ? "Mark work complete"
+                              ? "Finished outside this chat"
                               : action === "request_review"
-                                ? "Request a review"
-                                : "Customer completed the next step"}
+                                ? "Send the review message now"
+                                : "Finished the next step outside this chat"}
                         </button>
                       ))}
                     </div>

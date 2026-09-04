@@ -23,6 +23,7 @@ from src.domain.tenancy import Business
 from src.engine.commercial import (
     CommercialPathSelector,
     DeterministicAvailabilityEngine,
+    DeterministicPostSaleReplyInterpreter,
     DeterministicPricingEngine,
     DeterministicQuoteReplyInterpreter,
     DeterministicSlotPreferenceInterpreter,
@@ -193,6 +194,16 @@ def test_slot_interpreter_never_invents_customer_time() -> None:
     assert invented.selected is None
 
 
+def test_post_sale_interpreter_reads_payment_done_and_decline() -> None:
+    interpreter = DeterministicPostSaleReplyInterpreter()
+    assert interpreter.interpret("I paid just now").signal == "payment_received"
+    assert interpreter.interpret("The visit went well").signal == "done"
+    assert interpreter.interpret("I uploaded the files").signal == "done"
+    assert interpreter.interpret("No, I won't do that").signal == "declined"
+    assert interpreter.interpret("Where do I upload it?").signal == "question"
+    assert interpreter.interpret("I'll pay later").signal == "unclear"
+
+
 def test_quote_collects_fact_uses_decimal_accepts_and_prepares_payment(tmp_path) -> None:
     engine, factory, dna, case_id = make_factory(tmp_path, "equipment-replacement")
     service = CommercialWorkflowService()
@@ -358,14 +369,8 @@ def test_quote_rejection_is_persisted_and_moves_case_to_lost(tmp_path) -> None:
     engine.dispose()
 
 
-@pytest.mark.parametrize("customer_reply", ["I did it", "Where do I upload it?", "No, I won't do that", "This is ridiculous"])
-def test_direct_next_step_follow_up_requires_human_verification(tmp_path, customer_reply: str) -> None:
-    """A customer message is never evidence that an external action happened.
-
-    The generic engine has no provider webhook for a direct step, so questions,
-    refusal, abuse, and claimed completion all take the same auditable safe
-    path. This specifically prevents replaying the configured external link.
-    """
+@pytest.mark.parametrize("customer_reply", ["I did it", "I uploaded the documents"])
+def test_direct_next_step_customer_confirmation_closes_the_win(tmp_path, customer_reply: str) -> None:
     engine, factory, dna, case_id = make_factory(tmp_path, "diagnostic-visit")
     service_config = dna["services"][0]
     service_config.update({
@@ -379,17 +384,57 @@ def test_direct_next_step_follow_up_requires_human_verification(tmp_path, custom
         case = uow.cases.get(dna["business"]["id"], case_id)
         first = service.initialize(uow, case, dna, metadata, occurred_at=NOW)
         assert first.reason == "direct_next_step"
-        assert "https://example.test/upload" in first.message_text
         response = service.handle_message(
             uow, case, dna, metadata, customer_reply, occurred_at=NOW + timedelta(minutes=1)
         )
-        assert response.requires_human is True
-        assert response.reason == "Customer replied after an external next step; completion requires verification"
-        assert response.message_text != first.message_text
-        assert "https://example.test/upload" not in response.message_text
-        assert case.current_state is ProcessState.NEEDS_HUMAN
-        assert case.pending_transition is ProcessState.FOLLOW_UP
-        assert all(customer_reply not in str(event.payload) for event in case.event_history)
+        assert response.reason == "direct_next_step_confirmed"
+        assert case.current_state is ProcessState.WON
+        assert response.requires_human is False
+        uow.commit()
+    engine.dispose()
+
+
+def test_direct_next_step_question_repeats_the_instruction(tmp_path) -> None:
+    engine, factory, dna, case_id = make_factory(tmp_path, "diagnostic-visit")
+    service_config = dna["services"][0]
+    service_config.update({
+        "fulfillment_type": "direct_sale",
+        "booking_allowed": False,
+        "direct_next_step_message": "Upload documents at https://example.test/upload.",
+    })
+    service = CommercialWorkflowService()
+    metadata: dict = {}
+    with factory() as uow:
+        case = uow.cases.get(dna["business"]["id"], case_id)
+        service.initialize(uow, case, dna, metadata, occurred_at=NOW)
+        response = service.handle_message(
+            uow, case, dna, metadata, "Where do I upload it?", occurred_at=NOW + timedelta(minutes=1)
+        )
+        assert response.requires_human is False
+        assert case.current_state is ProcessState.QUALIFIED
+        assert "https://example.test/upload" in response.message_text
+        uow.commit()
+    engine.dispose()
+
+
+def test_direct_next_step_decline_closes_as_lost(tmp_path) -> None:
+    engine, factory, dna, case_id = make_factory(tmp_path, "diagnostic-visit")
+    service_config = dna["services"][0]
+    service_config.update({
+        "fulfillment_type": "direct_sale",
+        "booking_allowed": False,
+        "direct_next_step_message": "Upload documents at https://example.test/upload.",
+    })
+    service = CommercialWorkflowService()
+    metadata: dict = {}
+    with factory() as uow:
+        case = uow.cases.get(dna["business"]["id"], case_id)
+        service.initialize(uow, case, dna, metadata, occurred_at=NOW)
+        response = service.handle_message(
+            uow, case, dna, metadata, "No, I won't do that", occurred_at=NOW + timedelta(minutes=1)
+        )
+        assert response.reason == "direct_next_step_declined"
+        assert case.current_state is ProcessState.LOST
         uow.commit()
     engine.dispose()
 

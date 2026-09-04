@@ -1,8 +1,9 @@
-"""Staff-driven post-sale actions that close the lead-to-cash loop.
+"""Staff overrides when a step finished *outside* the conversation.
 
-AI never records payment, marks work complete, or invents a review request.
-These transitions are explicit, auditable RULE/HUMAN actions on states the
-graph already allows: WON → PAID → COMPLETED → REVIEW_REQUESTED → REACTIVATION.
+The happy path does not go through these buttons. The assistant closes
+WON → PAID → COMPLETED → REVIEW_REQUESTED in chat (customer wording) and
+via the post-visit sweep. Staff actions exist so an owner can record an
+offline payment or a job that finished without a customer message.
 """
 
 from src.domain.states import ProcessState
@@ -24,12 +25,7 @@ ALLOWED_LIFECYCLE_ACTIONS = frozenset({
 
 
 def actions_for_state(state: ProcessState) -> tuple[str, ...]:
-    """Which staff buttons are *plausible* for this case state.
-
-    The service still validates path-specific preconditions (a QUALIFIED case
-    is only confirmable on the direct-next-step path; mark-completed from WON
-    requires payment to be settled or absent).
-    """
+    """Offline overrides only — the assistant already runs these steps in chat."""
     if state is ProcessState.WON:
         return (LifecycleAction.RECORD_PAYMENT, LifecycleAction.MARK_COMPLETED)
     if state is ProcessState.PAID:

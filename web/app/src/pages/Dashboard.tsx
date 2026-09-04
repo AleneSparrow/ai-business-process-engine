@@ -21,24 +21,28 @@ type SortKey = "date" | "name";
 type SortDirection = "asc" | "desc";
 
 function nextStep(state: string): string {
-  if (state === "NEEDS_HUMAN") return "Review the conversation and reply";
+  if (state === "NEEDS_HUMAN") return "The assistant paused — a rule needs you before it can continue";
   if (state === "QUALIFYING" || state === "CONTACTED" || state === "NEW_LEAD") {
-    return "Collect the remaining qualification details";
+    return "The assistant is still qualifying this lead";
   }
-  if (state === "BOOKED" || state === "QUOTED") return "Finish the booking or quote with the customer";
-  if (state === "WON") return "Record payment when you receive it, or mark the work complete if none is due";
-  if (state === "PAID") return "Mark the work complete when the job is done";
-  if (state === "COMPLETED") return "Send a review request";
-  if (state === "REVIEW_REQUESTED") return "Waiting on a review — the next message starts a new cycle";
-  if (state === "LOST" || state === "CANCELLED") return "A new customer message can reopen this case";
-  return "Open the conversation to review the next action";
+  if (state === "BOOKED" || state === "QUOTED") {
+    return "The assistant is finishing the booking or quote with the customer";
+  }
+  if (state === "WON") {
+    return "The assistant is waiting for the customer to confirm payment in the conversation";
+  }
+  if (state === "PAID") return "The assistant will close this after the work is done";
+  if (state === "COMPLETED") return "The assistant is sending the review request";
+  if (state === "REVIEW_REQUESTED") return "This cycle is closed. A new message starts the next one.";
+  if (state === "LOST" || state === "CANCELLED") return "A new customer message reopens this conversation";
+  return "Open the conversation to see what the assistant is doing";
 }
 
 const LIFECYCLE_LABELS: Record<string, string> = {
-  record_payment: "Record payment received",
-  mark_completed: "Mark work complete",
-  request_review: "Request a review",
-  confirm_next_step: "Customer completed the next step",
+  record_payment: "Paid outside this chat",
+  mark_completed: "Finished outside this chat",
+  request_review: "Send the review message now",
+  confirm_next_step: "Finished the next step outside this chat",
 };
 
 export default function Dashboard() {
@@ -202,8 +206,8 @@ export default function Dashboard() {
       <main className="flex-1 min-w-0 flex flex-col pt-14 md:pt-0">
         <header className="flex items-center justify-between px-6 md:px-8 py-4 border-b border-[#E7E5DE]">
           <div>
-            <h1 className="text-xl" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Leads & cases</h1>
-            <p className="text-sm text-[#6B6459] mt-0.5">Every conversation your engine has handled</p>
+            <h1 className="text-xl" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Conversations</h1>
+            <p className="text-sm text-[#6B6459] mt-0.5">The assistant is running these. You step in only when it asks.</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative hidden sm:block">
@@ -382,6 +386,9 @@ export default function Dashboard() {
                         {resolvingId === selected.case_id && <Loader2 size={14} className="animate-spin" />}
                         Mark resolved
                       </button>
+                    )}
+                    {(selected.lifecycle_actions ?? []).length > 0 && (
+                      <p className="text-xs text-[#9C9488]">Only if this happened outside the conversation. The assistant already runs these steps in chat.</p>
                     )}
                     {(selected.lifecycle_actions ?? []).map((action) => (
                       <button
