@@ -10,7 +10,9 @@ Companion to `flywheel-wave1-outreach-ad-materials.md` — same specifics, same 
 
 ## 2. Value proposition (3 lines)
 
-- Answers and qualifies leads 24/7 without adding headcount — $199/month against $55,000–$80,000/year for a dedicated intake specialist.
+Job we are hired for: *When an inquiry arrives and you cannot take it, you want that person on the calendar so the money you already spent to attract them is not sitting in voicemail.*
+
+- Answers, qualifies, and books 24/7 without adding headcount — $199/month against $55,000–$80,000/year for a dedicated intake specialist.
 - Architecturally incapable of overstepping into legal advice — not a policy, a hard limit in how outgoing messages get built.
 - Live in about 20 minutes, no developer needed.
 
@@ -30,6 +32,9 @@ Companion to `flywheel-wave1-outreach-ad-materials.md` — same specifics, same 
 
 **"I don't have time to set it up."**
 > It's about 20 minutes, no developer or IT help needed — happy to walk through it with you live right now if that's easier than doing it later.
+
+**"Lawyers don't buy software like this" / "We're just busy."**
+> It's rarely that you don't care. It's the situation: you're in court, a person already paid $649 to find you hits voicemail, and nothing carries them to a consult. That's the job. The trial is 20 minutes to see it on your site, not a personality test.
 
 ## 4. Closing
 

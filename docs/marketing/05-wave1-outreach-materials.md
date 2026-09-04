@@ -8,9 +8,9 @@
 
 Лимит LinkedIn — 300 символов. Два варианта, оба под этот лимит.
 
-**Вариант A (короче, интригующий):**
+**Вариант A (ситуация → результат, JTBD):**
 
-> Hi \[First Name\] — came across your practice in \[City\]. Building something for solo attorneys who lose after\-hours inquiries: it takes the person from first message to a booked consult, and it's architecturally incapable of giving legal advice. Worth a look?
+> Hi \[First Name\] — when someone writes your practice in \[City\] after hours, they usually hit voicemail. I built Flywheel to carry that person to a booked consult, on a script that can't give legal advice. Worth a look?
 
 **Вариант B (прямее, с цифрой):**
 
@@ -22,7 +22,7 @@
 > 
 > Quick context on why I reached out: the average cost\-per\-lead in legal services runs about $649 — and firms typically lose 15–20% of inbound calls to voicemail that never gets a callback. That's real, already\-spent marketing money walking away.
 > 
-> I built Flywheel specifically for solo practices — it answers, qualifies, and books 24/7, but it's architected so the AI can *only* follow the script you approve. It physically cannot improvise legal advice, estimate case outcomes, or promise a result — that's not a policy, it's how the message\-generation pipeline is built.
+> I built Flywheel for that job: it answers, qualifies, and books 24/7 — then follows up, because most people don't book on the first reply. The AI can *only* follow the script you approve. It cannot improvise legal advice, estimate outcomes, or promise a result — that's how the message pipeline is built, not a policy.
 > 
 > 7\-day free trial, no setup call needed — live in about 20 minutes. Want me to send a 2\-minute walkthrough, or would a quick call be easier?
 
@@ -104,3 +104,18 @@ About 20 minutes for a single\-attorney practice. No developer needed.
 
 **What if I want more than one attorney on the account?**
 Multi\-attorney support is on our roadmap — reach out and we'll let you know when it's ready for your firm.
+
+## 5. Seven touches (founder sequence)
+
+One connect request almost never closes. Do not invent a content factory. Do run this sequence. Each step names the next step. Full model: `07-applied-growth-concepts.md`.
+
+1. **Saw you** — LinkedIn connect (variant A).
+2. **Interested** — follow-up message in §2.
+3. **Visited** — link to `/lawyers` only (not the homepage).
+4. **Got value** — 90-second screencast of Flywheel selling Flywheel (live widget), or they open the corner chat.
+5. **Proof** — one real audit line or a design-partner quote. No invented "38s".
+6. **Offer again** — if silent, one email on day 3–5. Same job: after-hours inquiry → booked consult. No new claims.
+7. **Bought** — trial or 20-minute walkthrough. Success = their widget live the same day, not a "maybe later".
+
+If they buy on day 18, credit touch 1's channel in a 30-day window — not whichever email they opened that morning.
+

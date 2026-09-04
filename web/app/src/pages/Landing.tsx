@@ -132,7 +132,7 @@ export default function Landing() {
             From first message to a booked deal.
           </h1>
           <p className="text-base text-[#6B6459] leading-relaxed mb-6 max-w-md">
-            Flywheel answers the people who already reached out — qualifies them, books or quotes, follows up, and hands off the moment your rules say so. You don't rebuild a bot for each company.
+            When someone already reached out and you cannot answer them now, Flywheel carries that person to a booked deal — qualifies, books or quotes, follows up — without a custom build.
           </p>
           {salesWidgetConfigured() && (
             <p className="text-sm mb-6 max-w-md" style={{ color: "#B87333" }}>
@@ -169,6 +169,30 @@ export default function Landing() {
         </div>
       </section>
 
+      <section className="max-w-6xl mx-auto px-6 py-16 md:py-20">
+        <span className="text-xs font-medium text-[#B87333] uppercase tracking-wide">The job we get hired for</span>
+        <h2 className="text-3xl mt-2 mb-8" style={{ fontFamily: MARKETING_DISPLAY, fontWeight: 600 }}>
+          People don't hire a chatbot. They hire a finished next step.
+        </h2>
+        <div className="grid md:grid-cols-3 gap-5">
+          <div className="bg-white rounded-2xl border border-[#E7E5DE] p-6">
+            <p className="text-xs uppercase tracking-wide text-[#9C9488] mb-2">When</p>
+            <p className="text-sm font-semibold mb-3">An inquiry lands while you are with a customer, in court, or off the clock</p>
+            <p className="text-sm text-[#6B6459] leading-relaxed">You want that person carried to a booked deal so the money you already spent to get them is not sitting in voicemail.</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-[#E7E5DE] p-6">
+            <p className="text-xs uppercase tracking-wide text-[#9C9488] mb-2">Instead of</p>
+            <p className="text-sm font-semibold mb-3">Voicemail, a $55–80k intake hire, or a chat that only captures a name</p>
+            <p className="text-sm text-[#6B6459] leading-relaxed">Those are the old solutions to the same job. Flywheel keeps going through qualification, booking, and follow-up.</p>
+          </div>
+          <div className="bg-white rounded-2xl border border-[#E7E5DE] p-6">
+            <p className="text-xs uppercase tracking-wide text-[#9C9488] mb-2">So that</p>
+            <p className="text-sm font-semibold mb-3">One silent lead does not undo a $199 month — or a $649 inquiry</p>
+            <p className="text-sm text-[#6B6459] leading-relaxed">Most people do not convert on the first reply. The engine follows up on a schedule you approve, then hands off when the script says so.</p>
+          </div>
+        </div>
+      </section>
+
       <section id="how" className="max-w-6xl mx-auto px-6 py-20 md:py-28">
         <div className="max-w-lg mb-14">
           <span className="text-xs font-medium text-[#B87333] uppercase tracking-wide">How it works</span>
@@ -186,7 +210,7 @@ export default function Landing() {
             <StepRow n="3" title="It books, quotes, or asks you" body="Clear cases move. Anything outside the script escalates in plain language — it never improvises a promise." last />
           </div>
           <div className="mt-2 md:mt-[52px]">
-            <StepRow n="4" title="It follows up" body="If they go quiet after a quote or a booking, the cycle keeps turning until they convert, decline, or you step in." />
+            <StepRow n="4" title="It follows up" body="People rarely buy on the first reply. If they go quiet after a quote or a booking, the cycle keeps turning until they convert, decline, or you step in." />
             <StepRow n="5" title="Every step stays on the record" body="Open any case and see the exact trigger, decision, and reply. Nothing happens off the record." last />
           </div>
         </div>
@@ -334,6 +358,10 @@ export default function Landing() {
           <FaqItem
             q="Can the AI promise something I wouldn't?"
             a="It only rewrites wording inside the script you approve. If a request falls outside that script, it escalates to you instead of inventing an answer."
+          />
+          <FaqItem
+            q="Why follow up instead of stopping after the first reply?"
+            a="Most people do not convert on the first message. Flywheel follows up on a schedule you approve — the same cycle that would otherwise die in an inbox — then stops when they book, decline, or you take over."
           />
         </div>
       </section>

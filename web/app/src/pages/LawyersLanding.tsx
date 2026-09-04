@@ -55,7 +55,7 @@ export default function LawyersLanding() {
           Every inquiry answered. Every consult on the calendar.
         </h1>
         <p className="text-base md:text-lg text-[#6B6459] leading-relaxed mb-6 max-w-2xl mx-auto">
-          Flywheel carries a person who already contacted your firm from first message to a booked meeting — and it is built so the AI can only follow the script you approve. Not a policy. An architecture.
+          When a person contacts your firm and you are in court, with a client, or off the clock, Flywheel carries them to a booked consult — on a script the AI cannot talk itself out of.
         </p>
         <div className="flex justify-center mb-8">
           <DealCycle compact />
@@ -179,7 +179,7 @@ export default function LawyersLanding() {
           <DoesItem text="Answers inbound messages on your website, day or night" />
           <DoesItem text="Qualifies against the criteria you set — practice area, urgency, location" />
           <DoesItem text="Books a consultation so you walk into the meeting prepared" />
-          <DoesItem text="Follows up if they go quiet after the first reply" />
+          <DoesItem text="Follows up if they go quiet — most people do not book on the first reply" />
           <DoesItem text="Escalates to you exactly when your rules say to" />
           <DoesItem text="Never estimates outcomes, gives legal advice, or promises a result — by design" />
         </ul>
@@ -257,6 +257,10 @@ export default function LawyersLanding() {
           <FaqItem
             q="What if I want more than one attorney on the account?"
             a="Multi-attorney support is on our roadmap — reach out and we'll let you know when it's ready for your firm."
+          />
+          <FaqItem
+            q="Does it stop after the first reply?"
+            a="No. Most people do not book a consult on the first message. Flywheel follows up on a schedule you approve, then stops when they book, decline, or you take over."
           />
           <FaqItem
             q="Is Flywheel only for law firms?"

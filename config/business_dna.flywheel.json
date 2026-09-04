@@ -139,7 +139,7 @@
   "chat_widget": {
     "enabled": true,
     "title": "Chat with Flywheel",
-    "welcome_message": "This is Flywheel — the same engine you'd put on your site. Tell me what you need. I can start a 7-day Starter trial or book a 20-minute setup walkthrough.",
+    "welcome_message": "When you already get inquiries and cannot answer them right now, this is the engine that carries them to a booked deal. I can start a 7-day Starter trial or book a 20-minute setup walkthrough.",
     "qualified_message": "We have what we need. Next step is on you: trial signup on this site, or the walkthrough slot you just picked.",
     "closed_message": "This conversation is complete. Use Start 7-day free trial on this page whenever you're ready.",
     "ai_disclosure_text": "AI assistant"

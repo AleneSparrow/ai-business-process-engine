@@ -88,3 +88,5 @@ business». Ключевой якорный документ — `product-founda
 Flywheel: тенант `flywheel`, сид `examples/seed_flywheel_sales.py`, виджет на
 лендинге через `VITE_SALES_BUSINESS_ID`. Волна 1 для соло-юристов —
 `docs/marketing/04-gtm-legal-vertical.md`; это вход, не позиционирование продукта.
+Карточки роста (LTV/CAC, JTBD, петли, ESOV) в полной форме —
+`docs/marketing/07-applied-growth-concepts.md`.
