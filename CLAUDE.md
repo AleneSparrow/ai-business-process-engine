@@ -87,5 +87,6 @@ business». Ключевой якорный документ — `product-founda
 Как думать о маркетинге, digital и соцсетях — сторонний канон (Sharp, Binet/Field,
 Dunford, Rumelt, JTBD, Traction, Reforge, LinkedIn B2B Institute, Edelman),
 импортированный в репозиторий: `docs/marketing/00-third-party-marketing-canon.md`.
-Он не заменяет УТП и GTM. Любой новый маркетинговый артефакт проходит его чеклист
-(раздел 8). Скилл агента: `.cursor/skills/marketing-canon/SKILL.md`.
+Он не заменяет УТП и GTM. Рабочая память (законы и шаги) — раздел 11 того файла.
+Любой новый маркетинговый артефакт проходит чеклист раздела 8. Скилл агента:
+`.cursor/skills/marketing-canon/SKILL.md`.
