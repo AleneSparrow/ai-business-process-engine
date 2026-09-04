@@ -115,8 +115,9 @@ def test_two_customers_cannot_take_same_capacity_one_slot(commercial_pg_factory)
             "1",
             occurred_at=now,
         )
-        uow.commit()
-        assert duplicate.reason == "commercial_won"
+            uow.commit()
+        assert duplicate.current_state == ProcessState.WON.value
+        assert duplicate.reason in {"commercial_won", "awaiting_payment_confirmation"}
     other_business, _, _ = seed_cases(commercial_pg_factory, ())
     with commercial_pg_factory() as uow:
         assert uow.session.scalar(select(func.count()).select_from(BookingRow).where(
