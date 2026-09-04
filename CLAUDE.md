@@ -91,4 +91,5 @@ Dunford, Rumelt, JTBD, Traction, Reforge, LinkedIn B2B Institute, Edelman),
 Любой новый маркетинговый артефакт проходит чеклист раздела 8. Скилл агента:
 `.cursor/skills/marketing-canon/SKILL.md`. Рекомендация стратегии из канона:
 `docs/marketing/06-strategy-from-canon.md`. Как осуществляем:
-`docs/marketing/07-how-we-execute.md`.
+`docs/marketing/07-how-we-execute.md`. Единый датированный контент-план
+(Zapier, шаги Alena, мультимедиа): `docs/marketing/08-content-plan-dated.md`.
