@@ -885,6 +885,10 @@ def test_cors_is_explicit_and_widget_assets_are_safe(conversation_environment) -
     assert "acme-home-services" not in widget.text
     assert "customerTimezone" in widget.text
     assert "customer_timezone" in widget.text
+    # Regression: inserting customerTimezone() once dropped the `restore`
+    # declaration, so the demo widget died with a SyntaxError before chat
+    # could open. The function body was still there; only the header was gone.
+    assert "async function restore()" in widget.text
 
 
 def test_garbage_customer_timezone_still_creates_conversation(conversation_environment) -> None:
