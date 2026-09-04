@@ -3,8 +3,8 @@
 Длинные LI-001…016 из первой версии пакета **не постить**: они дублируют
 Brand 1–5 и слишком длинные для фида. Живые Brand-посты уже в Zapier Tables.
 
-Ниже — короткие тексты, уже лежащие в таблице как `Draft` (видео — `Skip`).
-Публикация только после вашего `Ready`.
+Статусы синхронизированы с таблицей 2026-09-04. FSV-01 / X-01 — Skip
+(дубль сегодняшнего интро). FSV-03 уже Posted. Видео — Skip.
 
 В таблице notes: `X-01` = `FSV-X01`, `X-02` = `FSV-X02`, `X-03` = `FSV-X03`.
 В markdown слоты X остаются `X-01`…`X-03`, чтобы линтер не требовал слово
@@ -18,7 +18,7 @@ Flywheel в коротком твите. `FSV-V01` парсится как ес�
 channel: linkedin
 audience: founder-sv
 pillar: builder
-status: DRAFT
+status: SKIP
 scheduled_for: 2026-09-14T16:00:00Z
 
 ---
@@ -35,7 +35,7 @@ Inquiry in. Booked job or accepted quote out. The model only rewrites a script t
 channel: linkedin
 audience: founder-sv
 pillar: model
-status: DRAFT
+status: READY
 scheduled_for: 2026-09-18T16:00:00Z
 
 ---
@@ -52,8 +52,8 @@ Slower to demo than an agent that “just handles it.” That’s the product.
 channel: linkedin
 audience: founder-sv
 pillar: builder
-status: DRAFT
-scheduled_for: 2026-09-21T16:00:00Z
+status: POSTED
+scheduled_for: 2026-09-04T04:47:00Z
 
 ---
 
@@ -69,7 +69,7 @@ I’d rather timestamp that now than fake a launch.
 channel: linkedin
 audience: founder-sv
 pillar: builder
-status: DRAFT
+status: READY
 scheduled_for: 2026-09-23T16:00:00Z
 
 ---
@@ -86,7 +86,7 @@ I’ll put that conversation on camera.
 channel: linkedin
 audience: founder-sv
 pillar: cycle
-status: DRAFT
+status: READY
 scheduled_for: 2026-09-25T16:00:00Z
 
 ---
@@ -116,7 +116,7 @@ I'm Alena Vorobei. I build Flywheel. The rest of this post is the video.
 channel: x
 audience: founder-sv
 pillar: builder
-status: DRAFT
+status: SKIP
 scheduled_for: 2026-09-15T16:00:00Z
 
 ---
@@ -129,7 +129,7 @@ I'm Alena. Building Flywheel in public: inbound inquiry → booked job or accept
 channel: x
 audience: founder-sv
 pillar: model
-status: DRAFT
+status: READY
 scheduled_for: 2026-09-17T16:00:00Z
 
 ---
@@ -142,7 +142,7 @@ Replay the same inbound id. You should not get a second booking. If you do, you 
 channel: x
 audience: founder-sv
 pillar: builder
-status: DRAFT
+status: READY
 scheduled_for: 2026-09-22T16:00:00Z
 
 ---

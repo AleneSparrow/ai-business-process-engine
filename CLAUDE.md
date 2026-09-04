@@ -86,4 +86,5 @@ business». Ключевой якорный документ — `product-founda
 Личный контент основателя: живая очередь — Zapier Tables
 https://tables.zapier.com/app/tables/01M1N9VBC7JMDFM9QSMKZNMQM8
 (не Google Sheet). Операторский пакет — `docs/marketing/founder-presence/`.
-Статусы `Draft → Ready → Posted | Skip`. `founder-sv` агент в Ready не ставит.
+Статусы `Draft → Ready → Posted | Skip`. `founder-sv` в Ready — только после
+явного «делай» / Ready от Alena. Видео с `BLOCK_AUTOPOST_UNTIL_VIDEO` не постить.

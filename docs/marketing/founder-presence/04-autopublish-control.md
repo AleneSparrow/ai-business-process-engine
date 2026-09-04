@@ -26,7 +26,9 @@ Draft → Skip
 Ready → Skip   (kill до слота)
 ```
 
-`founder-sv` остаётся Draft, пока Alena не поставит Ready. Агент Ready не ставит.
+`founder-sv` Ready только после явного «делай» / Ready от Alena.
+4 сентября 2026: FSV-02/04/05 и FSV-X02/X03 поставлены Ready; FSV-01 и
+FSV-X01 — Skip (дубль живого интро); FSV-03 уже Posted. FSV-V01 остаётся Skip.
 
 ## Audience
 
