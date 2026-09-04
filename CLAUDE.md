@@ -83,3 +83,9 @@ AI не принимает решений — `decision_router` / `qualification
 
 Стратегия, GTM, анализ рынка и решения лежат в claude.ai Project «AI engine for
 business». Ключевой якорный документ — `product-foundation-goals-and-usp.md`.
+
+Как думать о маркетинге, digital и соцсетях — сторонний канон (Sharp, Binet/Field,
+Dunford, Rumelt, JTBD, Traction, Reforge, LinkedIn B2B Institute, Edelman),
+импортированный в репозиторий: `docs/marketing/00-third-party-marketing-canon.md`.
+Он не заменяет УТП и GTM. Любой новый маркетинговый артефакт проходит его чеклист
+(раздел 8). Скилл агента: `.cursor/skills/marketing-canon/SKILL.md`.
