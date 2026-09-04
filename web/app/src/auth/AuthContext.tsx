@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api, ApiError, type StaffUser, type TwoFactorLoginChallenge } from "../api/client";
+import { clearFirstTouch, peekFirstTouch } from "../lib/firstTouch";
 
 const TOKEN_STORAGE_KEY = "flywheel.session_token";
 // Which of the account's (possibly several) businesses the dashboard is
@@ -85,11 +86,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [token]);
 
   const signup = useCallback(async (email: string, password: string) => {
-    const session = await api.signup(email, password);
+    const session = await api.signup(email, password, peekFirstTouch());
     localStorage.setItem(TOKEN_STORAGE_KEY, session.token);
     setToken(session.token);
     setUserState(session.user);
     setBusinessIdState(resolveBusinessId(session.user));
+    clearFirstTouch();
     return session.user;
   }, []);
 

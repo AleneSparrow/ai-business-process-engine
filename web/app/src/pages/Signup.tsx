@@ -11,7 +11,7 @@ export default function Signup() {
   useEffect(() => {
     setPageMeta(
       "Create your Flywheel account",
-      "Start a 7-day trial. Set up Business DNA in about 20 minutes, then put chat on your site.",
+      "Start a 7-day trial. Next inquiry that arrives while you cannot answer can go through to a booked deal.",
     );
   }, []);
   const [email, setEmail] = useState("");
@@ -61,7 +61,9 @@ export default function Signup() {
           <h1 className="text-2xl mb-1.5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
             Start your 7-day trial
           </h1>
-          <p className="text-sm text-[#6B6459] mb-5">Create a login. Next you'll describe the business — about 20 minutes, no developer.</p>
+          <p className="text-sm text-[#6B6459] mb-5">
+            When an inquiry comes in and you cannot pick up, Flywheel carries that person to a booked deal. Create a login, then describe the business — about 20 minutes, no developer.
+          </p>
           <ul className="flex flex-col gap-1.5 mb-6 text-xs text-[#6B6459]">
             {[
               "No charge until the trial ends",

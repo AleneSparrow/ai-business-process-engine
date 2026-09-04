@@ -111,7 +111,7 @@ One connect request almost never closes. Do not invent a content factory. Do run
 
 1. **Saw you** — LinkedIn connect (variant A).
 2. **Interested** — follow-up message in §2.
-3. **Visited** — link to `/lawyers` only (not the homepage).
+3. **Visited** — link to `/lawyers?from=linkedin` only (not the homepage). First-touch `from` is stored at signup; do not rely on last click.
 4. **Got value** — 90-second screencast of Flywheel selling Flywheel (live widget), or they open the corner chat.
 5. **Proof** — one real audit line or a design-partner quote. No invented "38s".
 6. **Offer again** — if silent, one email on day 3–5. Same job: after-hours inquiry → booked consult. No new claims.

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { API_BASE } from "../api/client";
 import { useAuth } from "../auth/AuthContext";
+import { markSalesWidgetOpened } from "../lib/firstTouch";
 
 const SCRIPT_ID = "flywheel-sales-widget";
 
@@ -41,6 +42,7 @@ export function FlywheelSalesWidget() {
     script.src = `${API_BASE}/widget/widget.js`;
     script.dataset.businessId = businessId;
     script.dataset.apiBase = API_BASE;
+    script.onload = () => markSalesWidgetOpened();
     document.body.append(script);
 
     return () => {

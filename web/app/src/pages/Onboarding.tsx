@@ -235,8 +235,8 @@ export default function Onboarding() {
               <div className="flex-1 dna-fade" key={step}>
                 {step === 0 && (
                   <>
-                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Tell us about your business</h2>
-                    <p className="text-sm text-[#6B6459] mb-7">This shapes how your engine talks to every customer — works for any kind of business.</p>
+                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>What should the engine know about the business?</h2>
+                    <p className="text-sm text-[#6B6459] mb-7">This becomes the script it uses when you cannot answer. Any kind of business — it is not a legal product.</p>
                     <Field label="Business name">
                       <input className={inputCls} placeholder="e.g. Acme Studio" value={business.name} onChange={(e) => setBusiness({ ...business, name: e.target.value })} />
                       {attemptedContinue && !business.name.trim() && <p className="text-xs mt-1.5" style={{ color: "#B4483A" }}>Give it a name to continue.</p>}
@@ -473,7 +473,7 @@ export default function Onboarding() {
                 {business.name || "Your business"} is live.
               </h2>
               <p className="text-sm text-[#6B6459] mb-7 max-w-sm">
-                The engine is running on the rules you just set. It still needs a place to meet people — paste the chat snippet on your website next. That takes about a minute.
+                The engine is running. It still needs a place to meet the next inquiry — paste the chat snippet on your website (about a minute). After that, if someone goes quiet, follow-up keeps the cycle moving at 24h, 72h, and 7 days. That is the work you hired it for, not a one-message chat.
               </p>
               <div className="flex flex-col sm:flex-row items-center gap-3">
                 <button

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Bell, ArrowUpRight, Clock, Phone, Mail, Loader2, ArrowDown, ArrowUp, MessageSquare } from "lucide-react";
+import { Search, Bell, ArrowUpRight, Clock, Phone, Mail, Loader2, ArrowDown, ArrowUp, MessageSquare, X } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { useAuth, describeError } from "../auth/AuthContext";
 import { api, type DashboardAnalytics, type DashboardCaseSummary } from "../api/client";
@@ -197,6 +197,7 @@ export default function Dashboard() {
   const [includeTestData, setIncludeTestData] = useState(false);
   const [reasonFilter, setReasonFilter] = useState<string | null>(null);
   const [followUpOnly, setFollowUpOnly] = useState(false);
+  const [dismissPeerPrompt, setDismissPeerPrompt] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -231,6 +232,12 @@ export default function Dashboard() {
       cancelled = true;
     };
   }, [token, businessId, startDate, endDate, includeTestData, statsVersion]);
+
+  const peerPromptKey = businessId ? `flywheel.peer_intro_dismissed.${businessId}` : null;
+  useEffect(() => {
+    if (!peerPromptKey) return;
+    setDismissPeerPrompt(localStorage.getItem(peerPromptKey) === "1");
+  }, [peerPromptKey]);
 
   const decorated = useMemo(
     () =>
@@ -417,6 +424,28 @@ export default function Dashboard() {
             </div>
           )}
 
+          {analytics && analytics.booked_cases >= 1 && !dismissPeerPrompt && (
+            <div className="bg-white rounded-2xl border border-[#E7E5DE] px-5 py-4 flex gap-4 items-start">
+              <div className="flex-1 min-w-0">
+                <h2 className="text-sm font-semibold">Someone with the same job</h2>
+                <p className="text-sm text-[#6B6459] mt-1">
+                  You already carried an inquiry to a booked deal. Ask one owner who also loses inbound when they cannot pick up — that intro is how the next business finds this, not a later review ask.
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label="Dismiss"
+                className="shrink-0 text-[#9C9488] p-1"
+                onClick={() => {
+                  if (peerPromptKey) localStorage.setItem(peerPromptKey, "1");
+                  setDismissPeerPrompt(true);
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
           {/* One band instead of three stacked sections plus a separate
               reporting card. Before this, Overview put 1173px of statistics
               above the lead list -- 1.68 screens of scrolling before the
@@ -550,7 +579,7 @@ export default function Dashboard() {
               </div>
               <h2 className="text-base font-semibold mb-1.5">No conversations yet</h2>
               <p className="text-sm text-[#6B6459] max-w-md mx-auto mb-6">
-                Flywheel is on. Put the chat snippet on your site (or open the preview) so the next person who writes in shows up here.
+                Flywheel is on. Put the chat snippet on your site so the next inquiry shows up here. If they go quiet, follow-up keeps going — it does not stop at the first unanswered message.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
                 <button

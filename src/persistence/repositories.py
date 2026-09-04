@@ -6,6 +6,7 @@ from enum import StrEnum
 from typing import Any, Mapping, Protocol, Sequence
 
 from src.domain.auth import StaffSession, StaffUser
+from src.domain.signup_attribution import SignupAttribution
 from src.domain.models import Lead, ProcessCase, ProcessEvent
 from src.domain.conversations import Conversation, ConversationMessage
 from src.domain.commercial import Booking, PaymentRequest, PaymentType, Quote
@@ -313,6 +314,11 @@ class StaffUserRepository(Protocol):
     def save(self, user: StaffUser) -> None: ...
 
 
+class StaffSignupAttributionRepository(Protocol):
+    def add(self, user_id: str, attribution: SignupAttribution, *, recorded_at: datetime) -> None: ...
+    def get(self, user_id: str) -> SignupAttribution | None: ...
+
+
 class StaffSessionRepository(Protocol):
     def add(self, session: StaffSession) -> None: ...
     def get(self, session_id: str) -> StaffSession | None: ...
@@ -402,6 +408,7 @@ class UnitOfWork(Protocol):
     quotes: QuoteRepository
     payment_requests: PaymentRequestRepository
     staff_users: StaffUserRepository
+    staff_signup_attribution: StaffSignupAttributionRepository
     staff_sessions: StaffSessionRepository
     staff_security: StaffSecurityRepository
     crm_webhook_connections: CrmWebhookConnectionRepository

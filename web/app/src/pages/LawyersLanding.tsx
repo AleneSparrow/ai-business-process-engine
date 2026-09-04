@@ -36,7 +36,7 @@ function DoesItem({ text }: { text: string }) {
 }
 
 export default function LawyersLanding() {
-  const { navigate, target } = usePrimaryCta();
+  const { navigate, target } = usePrimaryCta("lawyers");
 
   return (
     <MarketingShell

@@ -23,6 +23,7 @@ from .sqlalchemy_repositories import (
     SQLAlchemySmsConnectionRepository,
     SQLAlchemyStaffSessionRepository,
     SQLAlchemyStaffSecurityRepository,
+    SQLAlchemyStaffSignupAttributionRepository,
     SQLAlchemyStaffUserRepository,
 )
 
@@ -68,6 +69,7 @@ class SQLAlchemyUnitOfWork:
         self.quotes = SQLAlchemyQuoteRepository(self.session)
         self.payment_requests = SQLAlchemyPaymentRequestRepository(self.session)
         self.staff_users = SQLAlchemyStaffUserRepository(self.session)
+        self.staff_signup_attribution = SQLAlchemyStaffSignupAttributionRepository(self.session)
         self.staff_sessions = SQLAlchemyStaffSessionRepository(self.session)
         self.staff_security = SQLAlchemyStaffSecurityRepository(self.session)
         self.crm_webhook_connections = SQLAlchemyCrmWebhookConnectionRepository(self.session)

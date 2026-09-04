@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
 import { RequireActiveSubscription, RequireAuth, RequireBusiness } from "./components/RouteGuards";
+import { CaptureFirstTouch } from "./components/CaptureFirstTouch";
 import { FlywheelSalesWidget } from "./components/FlywheelSalesWidget";
 import Landing from "./pages/Landing";
 import LawyersLanding from "./pages/LawyersLanding";
@@ -40,6 +41,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <CaptureFirstTouch />
         <FlywheelSalesWidget />
         <Routes>
           <Route path="/" element={<Landing />} />

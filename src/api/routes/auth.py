@@ -5,6 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Header, Request, status
 
 from src.domain.auth import StaffUser
+from src.domain.signup_attribution import sanitize_signup_attribution
 from src.persistence.auth_service import (
     AuthenticatedSession,
     AuthService,
@@ -57,7 +58,13 @@ def signup(
     body: SignupRequest,
     auth_service: Annotated[AuthService, Depends(get_auth_service)],
 ) -> SessionResponse:
-    session = auth_service.signup(body.email, body.password)
+    session = auth_service.signup(
+        body.email,
+        body.password,
+        attribution=sanitize_signup_attribution(
+            None if body.attribution is None else body.attribution.model_dump()
+        ),
+    )
     return _session_response(session)
 
 

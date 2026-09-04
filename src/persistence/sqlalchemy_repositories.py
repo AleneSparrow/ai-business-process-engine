@@ -10,6 +10,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from src.domain.auth import StaffSession, StaffUser
+from src.domain.signup_attribution import SignupAttribution
 from src.domain.models import Lead, ProcessCase, ProcessEvent, utc_now
 from src.domain.commercial import (
     Booking,
@@ -62,6 +63,7 @@ from .sqlalchemy_models import (
     QuoteLineRow,
     QuoteRow,
     StaffSessionRow,
+    StaffSignupAttributionRow,
     StaffSecurityCredentialRow,
     StaffPasswordResetRow,
     StaffLoginChallengeRow,
@@ -559,6 +561,40 @@ class SQLAlchemyStaffUserRepository:
         return StaffUser(
             row.id, row.email, row.normalized_email, row.password_hash,
             row.business_id, _aware(row.created_at), business_ids, row.name,
+        )
+
+
+class SQLAlchemyStaffSignupAttributionRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def add(self, user_id: str, attribution: SignupAttribution, *, recorded_at: datetime) -> None:
+        self.session.add(StaffSignupAttributionRow(
+            user_id=user_id,
+            landing_path=attribution.landing_path,
+            landing_from=attribution.landing_from,
+            utm_source=attribution.utm_source,
+            utm_medium=attribution.utm_medium,
+            utm_campaign=attribution.utm_campaign,
+            referrer_host=attribution.referrer_host,
+            widget_opened=attribution.widget_opened,
+            captured_at=attribution.captured_at,
+            recorded_at=recorded_at,
+        ))
+
+    def get(self, user_id: str) -> SignupAttribution | None:
+        row = self.session.get(StaffSignupAttributionRow, user_id)
+        if row is None:
+            return None
+        return SignupAttribution(
+            landing_path=row.landing_path,
+            landing_from=row.landing_from,
+            utm_source=row.utm_source,
+            utm_medium=row.utm_medium,
+            utm_campaign=row.utm_campaign,
+            referrer_host=row.referrer_host,
+            widget_opened=row.widget_opened,
+            captured_at=_aware(row.captured_at),
         )
 
 

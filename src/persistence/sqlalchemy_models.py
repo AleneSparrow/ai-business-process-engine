@@ -164,6 +164,25 @@ class StaffUserRow(Base):
     )
 
 
+class StaffSignupAttributionRow(Base):
+    """First public landing stored at signup. Not returned on `/me`."""
+
+    __tablename__ = "staff_signup_attribution"
+
+    user_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("staff_users.id", ondelete="CASCADE"), primary_key=True
+    )
+    landing_path: Mapped[str] = mapped_column(String(200), nullable=False)
+    landing_from: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    utm_source: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    utm_medium: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    utm_campaign: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    referrer_host: Mapped[str | None] = mapped_column(String(253), nullable=True)
+    widget_opened: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class BusinessMembershipRow(Base):
     """Which businesses a staff account is linked to (many-to-many). The
     legacy `staff_users.business_id` column above stays as that account's

@@ -142,6 +142,8 @@ interface SettingsState {
   objectionResponses: ObjectionResponseState[];
   complianceDisclaimer: string;
   aiDisclosureText: string;
+  followUpDelaysHours: number[];
+  followUpMaximumAttempts: number;
 }
 
 /** Preset labels map to the exact copy `src/domain/business_dna_builder.py::_TONE_COPY`
@@ -221,6 +223,8 @@ function fromServer(dna: BusinessDNASettings): SettingsState {
     })),
     complianceDisclaimer: dna.compliance_disclaimer ?? "",
     aiDisclosureText: dna.ai_disclosure_text ?? "",
+    followUpDelaysHours: dna.follow_up_delays_hours ?? [],
+    followUpMaximumAttempts: dna.follow_up_maximum_attempts ?? 0,
   };
 }
 
@@ -943,7 +947,17 @@ export default function Settings() {
 
               {tab === "conversation" && (
                 <div>
-                  <p className="text-sm text-[#6B6459] mb-6">Per service, the questions your engine confirms before booking.</p>
+                  <p className="text-sm text-[#6B6459] mb-6">
+                    Per service, the questions your engine confirms before booking. Follow-up is already on for stalled conversations — that is how an inquiry still reaches a booked deal after the first silence.
+                  </p>
+                  <div className="rounded-xl border border-[#E7E5DE] bg-[#F5F1EA] p-4 mb-6">
+                    <div className="text-sm font-medium mb-1">Follow-up schedule</div>
+                    <p className="text-sm text-[#6B6459]">
+                      {state.followUpDelaysHours.length > 0
+                        ? `If a conversation stalls, the engine writes again at ${state.followUpDelaysHours.map((h) => (h === 168 ? "7 days" : `${h}h`)).join(", ")} — up to ${state.followUpMaximumAttempts} attempt${state.followUpMaximumAttempts === 1 ? "" : "s"}.`
+                        : "Follow-up is not configured on this Business DNA. Default new businesses send at 24h, 72h, and 7 days."}
+                    </p>
+                  </div>
                   <Field label="AI disclosure" hint="Shown in the chat header for the whole session. Required in CA/NY when the visitor is talking to AI.">
                     <input
                       className={inputCls}

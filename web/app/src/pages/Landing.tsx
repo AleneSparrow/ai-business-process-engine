@@ -112,7 +112,7 @@ const INDUSTRIES = [
 ];
 
 export default function Landing() {
-  const { navigate, target } = usePrimaryCta();
+  const { navigate, target } = usePrimaryCta("home");
 
   return (
     <MarketingShell

@@ -456,9 +456,23 @@ def _validate_email_shape(value: str) -> str:
     return stripped
 
 
+class SignupAttributionRequest(ApiModel):
+    """Optional first-touch fields from the marketing site. Sanitized server-side."""
+
+    landing_path: Annotated[str | None, Field(max_length=200)] = None
+    landing_from: Annotated[str | None, Field(max_length=64)] = None
+    utm_source: Annotated[str | None, Field(max_length=128)] = None
+    utm_medium: Annotated[str | None, Field(max_length=128)] = None
+    utm_campaign: Annotated[str | None, Field(max_length=128)] = None
+    referrer_host: Annotated[str | None, Field(max_length=253)] = None
+    widget_opened: bool = False
+    captured_at: AwareDatetime | None = None
+
+
 class SignupRequest(ApiModel):
     email: Annotated[str, Field(min_length=3, max_length=320)]
     password: Annotated[str, Field(min_length=12, max_length=128)]
+    attribution: SignupAttributionRequest | None = None
 
     @field_validator("email")
     @classmethod
@@ -647,6 +661,38 @@ def _widget_embed_snippet(business_id: str, *, api_base: str | None) -> str:
     src = f"{api_base}/widget/widget.js" if api_base else "/widget/widget.js"
     base_attr = f' data-api-base="{api_base}"' if api_base else ""
     return f'<script src="{src}" data-business-id="{business_id}"{base_attr}></script>'
+
+
+def _follow_up_delays(config: Mapping[str, Any]) -> tuple[int, ...]:
+    sales = config.get("sales")
+    if not isinstance(sales, Mapping):
+        return ()
+    follow_up = sales.get("follow_up")
+    if not isinstance(follow_up, Mapping):
+        return ()
+    delays = follow_up.get("delays_hours")
+    if not isinstance(delays, (list, tuple)):
+        return ()
+    hours: list[int] = []
+    for item in delays:
+        if isinstance(item, int) and item > 0:
+            hours.append(item)
+        elif isinstance(item, str) and item.isdigit() and int(item) > 0:
+            hours.append(int(item))
+    return tuple(hours)
+
+
+def _follow_up_maximum_attempts(config: Mapping[str, Any]) -> int:
+    sales = config.get("sales")
+    if not isinstance(sales, Mapping):
+        return 0
+    follow_up = sales.get("follow_up")
+    if not isinstance(follow_up, Mapping):
+        return 0
+    value = follow_up.get("maximum_attempts")
+    if isinstance(value, int) and value >= 0:
+        return value
+    return 0
 
 
 class BusinessCreatedResponse(ApiModel):
@@ -1081,6 +1127,8 @@ class BusinessDNASettingsResponse(ApiModel):
     widget_snippet: str = ""
     compliance_disclaimer: str = ""
     ai_disclosure_text: str = ""
+    follow_up_delays_hours: tuple[int, ...] = ()
+    follow_up_maximum_attempts: int = 0
 
     @classmethod
     def from_domain(cls, dna: BusinessDNAVersion, *, api_base: str | None = None) -> "BusinessDNASettingsResponse":
@@ -1129,6 +1177,8 @@ class BusinessDNASettingsResponse(ApiModel):
             widget_snippet=_widget_embed_snippet(dna.business_id, api_base=api_base),
             compliance_disclaimer=str(config.get("communication", {}).get("compliance_disclaimer", "") or ""),
             ai_disclosure_text=str(config.get("chat_widget", {}).get("ai_disclosure_text", "") or ""),
+            follow_up_delays_hours=_follow_up_delays(config),
+            follow_up_maximum_attempts=_follow_up_maximum_attempts(config),
         )
 
 

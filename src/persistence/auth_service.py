@@ -31,6 +31,7 @@ from src.domain.account_security import (
     verify_totp,
 )
 from src.domain.models import utc_now
+from src.domain.signup_attribution import SignupAttribution
 
 from .password_reset_email import DisabledPasswordResetEmailSender, PasswordResetEmailSender
 from .repositories import (
@@ -135,7 +136,12 @@ class AuthService:
         self._secret_box = SecretBox(account_security_encryption_key) if account_security_encryption_key else None
         self._forgot_password_rate_limiter = forgot_password_rate_limiter
 
-    def signup(self, email: str, plain_password: str) -> AuthenticatedSession:
+    def signup(
+        self,
+        email: str,
+        plain_password: str,
+        attribution: SignupAttribution | None = None,
+    ) -> AuthenticatedSession:
         normalized = normalize_email(email)
         with self._unit_of_work_factory() as unit_of_work:
             if unit_of_work.staff_users.get_by_email(normalized) is not None:
@@ -150,6 +156,8 @@ class AuthService:
                 created_at=now,
             )
             unit_of_work.staff_users.add(user)
+            if attribution is not None:
+                unit_of_work.staff_signup_attribution.add(user.user_id, attribution, recorded_at=now)
             session = self._issue_session(unit_of_work, user)
             unit_of_work.commit()
         return session

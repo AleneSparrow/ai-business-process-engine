@@ -84,7 +84,11 @@ export function MarketingShell({
   const [menuOpen, setMenuOpen] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
-  const primaryCtaTarget = user ? (user.business_ids.length > 0 ? "/app" : "/onboarding") : "/signup";
+  const primaryCtaTarget = user
+    ? (user.business_ids.length > 0 ? "/app" : "/onboarding")
+    : variant === "attorneys"
+      ? "/signup?from=lawyers"
+      : "/signup?from=home";
   const ctaLabel = user ? "Go to dashboard" : "Start free trial";
 
   useEffect(() => {
@@ -226,9 +230,13 @@ export function MarketingShell({
   );
 }
 
-export function usePrimaryCta() {
+export function usePrimaryCta(from?: "home" | "lawyers") {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const target = user ? (user.business_ids.length > 0 ? "/app" : "/onboarding") : "/signup";
+  const target = user
+    ? (user.business_ids.length > 0 ? "/app" : "/onboarding")
+    : from === "lawyers"
+      ? "/signup?from=lawyers"
+      : "/signup?from=home";
   return { navigate, user, target };
 }

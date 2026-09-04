@@ -356,6 +356,8 @@ export interface BusinessDNASettings {
   widget_snippet: string;
   compliance_disclaimer: string;
   ai_disclosure_text: string;
+  follow_up_delays_hours: number[];
+  follow_up_maximum_attempts: number;
 }
 
 export interface BusinessDNAServiceUpdate {
@@ -421,11 +423,22 @@ export interface PortalSessionResponse {
   portal_url: string;
 }
 
+export interface SignupAttribution {
+  landing_path: string;
+  landing_from: string | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  referrer_host: string | null;
+  widget_opened: boolean;
+  captured_at: string;
+}
+
 export const api = {
-  signup: (email: string, password: string) =>
+  signup: (email: string, password: string, attribution?: SignupAttribution | null) =>
     request<SessionResponse>("/api/v1/auth/signup", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify(attribution ? { email, password, attribution } : { email, password }),
     }),
 
   login: (email: string, password: string) =>
