@@ -181,6 +181,12 @@ export function describeError(err: unknown): string {
         return "That knowledge card could not be found.";
       case "sales_knowledge_already_reviewed":
         return "This knowledge card has already been reviewed.";
+      case "sales_knowledge_version_conflict":
+        return "One or more knowledge card versions already exist.";
+      case "sales_shadow_not_found":
+        return "That shadow comparison could not be found.";
+      case "sales_shadow_already_evaluated":
+        return "This shadow comparison has already been evaluated.";
       case "network_error":
         return err.message;
       default:

@@ -8,6 +8,7 @@ from src.domain.auth import StaffUser
 from src.domain.models import utc_now
 from src.domain.sales import SalesKnowledgeStatus, SalesTurnAnalysis
 from src.engine.sales_policy import SalesPolicyEngine
+from src.persistence.sales_knowledge_import_service import SalesKnowledgeImportService
 
 from ..dependencies import (
     BusinessIdPath,
@@ -15,20 +16,64 @@ from ..dependencies import (
     get_unit_of_work_factory,
     require_own_business,
 )
-from ..errors import ConflictError, ResourceNotFoundError
+from ..errors import ConflictError, RequestDataError, ResourceNotFoundError
 from ..schemas import (
     SalesCaseContextResponse,
     SalesKnowledgeCardListResponse,
     SalesKnowledgeCardSchema,
+    SalesKnowledgeImportRequest,
+    SalesKnowledgeImportResponse,
     SalesObjectionRecordSchema,
     SalesPlaybookListResponse,
     SalesPlaybookSchema,
     SalesTurnListResponse,
     SalesTurnSchema,
+    SalesShadowEvaluationRequest,
+    SalesShadowResultListResponse,
+    SalesShadowResultSchema,
 )
 
 
 router = APIRouter(prefix="/api/v1/businesses/{business_id}/sales", tags=["sales"])
+
+
+@router.post("/knowledge-cards/import/validate", response_model=SalesKnowledgeImportResponse)
+def validate_knowledge_import(
+    business_id: BusinessIdPath,
+    body: SalesKnowledgeImportRequest,
+    user: Annotated[StaffUser, Depends(require_own_business)],
+    unit_of_work_factory: Annotated[UnitOfWorkFactory, Depends(get_unit_of_work_factory)],
+) -> SalesKnowledgeImportResponse:
+    try:
+        result = SalesKnowledgeImportService(unit_of_work_factory).validate(
+            business_id, tuple(card.to_service_item() for card in body.cards)
+        )
+    except ValueError as exc:
+        raise RequestDataError(str(exc)) from exc
+    return SalesKnowledgeImportResponse.from_result(result)
+
+
+@router.post("/knowledge-cards/import", response_model=SalesKnowledgeImportResponse)
+def import_knowledge_candidates(
+    business_id: BusinessIdPath,
+    body: SalesKnowledgeImportRequest,
+    user: Annotated[StaffUser, Depends(require_own_business)],
+    unit_of_work_factory: Annotated[UnitOfWorkFactory, Depends(get_unit_of_work_factory)],
+) -> SalesKnowledgeImportResponse:
+    try:
+        result = SalesKnowledgeImportService(unit_of_work_factory).import_candidates(
+            business_id,
+            tuple(card.to_service_item() for card in body.cards),
+            now=utc_now(),
+        )
+    except ValueError as exc:
+        raise RequestDataError(str(exc)) from exc
+    if not result.valid:
+        raise ConflictError(
+            "sales_knowledge_version_conflict",
+            "One or more knowledge card versions already exist",
+        )
+    return SalesKnowledgeImportResponse.from_result(result)
 
 
 @router.get("/playbook", response_model=SalesPlaybookSchema)
@@ -187,3 +232,47 @@ def list_case_sales_turns(
             raise ResourceNotFoundError("case_not_found", "Case was not found")
         turns = unit_of_work.sales_turns.list_for_case(business_id, case_id)
     return SalesTurnListResponse(turns=tuple(SalesTurnSchema.from_domain(value) for value in turns))
+
+
+@router.get("/cases/{case_id}/shadow-results", response_model=SalesShadowResultListResponse)
+def list_case_shadow_results(
+    business_id: BusinessIdPath,
+    case_id: str,
+    user: Annotated[StaffUser, Depends(require_own_business)],
+    unit_of_work_factory: Annotated[UnitOfWorkFactory, Depends(get_unit_of_work_factory)],
+) -> SalesShadowResultListResponse:
+    with unit_of_work_factory() as unit_of_work:
+        if unit_of_work.cases.get(business_id, case_id) is None:
+            raise ResourceNotFoundError("case_not_found", "Case was not found")
+        values = unit_of_work.sales_shadow_results.list_for_case(business_id, case_id)
+    return SalesShadowResultListResponse(
+        results=tuple(SalesShadowResultSchema.from_domain(value) for value in values)
+    )
+
+
+@router.post(
+    "/cases/{case_id}/shadow-results/{shadow_id}/evaluate",
+    response_model=SalesShadowResultSchema,
+)
+def evaluate_shadow_result(
+    business_id: BusinessIdPath,
+    case_id: str,
+    shadow_id: str,
+    body: SalesShadowEvaluationRequest,
+    user: Annotated[StaffUser, Depends(require_own_business)],
+    unit_of_work_factory: Annotated[UnitOfWorkFactory, Depends(get_unit_of_work_factory)],
+) -> SalesShadowResultSchema:
+    with unit_of_work_factory() as unit_of_work:
+        existing = unit_of_work.sales_shadow_results.get(business_id, case_id, shadow_id)
+        if existing is None:
+            raise ResourceNotFoundError("sales_shadow_not_found", "Sales shadow result was not found")
+        updated = unit_of_work.sales_shadow_results.evaluate(
+            business_id, case_id, shadow_id, evaluation=body.evaluation,
+            evaluated_by=user.user_id, evaluated_at=utc_now(),
+        )
+        if updated is None:
+            raise ConflictError(
+                "sales_shadow_already_evaluated", "Sales shadow result can only be evaluated once"
+            )
+        unit_of_work.commit()
+    return SalesShadowResultSchema.from_domain(updated)

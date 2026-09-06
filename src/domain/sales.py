@@ -88,6 +88,29 @@ class SalesPlaybookStatus(StrEnum):
     ARCHIVED = "ARCHIVED"
 
 
+class SalesShadowStatus(StrEnum):
+    PENDING = "PENDING"
+    VALID = "VALID"
+    BLOCKED = "BLOCKED"
+    PROVIDER_ERROR = "PROVIDER_ERROR"
+    VALIDATOR_ERROR = "VALIDATOR_ERROR"
+    EVALUATED = "EVALUATED"
+
+
+class SalesShadowEvaluation(StrEnum):
+    APPROVED = "APPROVED"
+    UNSAFE = "UNSAFE"
+    IRRELEVANT = "IRRELEVANT"
+    WRONG_TONE = "WRONG_TONE"
+
+
+class SalesShadowJobStatus(StrEnum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
 @dataclass(frozen=True, slots=True)
 class CustomerEvidence:
     """An exact customer excerpt supporting one structured sales signal."""
@@ -371,6 +394,98 @@ class SalesTurn:
         object.__setattr__(self, "customer_evidence", evidence)
         object.__setattr__(self, "analysis", _freeze(self.analysis))
         object.__setattr__(self, "validation", _freeze(self.validation))
+
+
+@dataclass(frozen=True, slots=True)
+class SalesShadowResult:
+    shadow_id: str
+    business_id: str
+    case_id: str
+    conversation_id: str
+    source_message_id: str
+    approved_move: SalesMove
+    status: SalesShadowStatus
+    proposed_response_text: str | None
+    delivered_response_text: str | None
+    knowledge_ids: tuple[str, ...]
+    business_fact_ids: tuple[str, ...]
+    customer_evidence_ids: tuple[str, ...]
+    violations: tuple[str, ...]
+    prompt_version: str | None
+    model_name: str | None
+    created_at: datetime
+    evaluation: SalesShadowEvaluation | None = None
+    evaluated_by: str | None = None
+    evaluated_at: datetime | None = None
+
+    def __post_init__(self) -> None:
+        for value, name in (
+            (self.shadow_id, "shadow_id"), (self.business_id, "business_id"),
+            (self.case_id, "case_id"), (self.conversation_id, "conversation_id"),
+            (self.source_message_id, "source_message_id"),
+        ):
+            _require_text(value, name)
+        if not isinstance(self.approved_move, SalesMove):
+            raise TypeError("approved_move must be a SalesMove")
+        if not isinstance(self.status, SalesShadowStatus):
+            raise TypeError("status must be a SalesShadowStatus")
+        for name in ("knowledge_ids", "business_fact_ids", "customer_evidence_ids", "violations"):
+            values = tuple(getattr(self, name))
+            if any(not isinstance(value, str) or not value.strip() for value in values):
+                raise ValueError(f"{name} must contain non-empty strings")
+            object.__setattr__(self, name, values)
+        _require_aware(self.created_at, "created_at")
+        evaluated = self.status is SalesShadowStatus.EVALUATED
+        if evaluated != (self.evaluation is not None):
+            raise ValueError("EVALUATED status and evaluation must be set together")
+        if evaluated:
+            _require_text(self.evaluated_by, "evaluated_by")
+            if self.evaluated_at is None:
+                raise ValueError("evaluated_at is required for evaluated shadow results")
+            _require_aware(self.evaluated_at, "evaluated_at")
+        elif self.evaluated_by is not None or self.evaluated_at is not None:
+            raise ValueError("evaluation metadata requires EVALUATED status")
+
+
+@dataclass(frozen=True, slots=True)
+class SalesShadowJob:
+    job_id: str
+    business_id: str
+    case_id: str
+    conversation_id: str
+    source_message_id: str
+    response_message_id: str
+    status: SalesShadowJobStatus
+    retry_count: int
+    max_retries: int
+    next_attempt_at: datetime
+    created_at: datetime
+    updated_at: datetime
+    lease_owner: str | None = None
+    lease_expires_at: datetime | None = None
+    last_error_category: str | None = None
+
+    def __post_init__(self) -> None:
+        for value, name in (
+            (self.job_id, "job_id"), (self.business_id, "business_id"),
+            (self.case_id, "case_id"), (self.conversation_id, "conversation_id"),
+            (self.source_message_id, "source_message_id"),
+            (self.response_message_id, "response_message_id"),
+        ):
+            _require_text(value, name)
+        if not isinstance(self.status, SalesShadowJobStatus):
+            raise TypeError("status must be a SalesShadowJobStatus")
+        if self.retry_count < 0 or self.max_retries < 1 or self.retry_count > self.max_retries:
+            raise ValueError("invalid shadow job retry counters")
+        for value, name in (
+            (self.next_attempt_at, "next_attempt_at"), (self.created_at, "created_at"),
+            (self.updated_at, "updated_at"),
+        ):
+            _require_aware(value, name)
+        if self.lease_expires_at is not None:
+            _require_aware(self.lease_expires_at, "lease_expires_at")
+        if (self.lease_owner is None) != (self.lease_expires_at is None):
+            raise ValueError("lease owner and expiry must be set together")
 
 
 @dataclass(frozen=True, slots=True)

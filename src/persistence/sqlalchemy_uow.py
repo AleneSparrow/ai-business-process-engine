@@ -24,6 +24,8 @@ from .sqlalchemy_repositories import (
     SQLAlchemySalesObjectionRepository,
     SQLAlchemySalesPlaybookRepository,
     SQLAlchemySalesProfileRepository,
+    SQLAlchemySalesShadowJobRepository,
+    SQLAlchemySalesShadowRepository,
     SQLAlchemySalesTurnRepository,
     SQLAlchemySmsConnectionRepository,
     SQLAlchemyStaffSessionRepository,
@@ -81,6 +83,8 @@ class SQLAlchemyUnitOfWork:
         self.follow_up_deliveries = SQLAlchemyFollowUpDeliveryRepository(self.session)
         self.sales_profiles = SQLAlchemySalesProfileRepository(self.session)
         self.sales_turns = SQLAlchemySalesTurnRepository(self.session)
+        self.sales_shadow_results = SQLAlchemySalesShadowRepository(self.session)
+        self.sales_shadow_jobs = SQLAlchemySalesShadowJobRepository(self.session)
         self.sales_knowledge = SQLAlchemySalesKnowledgeRepository(self.session)
         self.sales_playbooks = SQLAlchemySalesPlaybookRepository(self.session)
         self.sales_objections = SQLAlchemySalesObjectionRepository(self.session)

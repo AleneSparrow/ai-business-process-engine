@@ -553,6 +553,104 @@ class SalesTurnRow(Base):
     )
 
 
+class SalesShadowResultRow(Base):
+    __tablename__ = "sales_shadow_results"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    business_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    case_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    conversation_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_message_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    approved_move: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    proposed_response_text: Mapped[str | None] = mapped_column(Text)
+    delivered_response_text: Mapped[str | None] = mapped_column(Text)
+    knowledge_ids: Mapped[list[str]] = mapped_column(JSON_VALUE, nullable=False, default=list)
+    business_fact_ids: Mapped[list[str]] = mapped_column(JSON_VALUE, nullable=False, default=list)
+    customer_evidence_ids: Mapped[list[str]] = mapped_column(JSON_VALUE, nullable=False, default=list)
+    violations: Mapped[list[str]] = mapped_column(JSON_VALUE, nullable=False, default=list)
+    prompt_version: Mapped[str | None] = mapped_column(String(64))
+    model_name: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    evaluation: Mapped[str | None] = mapped_column(String(32))
+    evaluated_by: Mapped[str | None] = mapped_column(String(128))
+    evaluated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["business_id", "case_id"], ["process_cases.business_id", "process_cases.id"],
+            ondelete="CASCADE", name="fk_sales_shadow_tenant_case",
+        ),
+        ForeignKeyConstraint(
+            ["business_id", "conversation_id"], ["conversations.business_id", "conversations.id"],
+            ondelete="CASCADE", name="fk_sales_shadow_tenant_conversation",
+        ),
+        UniqueConstraint(
+            "business_id", "case_id", "source_message_id", name="uq_sales_shadow_source_message",
+        ),
+        CheckConstraint(
+            "status IN ('PENDING','VALID','BLOCKED','PROVIDER_ERROR','VALIDATOR_ERROR','EVALUATED')",
+            name="ck_sales_shadow_known_status",
+        ),
+        CheckConstraint(
+            "evaluation IS NULL OR evaluation IN ('APPROVED','UNSAFE','IRRELEVANT','WRONG_TONE')",
+            name="ck_sales_shadow_known_evaluation",
+        ),
+        CheckConstraint(
+            "(status = 'EVALUATED' AND evaluation IS NOT NULL "
+            "AND evaluated_by IS NOT NULL AND evaluated_at IS NOT NULL) "
+            "OR (status <> 'EVALUATED' AND evaluation IS NULL "
+            "AND evaluated_by IS NULL AND evaluated_at IS NULL)",
+            name="ck_sales_shadow_evaluation_consistency",
+        ),
+        Index("ix_sales_shadow_business_case_created", "business_id", "case_id", "created_at"),
+    )
+
+
+class SalesShadowJobRow(Base):
+    __tablename__ = "sales_shadow_jobs"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    business_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    case_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    conversation_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    source_message_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    response_message_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    retry_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    max_retries: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    lease_owner: Mapped[str | None] = mapped_column(String(128))
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_category: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        ForeignKeyConstraint(["business_id", "case_id"],
+            ["process_cases.business_id", "process_cases.id"], ondelete="CASCADE",
+            name="fk_sales_shadow_jobs_tenant_case"),
+        ForeignKeyConstraint(["business_id", "conversation_id"],
+            ["conversations.business_id", "conversations.id"], ondelete="CASCADE",
+            name="fk_sales_shadow_jobs_tenant_conversation"),
+        ForeignKeyConstraint(["business_id", "conversation_id", "source_message_id"],
+            ["conversation_messages.business_id", "conversation_messages.conversation_id", "conversation_messages.id"],
+            ondelete="CASCADE", name="fk_sales_shadow_jobs_tenant_source_message"),
+        ForeignKeyConstraint(["business_id", "conversation_id", "response_message_id"],
+            ["conversation_messages.business_id", "conversation_messages.conversation_id", "conversation_messages.id"],
+            ondelete="CASCADE", name="fk_sales_shadow_jobs_tenant_response_message"),
+        UniqueConstraint("business_id", "case_id", "source_message_id",
+            name="uq_sales_shadow_jobs_source_message"),
+        CheckConstraint("status IN ('PENDING','RUNNING','COMPLETED','FAILED')",
+            name="ck_sales_shadow_jobs_known_status"),
+        CheckConstraint("retry_count >= 0 AND max_retries > 0 AND retry_count <= max_retries",
+            name="ck_sales_shadow_jobs_retry_counts"),
+        CheckConstraint("(lease_owner IS NULL) = (lease_expires_at IS NULL)",
+            name="ck_sales_shadow_jobs_lease_complete"),
+        Index("ix_sales_shadow_jobs_due", "status", "next_attempt_at"),
+    )
+
+
 class ProcessEventRow(Base):
     __tablename__ = "process_events"
 
@@ -751,6 +849,10 @@ class ConversationMessageRow(Base):
             "conversation_id",
             "external_message_id",
             name="uq_conversation_messages_external_id",
+        ),
+        UniqueConstraint(
+            "business_id", "conversation_id", "id",
+            name="uq_conversation_messages_tenant_id",
         ),
         CheckConstraint("sequence_number > 0", name="ck_conversation_messages_sequence_positive"),
         CheckConstraint(
