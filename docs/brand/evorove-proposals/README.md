@@ -2,52 +2,76 @@
 
 Предложения по имени **Evorove** и новому визуальному языку. Это макеты, не внедрение в продукт.
 
-Имя читается как *EH-voh-rove*: evolve + rove. Цикл идёт сам; путь не круг в покое, а траектория, которая продолжает движение.
+**Картинки лежат здесь:** [`assets/`](./assets/)
+
+GitHub не рисует `index.html` как сайт — поэтому превью ниже вшиты в этот README. Откройте этот файл, не HTML.
+
+Имя читается как *EH-voh-rove*: evolve + rove. Цикл идёт сам; путь не круг в покое, а траектория.
 
 Референсы: Bondstone, T-BL, OCEANIX, NestEgg, OZY, SPYLT, Lincoln Zephyr HMI, NGHEE, Wink, Luna Health.
 
+---
+
 ## A — Stone
 
-Bondstone × T-BL × NestEgg.
+Bondstone × T-BL × NestEgg. Известняк, чернила, медь. Антиква. Читается как практика, не как стартап.
 
-Известняк, чернила, медь. Заголовки — антиква. Много воздуха, тонкие линии, камень как материал. Читается как практика, а не как стартап.
+![Stone identity](assets/evorove_a_stone_identity.png)
 
-Лучше всего для волны 1 (соло-юристы, советники): светлый режим уже был правилом брендбука Flywheel.
+![Stone landing](assets/evorove_a_stone_landing.png)
+
+![Stone dashboard](assets/evorove_a_stone_dashboard.png)
+
+Живой макет: [a-stone.html](./a-stone.html)
+
+---
 
 ## B — Command
 
-OCEANIX × Lincoln HMI × OZY.
+OCEANIX × Lincoln HMI × OZY. Тёмный void, бирюзовый прибор, медная нить. Кабинет как контур разговоров.
 
-Тёмный void, бирюзовый прибор, медная нить. Кабинет как командный контур разговоров: кейсы, радар сделки, audit log. Не флот и не «чатбот-админка».
+![Command identity](assets/evorove_b_command_identity.png)
 
-Лучше всего передаёт УТП «движок, а не ассистент». Риск: консервативному покупателю может показаться слишком «военным».
+![Command landing](assets/evorove_b_command_landing.png)
+
+![Command dashboard](assets/evorove_b_command_dashboard.png)
+
+Живой макет: [b-command.html](./b-command.html)
+
+---
 
 ## C — Lumen
 
-Luna Health × NestEgg, без хаоса Wink.
+Luna Health × NestEgg. Фарфор, mist, индиго, лунный фиолет. Самый обычный SaaS.
 
-Фарфор, туман, индиго, лунный фиолет, шалфей. Большие скругления, спокойные KPI, мягкий crescent-знак.
+![Lumen identity](assets/evorove_c_lumen_identity.png)
 
-Самый «нормальный» SaaS 2026. Легко внедрять, слабее запоминается.
+![Lumen landing](assets/evorove_c_lumen_landing.png)
+
+![Lumen dashboard](assets/evorove_c_lumen_dashboard.png)
+
+Живой макет: [c-lumen.html](./c-lumen.html)
+
+---
 
 ## D — Pulse
 
-SPYLT × NGHEE × OZY 3D.
+SPYLT × NGHEE × OZY 3D. Крем, сжатый гротеск, коралловый тор. Самый громкий, самый рискованный для волны 1.
 
-Крем, гигантский сжатый гротеск, коралловый тор, лаймовый акцент. Бренд как объект.
+![Pulse identity](assets/evorove_d_pulse_identity.png)
 
-Самое громкое имя на рынке. Хуже всего стыкуется с юридической волной входа.
+![Pulse landing](assets/evorove_d_pulse_landing.png)
+
+![Pulse dashboard](assets/evorove_d_pulse_dashboard.png)
+
+Живой макет: [d-pulse.html](./d-pulse.html)
+
+---
 
 ## Что внедрять, если выбрать одно
 
-Для запуска в США на профессиональных вертикалях: **Stone на маркетинг, Command на кабинет** — тот же приём «свет снаружи / графит внутри», который уже был в брендбуке.
+Для запуска в США на профессиональных вертикалях: **Stone на маркетинг, Command на кабинет**.
 
-Если нужен один язык на все поверхности: **Stone**.
+Если один язык на все экраны: **Stone**.
 
-Если цель — отличиться от bronze Flywheel любой ценой: **Command**.
-
-Lumen и Pulse оставлять как запасные, пока не выбран основной.
-
-## Файлы
-
-Откройте `index.html` в браузере. Живые CSS-макеты лендинга: `a-stone.html`, `b-command.html`, `c-lumen.html`, `d-pulse.html`.
+Если отличиться от bronze Flywheel: **Command**.
