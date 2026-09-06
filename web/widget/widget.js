@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const script = document.currentScript;
+  const script = document.currentScript || document.querySelector("script[src*='widget.js'][data-business-id]");
   if (!script) return;
   const businessId = script.dataset.businessId;
   if (!businessId) {
@@ -399,6 +399,8 @@
       return null;
     }
   }
+
+  async function restore() {
     if (!conversationToken) {
       history.replaceChildren();
       if (config) {

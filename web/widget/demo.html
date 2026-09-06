@@ -3,19 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AI Business Process Engine chat demo</title>
+  <title>Evorove chat widget demo</title>
 </head>
 <body>
   <main>
     <h1>Website chat widget demo</h1>
     <p>Open the chat launcher and ask for an AC diagnostic visit.</p>
   </main>
-  <script>
-    const params = new URLSearchParams(window.location.search);
-    const widget = document.createElement("script");
-    widget.src = "/widget/widget.js";
-    widget.setAttribute("data-business-id", params.get("business_id") || "acme-home-services");
-    document.body.append(widget);
-  </script>
+  <script src="/widget/widget.js" data-business-id="acme-home-services"></script>
 </body>
 </html>
