@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EVOROVE — Pulse</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --cream:#f7f1e4; --ink:#0b0b0b; --coral:#ff5a36; --lime:#c6ff00; --clay:#9a8f83; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--cream); color: var(--ink); font-family: Inter, sans-serif; }
+  a { color: inherit; text-decoration: none; }
+  .nav { max-width: 1180px; margin: 0 auto; padding: 16px 28px; display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-family: "Bebas Neue", sans-serif; font-size: 34px; letter-spacing: .04em; }
+  .links { display: flex; gap: 18px; font-size: 11px; letter-spacing: .16em; font-weight: 600; color: #444; }
+  .btns { display: flex; gap: 8px; }
+  .black { background: var(--ink); color: #fff; border-radius: 999px; padding: 10px 16px; font-size: 12px; font-weight: 700; letter-spacing: .08em; }
+  .lime { border: 1.5px solid var(--lime); color: #222; border-radius: 999px; padding: 10px 16px; font-size: 12px; font-weight: 700; background: var(--lime); }
+  .hero { max-width: 1180px; margin: 0 auto; padding: 24px 28px 12px; position: relative; overflow: hidden; min-height: 420px; }
+  h1 { font-family: "Bebas Neue", sans-serif; font-size: 128px; line-height: .82; margin: 0; letter-spacing: -.01em; max-width: 10ch; }
+  .badge { display: inline-block; background: var(--lime); color: #111; font-weight: 800; font-size: 12px; letter-spacing: .14em; padding: 6px 10px; transform: rotate(-3deg); margin: 18px 0; }
+  .sub { max-width: 420px; font-size: 16px; line-height: 1.5; }
+  .torus { position: absolute; right: 40px; top: 40px; width: 280px; height: 180px; }
+  .torus span { display: block; width: 220px; height: 220px; border: 42px solid var(--coral); border-radius: 50%; transform: rotate(-18deg); filter: drop-shadow(18px 0 0 rgba(255,90,54,.25)); }
+  .blocks { max-width: 1180px; margin: 0 auto 56px; padding: 0 28px; display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+  .blocks div { padding: 22px; min-height: 140px; }
+  .b1 { background: var(--ink); color: #fff; }
+  .b2 { background: var(--coral); color: #fff; }
+  .b3 { background: var(--lime); }
+  .n { font-family: "Bebas Neue", sans-serif; font-size: 42px; margin-bottom: 8px; }
+  @media (max-width: 900px) { h1 { font-size: 72px; } .blocks { grid-template-columns: 1fr; } .torus { display: none; } }
+</style>
+</head>
+<body>
+  <div class="nav">
+    <div class="logo">EVOROVE</div>
+    <div class="links"><span>PRODUCT</span><span>CYCLE</span><span>TRUST</span></div>
+    <div class="btns"><span class="black">BOOK A SLOT</span><span class="lime">SEE THE ENGINE</span></div>
+  </div>
+  <section class="hero">
+    <div class="torus"><span></span></div>
+    <h1>EVERY LEAD.<br>NO DEAD AIR.</h1>
+    <div class="badge">ON YOUR SCRIPT</div>
+    <p class="sub">Answers the inquiry. Qualifies against your rules. Books the meeting. AI only rewrites what you already approved.</p>
+  </section>
+  <div class="blocks">
+    <div class="b1"><div class="n">01 ANSWER</div>Same-minute reply on web chat or text.</div>
+    <div class="b2"><div class="n">02 QUALIFY</div>Your questions. Same path every time.</div>
+    <div class="b3"><div class="n">03 BOOK</div>A slot on the calendar, or a handoff to you.</div>
+  </div>
+</body>
+</html>

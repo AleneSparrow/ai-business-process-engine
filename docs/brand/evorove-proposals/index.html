@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Evorove — four directions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#161412; --paper:#f4efe6; --mute:#6d675c; --line:#ddd4c6; --copper:#8c5a3c; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--paper); color: var(--ink); font-family: "Instrument Sans", sans-serif; }
+  a { color: inherit; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 32px; }
+  header { padding: 28px 0 8px; display: flex; justify-content: space-between; align-items: baseline; gap: 24px; }
+  .mark { font-family: Fraunces, serif; font-size: 28px; }
+  nav { display: flex; gap: 18px; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+  nav a { text-decoration: none; }
+  .hero { padding: 48px 0 28px; max-width: 720px; }
+  .hero h1 { font-family: Fraunces, serif; font-size: 52px; line-height: 1.05; font-weight: 500; margin: 0 0 16px; }
+  .hero p { font-size: 17px; line-height: 1.55; color: #3f3a33; margin: 0; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; padding: 12px 0 64px; }
+  .card { background: #fff; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; text-decoration: none; display: block; color: inherit; }
+  .card img { width: 100%; height: 220px; object-fit: cover; display: block; background: #e8e1d4; }
+  .card .body { padding: 18px 18px 20px; }
+  .kicker { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--copper); font-weight: 600; margin-bottom: 6px; }
+  .card h2 { font-family: Fraunces, serif; font-size: 26px; margin: 0 0 8px; font-weight: 500; }
+  .card p { margin: 0; color: var(--mute); font-size: 14px; line-height: 1.5; }
+  .section { padding: 8px 0 72px; }
+  .section h3 { font-family: Fraunces, serif; font-size: 32px; margin: 0 0 8px; font-weight: 500; }
+  .meta { color: var(--mute); margin: 0 0 18px; }
+  .shots { display: grid; gap: 14px; }
+  .shots img { width: 100%; border-radius: 12px; border: 1px solid var(--line); display: block; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .live { display: inline-block; margin-top: 14px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; border-bottom: 1px solid var(--ink); text-decoration: none; padding-bottom: 2px; }
+  footer { border-top: 1px solid var(--line); padding: 28px 0 48px; color: var(--mute); font-size: 13px; }
+  @media (max-width: 800px) { .grid, .row2 { grid-template-columns: 1fr; } .hero h1 { font-size: 36px; } }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div class="mark">Evorove</div>
+      <nav>
+        <a href="#a">Stone</a>
+        <a href="#b">Command</a>
+        <a href="#c">Lumen</a>
+        <a href="#d">Pulse</a>
+      </nav>
+    </header>
+    <section class="hero">
+      <h1>Four ways the name can look.</h1>
+      <p>Same product: inbound inquiry to booked deal, on a script you approve. Four visual systems distilled from the Behance set — architecture, command, health SaaS, and kinetic 3D.</p>
+    </section>
+    <div class="grid">
+      <a class="card" href="#a">
+        <img src="assets/evorove_a_stone_identity.png" alt="Stone identity">
+        <div class="body">
+          <div class="kicker">A · Bondstone / T-BL / NestEgg</div>
+          <h2>Stone</h2>
+          <p>Limestone, ink, copper. Editorial serif. Reads as an established practice.</p>
+        </div>
+      </a>
+      <a class="card" href="#b">
+        <img src="assets/evorove_b_command_identity.png" alt="Command identity">
+        <div class="body">
+          <div class="kicker">B · OCEANIX / Zephyr HMI / OZY</div>
+          <h2>Command</h2>
+          <p>Void, teal instruments, copper filament. The engine as an operations console.</p>
+        </div>
+      </a>
+      <a class="card" href="#c">
+        <img src="assets/evorove_c_lumen_identity.png" alt="Lumen identity">
+        <div class="body">
+          <div class="kicker">C · Luna Health / NestEgg</div>
+          <h2>Lumen</h2>
+          <p>Porcelain, mist, moon glow. Soft SaaS. Easiest to ship, least sharp.</p>
+        </div>
+      </a>
+      <a class="card" href="#d">
+        <img src="assets/evorove_d_pulse_identity.png" alt="Pulse identity">
+        <div class="body">
+          <div class="kicker">D · SPYLT / NGHEE / OZY</div>
+          <h2>Pulse</h2>
+          <p>Cream, compressed type, coral torus. Loud brand object. Risky for Wave 1.</p>
+        </div>
+      </a>
+    </div>
+
+    <section class="section" id="a">
+      <h3>A — Stone</h3>
+      <p class="meta">Live layout: <a href="a-stone.html">a-stone.html</a></p>
+      <div class="shots">
+        <img src="assets/evorove_a_stone_identity.png" alt="Stone identity board">
+        <div class="row2">
+          <img src="assets/evorove_a_stone_landing.png" alt="Stone landing">
+          <img src="assets/evorove_a_stone_dashboard.png" alt="Stone dashboard">
+        </div>
+      </div>
+      <a class="live" href="a-stone.html">Open live landing mock →</a>
+    </section>
+
+    <section class="section" id="b">
+      <h3>B — Command</h3>
+      <p class="meta">Live layout: <a href="b-command.html">b-command.html</a></p>
+      <div class="shots">
+        <img src="assets/evorove_b_command_identity.png" alt="Command identity board">
+        <div class="row2">
+          <img src="assets/evorove_b_command_landing.png" alt="Command landing">
+          <img src="assets/evorove_b_command_dashboard.png" alt="Command dashboard">
+        </div>
+      </div>
+      <a class="live" href="b-command.html">Open live landing mock →</a>
+    </section>
+
+    <section class="section" id="c">
+      <h3>C — Lumen</h3>
+      <p class="meta">Live layout: <a href="c-lumen.html">c-lumen.html</a></p>
+      <div class="shots">
+        <img src="assets/evorove_c_lumen_identity.png" alt="Lumen identity board">
+        <div class="row2">
+          <img src="assets/evorove_c_lumen_landing.png" alt="Lumen landing">
+          <img src="assets/evorove_c_lumen_dashboard.png" alt="Lumen dashboard">
+        </div>
+      </div>
+      <a class="live" href="c-lumen.html">Open live landing mock →</a>
+    </section>
+
+    <section class="section" id="d">
+      <h3>D — Pulse</h3>
+      <p class="meta">Live layout: <a href="d-pulse.html">d-pulse.html</a></p>
+      <div class="shots">
+        <img src="assets/evorove_d_pulse_identity.png" alt="Pulse identity board">
+        <div class="row2">
+          <img src="assets/evorove_d_pulse_landing.png" alt="Pulse landing">
+          <img src="assets/evorove_d_pulse_dashboard.png" alt="Pulse dashboard">
+        </div>
+      </div>
+      <a class="live" href="d-pulse.html">Open live landing mock →</a>
+    </section>
+
+    <footer>Evorove design options · not yet applied to the product · 2026</footer>
+  </div>
+</body>
+</html>
