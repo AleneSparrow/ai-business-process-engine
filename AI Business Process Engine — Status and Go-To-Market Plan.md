@@ -1,6 +1,6 @@
 # AI Business Process Engine — status and go\-to\-market plan
 
-*Prepared August 12, 2026, based on a direct inspection of the `ai-business-process-engine` repository (commit `daefb7c`, plus uncommitted Milestone 7 work) and the goal of first revenue within one month and $50,000/month profit within six months.*
+*Prepared August 12, 2026, based on a direct inspection of the `AleneSparrow/Evorove` repository (then `ai-business-process-engine`, commit `daefb7c`, plus uncommitted Milestone 7 work) and the goal of first revenue within one month and $50,000/month profit within six months.*
 
 > **Historical snapshot — superseded.** This document describes the repository as it existed in August 2026 and is retained for planning history. Authentication, self-serve onboarding, the staff dashboard, Lemon Squeezy billing, production deployment, and optional Twilio SMS delivery have since been implemented. Statements below that say those capabilities are absent must not be used as current product status.
 

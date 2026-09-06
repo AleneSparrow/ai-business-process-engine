@@ -1,6 +1,6 @@
 # Flywheel: The Building Story in 50 Posts
 
-This series is based on the Git history and documentation in the `AleneSparrow/ai-business-process-engine` repository from August 11 through September 4, 2026. Each number is a standalone post. The LinkedIn version tells the fuller story; the X/Twitter version delivers the same idea in a shorter format.
+This series is based on the Git history and documentation in the `AleneSparrow/Evorove` repository (then named `ai-business-process-engine`) from August 11 through September 4, 2026. Each number is a standalone post. The LinkedIn version tells the fuller story; the X/Twitter version delivers the same idea in a shorter format.
 
 Recommended cadence: publish in order, three to five times per week. Use no more than three hashtags on LinkedIn and none on X. Use real diagrams, product screens, tests, and anonymized conversation excerpts as visuals.
 

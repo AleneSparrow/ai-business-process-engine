@@ -1,6 +1,6 @@
-# AI Business Process Engine
+# Evorove
 
-AI Business Process Engine is the foundation of a configurable, production-oriented SaaS product for automating customer-facing processes at small and medium-sized businesses. It captures the reusable shape of lead-to-cash—qualification, booking or quoting, follow-up, payment, service, reviews, and reactivation—while each tenant supplies its own rules through **Business DNA**.
+Evorove (repository `AleneSparrow/Evorove`) is a configurable, production-oriented SaaS product for automating customer-facing processes at small and medium-sized businesses. It captures the reusable shape of lead-to-cash—qualification, booking or quoting, follow-up, payment, service, reviews, and reactivation—while each tenant supplies its own rules through **Business DNA**.
 
 The website chat is a controlled workflow surface, not an unconstrained chatbot. A provider-backed AI layer extracts intent and drafts customer wording, while process state, qualification, permissions, side effects, escalation, and audit history remain explicit and deterministic. AI output is validated and cannot bypass workflow or risk controls.
 

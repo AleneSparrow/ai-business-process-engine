@@ -32,7 +32,7 @@ launch, only mentioned in case you already have a Render account.)
 
 1. Sign up at railway.com (GitHub login is the fastest option) and create a
    **New Project → Deploy from GitHub repo**, pointing at
-   `AleneSparrow/ai-business-process-engine`. Railway will detect the
+   `AleneSparrow/Evorove`. Railway will detect the
    `Dockerfile` automatically.
 2. In the same project, click **+ New → Database → PostgreSQL**. Railway
    provisions it and exposes a `DATABASE_URL`-shaped set of variables
