@@ -41,8 +41,8 @@ const STATUS_COPY: Record<BillingStatus["subscription_status"], { label: string;
   on_trial: { label: "Free trial", color: "#D97B29", bg: "#FBF0E2" },
   active: { label: "Active", color: "#1E7B52", bg: "#E9F5EF" },
   paused: { label: "Paused", color: "#6B6459", bg: "#F1F1EF" },
-  past_due: { label: "Payment failed", color: "#C97A1F", bg: "#FBF0E2" },
-  unpaid: { label: "Payment failed", color: "#C97A1F", bg: "#FBF0E2" },
+  past_due: { label: "Payment failed", color: "#C73618", bg: "#FFE8E1" },
+  unpaid: { label: "Payment failed", color: "#C73618", bg: "#FFE8E1" },
   cancelled: { label: "Cancelled", color: "#B4483A", bg: "#FBEBE9" },
   expired: { label: "Expired", color: "#B4483A", bg: "#FBEBE9" },
 };
@@ -119,7 +119,7 @@ export default function Billing() {
       <Sidebar />
       <main className="flex-1 min-w-0 flex flex-col pt-14 md:pt-0">
         <header className="px-6 md:px-8 py-4 border-b border-[#E7E5DE]">
-          <h1 className="text-xl" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Billing</h1>
+          <h1 className="text-xl font-semibold">Billing</h1>
           <p className="text-sm text-[#6B6459] mt-0.5">Your Evorove subscription — manage it yourself, any time.</p>
         </header>
 
@@ -203,8 +203,8 @@ export default function Billing() {
                   <div className="grid sm:grid-cols-2 gap-5">
                     {PLANS.map((p) => (
                       <div key={p.id} className="bg-white rounded-2xl border border-[#E7E5DE] p-6 flex flex-col">
-                        <div className="text-sm font-medium text-[#B87333] mb-1">{p.name}</div>
-                        <div className="text-2xl mb-2" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>{p.price}</div>
+                        <div className="text-sm font-medium text-[#FF5A36] mb-1">{p.name}</div>
+                        <div className="ev-display text-4xl mb-2">{p.price}</div>
                         <p className="text-sm text-[#6B6459] mb-4 leading-relaxed">{p.desc}</p>
                         <ul className="flex flex-col gap-2 mb-6 flex-1">
                           {p.features.map((f) => (

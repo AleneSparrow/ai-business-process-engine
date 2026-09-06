@@ -74,7 +74,7 @@ export default function Account() {
               <input className={inputCls} value={name} maxLength={120} required onChange={(event) => setName(event.target.value)} autoComplete="name" />
             </Field>
             <Field label="Email">
-              <input className={`${inputCls} bg-[#F5F1EA] text-[#6B6459]`} value={user?.email ?? ""} readOnly autoComplete="email" />
+              <input className={`${inputCls} bg-[#F7F1E4] text-[#6B6459]`} value={user?.email ?? ""} readOnly autoComplete="email" />
             </Field>
             <button disabled={saving || !name.trim()} className="px-4 py-2 rounded-lg text-sm text-white disabled:opacity-50" style={{ backgroundColor: "#151515" }}>
               {saving ? "Saving…" : "Save changes"}

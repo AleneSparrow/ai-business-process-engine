@@ -24,10 +24,8 @@ export const STAGES = ["New", "Contacted", "Qualified", "Booked", "Completed"];
 
 export type CaseState = "NEW" | "QUALIFYING" | "NEEDS_HUMAN" | "BOOKED" | "LOST" | "COMPLETED";
 
-// QUALIFYING deliberately uses the brand's functional accent (amber, not the
-// bronze brand accent) -- per the brand book, amber is reserved for
-// "active, in motion" product states, and a case being actively qualified
-// is exactly that. Every other state here is a resting/terminal state.
+// QUALIFYING uses Pulse coral: the lead is in motion. Lime is reserved for
+// "needs you" and other human/CTA states. Resting states stay mute or ink.
 export const STATE_META: Record<CaseState, { label: string; color: string; bg: string }> = {
   NEW: { label: "New", color: "#6B6459", bg: "#F1F1EF" },
   QUALIFYING: { label: "Qualifying", color: "#FF5A36", bg: "#FFE8E1" },

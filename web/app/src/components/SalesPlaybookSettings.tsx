@@ -190,7 +190,7 @@ export function SalesPlaybookSettings({
         <div className="rounded-2xl border p-5 mb-6" style={{ borderColor: "#E7E5DE" }}>
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="flex items-start gap-3">
-              <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-white" style={{ backgroundColor: "#B87333" }}>
+              <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: "#FF5A36", color: "#0B0B0D" }}>
                 <BookOpen size={18} />
               </span>
               <div>
@@ -301,7 +301,7 @@ export function SalesPlaybookSettings({
                 <button
                   type="button"
                   onClick={() => toggleDetails(card)}
-                  className="mt-3 text-xs font-medium text-[#B87333]"
+                  className="mt-3 text-xs font-medium text-[#FF5A36]"
                 >
                   {detailsOpen ? "Hide details" : "View details"}
                 </button>

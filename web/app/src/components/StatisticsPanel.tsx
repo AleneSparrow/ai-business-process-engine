@@ -79,9 +79,9 @@ function StatCard({ label, value, sub, tone, emphasis = false }: {
   emphasis?: boolean;
 }) {
   return (
-    <div className={`rounded-2xl border px-4 py-3 min-w-0 ${emphasis ? "border-[#C97A1F] bg-[#FFF9F2]" : "border-[#E7E5DE] bg-white"}`}>
+    <div className={`rounded-2xl border px-4 py-3 min-w-0 ${emphasis ? "border-[#FF5A36] bg-[#FFE8E1]" : "border-[#E7E5DE] bg-white"}`}>
       <div className="font-medium text-[#6B6459] text-[11px] leading-tight mb-1">{label}</div>
-      <span className="text-[20px] leading-none block" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
+      <span className="ev-display text-[28px] leading-none block">
         {value}
       </span>
       {sub && (
@@ -301,7 +301,7 @@ export function StatisticsPanel({
             <UsDateField label="From" value={startDate} onChange={setStartDate} />
             <UsDateField label="To" value={endDate} min={startDate} onChange={setEndDate} />
             {(startDate || endDate) && (
-              <button type="button" onClick={() => { setStartDate(""); setEndDate(""); }} className="text-xs font-medium px-3 py-2 rounded-lg border border-[#E7E5DE] hover:border-[#B87333] transition-colors">
+              <button type="button" onClick={() => { setStartDate(""); setEndDate(""); }} className="text-xs font-medium px-3 py-2 rounded-lg border border-[#E7E5DE] hover:border-[#FF5A36] transition-colors">
                 All time
               </button>
             )}
@@ -309,7 +309,7 @@ export function StatisticsPanel({
         </div>
         {analytics && analytics.hidden_test_cases > 0 && (
           <label className="text-xs text-[#6B6459] flex items-center gap-2 mb-4">
-            <input type="checkbox" checked={includeTestData} onChange={(event) => setIncludeTestData(event.target.checked)} className="accent-[#B87333]" />
+            <input type="checkbox" checked={includeTestData} onChange={(event) => setIncludeTestData(event.target.checked)} className="accent-[#FF5A36]" />
             {includeTestData
               ? "Including test data"
               : `Test data hidden · ${analytics.hidden_test_conversations} conversations / ${analytics.hidden_test_cases} cases`}
@@ -325,7 +325,7 @@ export function StatisticsPanel({
         <div className="flex flex-wrap gap-2 mt-4">
           {confirmingReset ? (
             <>
-              <button type="button" onClick={() => void resetStatistics()} disabled={reportingSaving} className="text-sm font-medium px-4 py-2.5 rounded-lg border border-[#C97A1F] text-[#8A561B] bg-[#FFF9F2] disabled:opacity-50">
+              <button type="button" onClick={() => void resetStatistics()} disabled={reportingSaving} className="text-sm font-medium px-4 py-2.5 rounded-lg border border-[#FF5A36] text-[#C73618] bg-[#FFE8E1] disabled:opacity-50">
                 {reportingSaving ? "Resetting…" : "Confirm reset"}
               </button>
               <button type="button" onClick={() => setConfirmingReset(false)} className="text-sm font-medium px-4 py-2.5 rounded-lg border border-[#E7E5DE]">
@@ -366,11 +366,11 @@ export function StatisticsPanel({
             <h2 className="text-base font-semibold mb-3">Leads</h2>
             <div className="grid gap-2 grid-cols-2 md:grid-cols-3">
               <StatCard label="Leads in period" value={analytics?.total_cases ?? decoratedLeads.length} sub="counted cases" />
-              <StatCard label="Qualifying now" value={decoratedLeads.filter((c) => c.caseState === "QUALIFYING").length} sub="active leads" tone="#B87333" />
+              <StatCard label="Qualifying now" value={decoratedLeads.filter((c) => c.caseState === "QUALIFYING").length} sub="active leads" tone="#FF5A36" />
               <StatCard label="Booked" value={analytics?.booked_cases ?? 0} sub="ever booked" tone="#1E7B52" />
               <StatCard label="Booking rate" value={analytics ? `${Math.round(analytics.booking_conversion_rate * 100)}%` : "—"} sub={analytics ? `${analytics.booked_cases}/${analytics.total_cases} leads` : undefined} tone="#1E7B52" />
               <StatCard label="Lost rate" value={analytics ? `${Math.round(analytics.lost_rate * 100)}%` : "—"} sub={analytics ? `${analytics.lost_cases}/${analytics.total_cases} leads` : undefined} />
-              <StatCard label="Escalation rate" value={analytics ? `${Math.round(analytics.escalation_rate * 100)}%` : "—"} sub={analytics ? `${analytics.escalated_cases}/${analytics.total_cases} leads` : undefined} tone="#C97A1F" />
+              <StatCard label="Escalation rate" value={analytics ? `${Math.round(analytics.escalation_rate * 100)}%` : "—"} sub={analytics ? `${analytics.escalated_cases}/${analytics.total_cases} leads` : undefined} tone="#FF5A36" />
             </div>
           </div>
 
@@ -379,7 +379,7 @@ export function StatisticsPanel({
             <div className="grid gap-2 grid-cols-2 md:grid-cols-3">
               <StatCard label="Conversations in period" value={conversationCounts.total} sub="by last activity" />
               <StatCard label="Engine handling" value={conversationCounts.engine} sub="AI still on the thread" />
-              <StatCard label="Needs you" value={conversationCounts.needsYou} sub="takeover requested or active" tone="#C97A1F" emphasis={conversationCounts.needsYou > 0} />
+              <StatCard label="Needs you" value={conversationCounts.needsYou} sub="takeover requested or active" tone="#4A4A00" emphasis={conversationCounts.needsYou > 0} />
               <StatCard label="Closed" value={conversationCounts.closed} />
               <StatCard label="Website" value={conversationCounts.web} sub="web chat" />
               <StatCard label="SMS" value={conversationCounts.sms} sub="text message" />
@@ -397,10 +397,10 @@ export function StatisticsPanel({
             <p className="text-sm text-[#6B6459] mt-1 mb-4">Open a row to act on it, or filter the tables below.</p>
             <div className="grid gap-2 sm:grid-cols-2 mb-4">
               <button type="button" onClick={() => { setLeadStateFilter("NEEDS_HUMAN"); setFollowUpOnly(false); setReasonFilter(null); }} className="text-left">
-                <StatCard label="Needs your attention" value={attention.needsHuman} sub="review queue" tone="#C97A1F" emphasis={attention.needsHuman > 0} />
+                <StatCard label="Needs your attention" value={attention.needsHuman} sub="review queue" tone="#4A4A00" emphasis={attention.needsHuman > 0} />
               </button>
               <button type="button" onClick={() => { setLeadStateFilter("ALL"); setFollowUpOnly(true); setReasonFilter(null); }} className="text-left">
-                <StatCard label="Follow-up due" value={attention.followUpDue} sub="waiting 24h+" tone="#C97A1F" />
+                <StatCard label="Follow-up due" value={attention.followUpDue} sub="waiting 24h+" tone="#4A4A00" />
               </button>
             </div>
             {analytics && Object.keys(analytics.escalation_reasons).length > 0 && (
@@ -420,8 +420,8 @@ export function StatisticsPanel({
                         }}
                         className="px-2.5 py-1 rounded-full text-[11px] font-medium border"
                         style={{
-                          backgroundColor: reasonFilter === reason ? "#F5E7D6" : "#fff",
-                          borderColor: reasonFilter === reason ? "#B87333" : "#E7E5DE",
+                          backgroundColor: reasonFilter === reason ? "#FFE8E1" : "#fff",
+                          borderColor: reasonFilter === reason ? "#FF5A36" : "#E7E5DE",
                         }}
                       >
                         {ESCALATION_LABELS[reason] ?? "Human review"} {count}

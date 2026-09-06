@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { LayoutGrid, MessageSquare, Workflow, CreditCard, LogOut, Menu, X, Plus, Check, ChevronsUpDown, Home, HelpCircle, User } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { api, type OwnedBusiness } from "../api/client";
-import { FlywheelMark } from "./Shared";
+import { EvoroveMark } from "./Shared";
 
 /** Dropdown for switching between the account's businesses -- only rendered
  * when there's more than one (see Sidebar). Also offers "Add another
@@ -45,7 +45,7 @@ function BusinessSwitcher({
                   setOpen(false);
                   if (b.business_id !== activeId) onSelect(b.business_id);
                 }}
-                className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left hover:bg-[#F5F1EA]"
+                className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left hover:bg-[#F7F1E4]"
                 style={{ color: "#151515" }}
               >
                 <span className="truncate">{b.name}</span>
@@ -58,7 +58,7 @@ function BusinessSwitcher({
                   setOpen(false);
                   onAddBusiness();
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-[#F5F1EA]"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-[#F7F1E4]"
                 style={{ color: "#FF5A36" }}
               >
                 <Plus size={13} className="shrink-0" /> Add another business
@@ -152,14 +152,14 @@ function MobileNav({
     <div className="md:hidden">
       <div
         className="fixed top-0 inset-x-0 z-40 flex items-center justify-between px-4 border-b border-[#E7E5DE]"
-        style={{ height: 56, backgroundColor: "#F5F1EA" }}
+        style={{ height: 56, backgroundColor: "#F7F1E4" }}
       >
         <button onClick={() => go("/app")} className="flex items-center gap-2 min-w-0">
           <div
-            className="w-7 h-7 rounded-lg flex items-center justify-center text-white shrink-0"
-            style={{ backgroundColor: "#FF5A36" }}
+            className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+            style={{ backgroundColor: "#FF5A36", color: "#0B0B0D" }}
           >
-            <FlywheelMark size={16} />
+            <EvoroveMark size={16} />
           </div>
           <div className="text-left min-w-0">
             <div className="text-sm font-semibold leading-tight truncate">{businessName ?? "Your business"}</div>
@@ -284,10 +284,10 @@ export function Sidebar() {
           <div className="flex items-center gap-2 px-2 mb-8">
             <button
               onClick={() => navigate("/app")}
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-white shrink-0"
-              style={{ backgroundColor: "#FF5A36" }}
+              className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+              style={{ backgroundColor: "#FF5A36", color: "#0B0B0D" }}
             >
-              <FlywheelMark size={16} />
+              <EvoroveMark size={16} />
             </button>
             <div className="min-w-0 flex-1">
               {businesses.length > 1 ? (

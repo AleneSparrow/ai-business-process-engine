@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useAuth, describeError } from "../auth/AuthContext";
 import { api, type OnboardingServicePayload } from "../api/client";
-import { AreaOption, Field, FlywheelMark, inputCls, ToneOption } from "../components/Shared";
+import { AreaOption, Field, EvoroveMark, inputCls, ToneOption } from "../components/Shared";
 
 /**
  * Adaptive to any business, not just a fixed vertical -- see
@@ -193,12 +193,12 @@ export default function Onboarding() {
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center text-white"
-            style={{ backgroundColor: "#FF5A36" }}
+              className="w-7 h-7 rounded-full flex items-center justify-center"
+            style={{ backgroundColor: "#FF5A36", color: "#0B0B0D" }}
             >
-              <FlywheelMark size={16} />
+              <EvoroveMark size={16} />
             </div>
-            <span className="font-semibold text-sm" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif" }}>
+            <span className="ev-wordmark text-[20px] tracking-[0.06em]">
               {user && user.business_ids.length > 0 ? "Setting up another business" : "Setting up your Business DNA"}
             </span>
           </div>
@@ -224,7 +224,7 @@ export default function Onboarding() {
               <div className="flex-1 dna-fade" key={step}>
                 {step === 0 && (
                   <>
-                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Tell us about your business</h2>
+                    <h2 className="ev-display text-4xl mb-1.5">Tell us about your business</h2>
                     <p className="text-sm text-[#6B6459] mb-7">This shapes how your engine talks to every customer — works for any kind of business.</p>
                     <Field label="Business name">
                       <input className={inputCls} placeholder="e.g. Acme Studio" value={business.name} onChange={(e) => setBusiness({ ...business, name: e.target.value })} />
@@ -273,7 +273,7 @@ export default function Onboarding() {
 
                 {step === 1 && (
                   <>
-                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>What do you offer?</h2>
+                    <h2 className="ev-display text-4xl mb-1.5">What do you offer?</h2>
                     <p className="text-sm text-[#6B6459] mb-7">
                       Every service starts routed to you for review — nothing auto-books or auto-quotes until you turn that on later.
                     </p>
@@ -303,7 +303,7 @@ export default function Onboarding() {
 
                 {step === 2 && (
                   <>
-                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Who can you serve?</h2>
+                    <h2 className="ev-display text-4xl mb-1.5">Who can you serve?</h2>
                     <p className="text-sm text-[#6B6459] mb-7">This decides which leads book automatically and which ones escalate to you instead.</p>
                     <div className="grid sm:grid-cols-2 gap-3">
                       <AreaOption
@@ -335,7 +335,7 @@ export default function Onboarding() {
 
                 {step === 3 && (
                   <>
-                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>What does it need to ask?</h2>
+                    <h2 className="ev-display text-4xl mb-1.5">What does it need to ask?</h2>
                     <p className="text-sm text-[#6B6459] mb-7">Per service, the questions your engine confirms before qualifying a lead.</p>
                     {services.map((svc) => (
                       <div key={svc} className="mb-5 pb-5 border-b border-[#F0EFE9] last:border-0">
@@ -357,7 +357,7 @@ export default function Onboarding() {
                           ))}
                           <button
                             type="button"
-                            className="text-xs font-medium text-[#B87333] flex items-center gap-1 mt-0.5 ml-7"
+                            className="text-xs font-medium text-[#FF5A36] flex items-center gap-1 mt-0.5 ml-7"
                             onClick={() => setQuestions({ ...questions, [svc]: [...(questions[svc] || DEFAULT_QUESTION_SEED), ""] })}
                           >
                             <Plus size={12} /> Add question
@@ -370,7 +370,7 @@ export default function Onboarding() {
 
                 {step === 4 && (
                   <>
-                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>When should it hand off to you?</h2>
+                    <h2 className="ev-display text-4xl mb-1.5">When should it hand off to you?</h2>
                     <p className="text-sm text-[#6B6459] mb-7">The engine never guesses past these lines — it stops and asks.</p>
                     <div className="flex flex-col gap-3">
                       {ESCALATION_OPTIONS.map(([key, title, desc]) => (
@@ -378,15 +378,15 @@ export default function Onboarding() {
                           key={key}
                           className="flex items-start gap-3 p-4 rounded-xl border cursor-pointer"
                           style={{
-                            borderColor: escalation[key] ? "#B87333" : "#E7E5DE",
-                            backgroundColor: escalation[key] ? "#F5E7D6" : "#fff",
+                            borderColor: escalation[key] ? "#FF5A36" : "#E7E5DE",
+                            backgroundColor: escalation[key] ? "#FFE8E1" : "#fff",
                           }}
                         >
                           <input
                             type="checkbox"
                             checked={escalation[key]}
                             onChange={() => setEscalation({ ...escalation, [key]: !escalation[key] })}
-                            className="mt-0.5 accent-[#B87333]"
+                            className="mt-0.5 accent-[#FF5A36]"
                           />
                           <div>
                             <div className="text-sm font-medium">{title}</div>
@@ -400,9 +400,9 @@ export default function Onboarding() {
 
                 {step === 5 && (
                   <>
-                    <h2 className="text-2xl mb-1.5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Ready to go live</h2>
+                    <h2 className="ev-display text-4xl mb-1.5">Ready to go live</h2>
                     <p className="text-sm text-[#6B6459] mb-7">Here's the Business DNA your engine will run on.</p>
-                    <div className="rounded-xl bg-[#F5F1EA] border border-[#E7E5DE] p-5 flex flex-col gap-4 text-sm">
+                    <div className="rounded-xl bg-[#F7F1E4] border border-[#E7E5DE] p-5 flex flex-col gap-4 text-sm">
                       <div className="flex justify-between"><span className="text-[#6B6459]">Business</span><span className="font-medium">{business.name || "Untitled business"} · {business.industry}</span></div>
                       <div className="flex justify-between"><span className="text-[#6B6459]">Voice</span><span className="font-medium">{business.tone}</span></div>
                       <div className="flex justify-between"><span className="text-[#6B6459]">Services</span><span className="font-medium text-right">{services.join(", ")}</span></div>
@@ -448,7 +448,7 @@ export default function Onboarding() {
                     {/* The wheel as a progress indicator while the Business DNA
                         assembles -- per the brand book's onboarding example --
                         settling back to the static Sparkles mark once ready. */}
-                    {submitting ? <FlywheelMark size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                    {submitting ? <EvoroveMark size={14} className="animate-spin" /> : <Sparkles size={14} />}
                   </button>
                 )}
               </div>
@@ -458,7 +458,7 @@ export default function Onboarding() {
               <div className="w-12 h-12 rounded-full flex items-center justify-center mb-5" style={{ backgroundColor: "#E9F5EF" }}>
                 <Check size={22} color="#1E7B52" />
               </div>
-              <h2 className="text-2xl mb-2" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
+              <h2 className="ev-display text-4xl mb-2">
                 {business.name || "Your business"} is live.
               </h2>
               <p className="text-sm text-[#6B6459] mb-7 max-w-sm">It's answering new leads right now, using exactly what you just set up.</p>

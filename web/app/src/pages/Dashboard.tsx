@@ -172,7 +172,7 @@ export default function Dashboard() {
       <main className="flex-1 min-w-0 flex flex-col pt-14 md:pt-0">
         <header className="flex items-center justify-between px-6 md:px-8 py-4 border-b border-[#E7E5DE]">
           <div>
-            <h1 className="text-xl" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Leads & cases</h1>
+            <h1 className="text-xl font-semibold">Leads & cases</h1>
             <p className="text-sm text-[#6B6459] mt-0.5">Every conversation your engine has handled</p>
           </div>
           <div className="flex items-center gap-3">
@@ -183,7 +183,7 @@ export default function Dashboard() {
                 placeholder="Search leads..."
                 value={searchQuery}
                 onChange={(event) => setSearchQuery(event.target.value)}
-                className="pl-9 pr-3 py-2 rounded-lg bg-white border border-[#E7E5DE] text-sm w-52 outline-none focus:ring-2 focus:ring-[#B8733333]"
+                className="pl-9 pr-3 py-2 rounded-lg bg-white border border-[#E7E5DE] text-sm w-52 outline-none focus:ring-2 focus:ring-[#FF5A3633]"
               />
             </div>
             <button
@@ -191,11 +191,11 @@ export default function Dashboard() {
               onClick={openAttentionQueue}
               aria-label={`Open the ${counts.needsHuman} conversations that need you`}
               title={`Open the ${counts.needsHuman} conversations that need you`}
-              className="relative w-9 h-9 rounded-lg border border-[#E7E5DE] bg-white flex items-center justify-center transition-colors hover:border-[#B87333]"
+              className="relative w-9 h-9 rounded-lg border border-[#E7E5DE] bg-white flex items-center justify-center transition-colors hover:border-[#FF5A36]"
             >
               <Bell size={16} strokeWidth={2} />
               {counts.needsHuman > 0 && (
-                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full text-[10px] flex items-center justify-center text-white font-medium" style={{ backgroundColor: "#C97A1F" }}>{counts.needsHuman}</span>
+                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full text-[10px] flex items-center justify-center font-bold" style={{ backgroundColor: "#C6FF00", color: "#0B0B0D" }}>{counts.needsHuman}</span>
               )}
             </button>
           </div>
@@ -257,7 +257,7 @@ export default function Dashboard() {
                       onClick={() => setSortDirection((current) => current === "asc" ? "desc" : "asc")}
                       aria-label={`Sort direction: ${sortDirectionLabel}. Click to reverse.`}
                       title={`${sortDirectionLabel} — click to reverse`}
-                      className="w-8 h-8 rounded-lg bg-white border border-[#E7E5DE] flex items-center justify-center hover:border-[#B87333] transition-colors"
+                      className="w-8 h-8 rounded-lg bg-white border border-[#E7E5DE] flex items-center justify-center hover:border-[#FF5A36] transition-colors"
                     >
                       {sortDirection === "asc" ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
                     </button>
@@ -265,7 +265,7 @@ export default function Dashboard() {
                   </div>
                 </div>
                 {filter !== "ALL" && (
-                  <div className="px-5 py-2 text-xs text-[#6B6459] bg-[#FFF9F2] border-b border-[#E7E5DE] flex items-center justify-between gap-3">
+                  <div className="px-5 py-2 text-xs text-[#6B6459] bg-[#FFE8E1] border-b border-[#E7E5DE] flex items-center justify-between gap-3">
                     <span>Showing {filtered.length} filtered leads.</span>
                     <button type="button" onClick={() => setFilter("ALL")} className="font-medium text-[#151515] underline">Clear filter</button>
                   </div>
@@ -288,7 +288,7 @@ export default function Dashboard() {
                             <span className="text-[11px] text-[#9C9488]" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>{c.case_id.slice(0, 8)}</span>
                           </div>
                           <div className="text-sm text-[#6B6459] truncate">{c.category ?? "Uncategorized"} · {c.detail}</div>
-                          {c.followUpDue && <div className="mt-1 text-[11px] font-medium text-[#C97A1F]">Follow-up overdue</div>}
+                          {c.followUpDue && <div className="mt-1 text-[11px] font-medium text-[#FF5A36]">Follow-up overdue</div>}
                         </div>
                         <div className="flex flex-col items-end gap-2 shrink-0">
                           <StatePill state={c.caseState} />

@@ -5,6 +5,7 @@ export const brand = {
   cream: "#F7F1E4",
   ink: "#0B0B0D",
   coral: "#FF5A36",
+  coralWash: "#FFE8E1",
   lime: "#C6FF00",
   clay: "#9A8F83",
   mute: "#6B6459",

@@ -1,21 +1,21 @@
-/* Flywheel widget: businesses may override --aibp-color without losing the
-   component's contrast, spacing, or interaction states. */
+/* Evorove Pulse widget: businesses may override --aibp-color without losing
+   the component's contrast, spacing, or interaction states. */
 .aibp-chat {
-  /* Darkened from #b87333 (2026-08-23): the original gave 3.79:1 against
-     white, failing WCAG AA (4.5:1) BOTH ways -- copper service/slot button
-     labels on white, and white "Send" / customer-bubble text on copper.
-     #a5652d keeps the copper hue and reaches 4.67:1 in both directions.
-     A business overriding this variable takes on that check itself. */
-  --aibp-color: #a5652d;
-  --aibp-header-bg: #151515;
+  /* Pulse coral #FF5A36 is 3.1:1 on white — too light for slot labels AND
+     for white "Send"/bubble text. #C73618 keeps the coral family and
+     reaches ~5.3:1 both ways (WCAG AA). Lime is the CTA/human accent;
+     it is never used as small text on white. A business overriding
+     --aibp-color takes on that contrast check itself. */
+  --aibp-color: #C73618;
+  --aibp-header-bg: #0B0B0D;
   --aibp-panel-bg: #fff;
-  --aibp-history-bg: #eee8dc;
-  --aibp-accent: #d97b29;
-  --aibp-human: #d97b29;
-  --aibp-ink: #151515;
-  --aibp-muted: #6b6558;
-  --aibp-line: #e2dbcb;
-  --aibp-paper: #f5f1ea;
+  --aibp-history-bg: #F3EBDA;
+  --aibp-accent: #C6FF00;
+  --aibp-human: #C6FF00;
+  --aibp-ink: #0B0B0D;
+  --aibp-muted: #6B6459;
+  --aibp-line: #E4DCCB;
+  --aibp-paper: #F7F1E4;
   position: fixed;
   right: 1rem;
   bottom: 1rem;
@@ -58,7 +58,7 @@
   transition: transform .18s ease, box-shadow .18s ease;
 }
 .aibp-chat__launcher:hover { box-shadow: 0 13px 30px rgb(21 21 21 / 32%); transform: translateY(-2px); }
-.aibp-chat__launcher-icon { width: 1.35rem; height: 1.35rem; color: var(--aibp-color); }
+.aibp-chat__launcher-icon { width: 1.35rem; height: 1.35rem; color: var(--aibp-accent); }
 .aibp-chat__launcher-dot { position: absolute; top: .22rem; right: .22rem; width: .68rem; height: .68rem; border: 2px solid var(--aibp-paper); border-radius: 50%; background: var(--aibp-accent); }
 
 .aibp-chat__panel {
@@ -86,13 +86,13 @@
 .aibp-chat__header { flex: none; padding: .85rem 1rem .7rem; color: var(--aibp-paper); background: var(--aibp-header-bg); }
 .aibp-chat__title-row { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
 .aibp-chat__identity { display: flex; align-items: center; gap: .55rem; min-width: 0; }
-.aibp-chat__brand-mark { display: grid; flex: none; width: 1.55rem; height: 1.55rem; place-items: center; border-radius: 50%; color: var(--aibp-color); background: rgb(255 255 255 / 8%); }
+.aibp-chat__brand-mark { display: grid; flex: none; width: 1.55rem; height: 1.55rem; place-items: center; border-radius: 50%; color: var(--aibp-accent); background: rgb(255 255 255 / 8%); }
 .aibp-chat__brand-mark svg { width: 1rem; height: 1rem; }
-.aibp-chat__header h2 { margin: 0; overflow: hidden; font: 600 .9rem/1.2 "Century Gothic", Futura, "Trebuchet MS", sans-serif; letter-spacing: .01em; text-overflow: ellipsis; white-space: nowrap; }
+.aibp-chat__header h2 { margin: 0; overflow: hidden; font: 600 .9rem/1.2 Inter, system-ui, sans-serif; letter-spacing: .01em; text-overflow: ellipsis; white-space: nowrap; }
 .aibp-chat__header-subtitle { margin: .08rem 0 0; color: #aaa294; font-size: .68rem; }
 .aibp-chat__close { border: 0; padding: .25rem; color: #aaa294; background: transparent; cursor: pointer; }
 .aibp-chat__close:hover { color: var(--aibp-paper); }
-.aibp-chat__disclosure { display: inline-flex; align-items: center; margin: .55rem 0 0; padding: .25rem .45rem; border-radius: .35rem; color: #e1a46c; background: rgb(184 115 51 / 18%); font-size: .67rem; }
+.aibp-chat__disclosure { display: inline-flex; align-items: center; margin: .55rem 0 0; padding: .25rem .45rem; border-radius: .35rem; color: #FF5A36; background: rgb(255 90 54 / 18%); font-size: .67rem; }
 
 .aibp-chat__history { flex: 1 1 auto; min-height: 0; padding: .9rem; overflow-y: auto; background: var(--aibp-history-bg); }
 .aibp-chat__row { display: flex; flex-direction: column; margin: 0 0 .7rem; }
@@ -102,7 +102,7 @@
 .aibp-chat__bubble-wrap { display: flex; max-width: 89%; gap: .4rem; }
 .aibp-chat__row--customer .aibp-chat__bubble-wrap { flex-direction: row-reverse; }
 .aibp-chat__avatar { display: grid; flex: none; width: 1.3rem; height: 1.3rem; place-items: center; margin-top: .1rem; border-radius: 50%; color: var(--aibp-paper); background: var(--aibp-header-bg); font-size: .57rem; font-weight: 700; }
-.aibp-chat__avatar--human { color: #201307; background: var(--aibp-human); }
+.aibp-chat__avatar--human { color: #0B0B0D; background: var(--aibp-human); }
 .aibp-chat__message { width: fit-content; margin: 0; padding: .55rem .7rem; border-radius: .65rem; font-size: .81rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
 .aibp-chat__message--customer { color: #fff; background: var(--aibp-color); border-bottom-right-radius: .18rem; }
 .aibp-chat__message--assistant { border: 1px solid var(--aibp-line); border-bottom-left-radius: .18rem; background: #fff; }
@@ -129,7 +129,7 @@
 .aibp-chat__form { display: grid; flex: none; grid-template-columns: 1fr auto; gap: .45rem; padding: .65rem .75rem .75rem; border-top: 1px solid var(--aibp-line); background: var(--aibp-panel-bg); }
 .aibp-chat__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .aibp-chat__form textarea { height: 2.35rem; resize: none; border: 1px solid var(--aibp-line); border-radius: .5rem; padding: .48rem .55rem; color: var(--aibp-ink); background: transparent; }
-.aibp-chat__form button { border: 0; border-radius: .5rem; padding: 0 .7rem; color: #fff; background: var(--aibp-color); cursor: pointer; font-size: .75rem; font-weight: 700; }
+.aibp-chat__form button { border: 0; border-radius: .5rem; padding: 0 .7rem; color: #0B0B0D; background: var(--aibp-accent); cursor: pointer; font-size: .75rem; font-weight: 700; }
 .aibp-chat button:focus-visible, .aibp-chat textarea:focus-visible { outline: 3px solid var(--aibp-accent); outline-offset: 2px; }
 .aibp-chat button:disabled { opacity: .55; cursor: wait; }
 
