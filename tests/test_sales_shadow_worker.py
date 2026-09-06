@@ -16,7 +16,11 @@ from src.domain.conversations import (
 )
 from src.domain.models import Lead, ProcessCase
 from src.domain.sales import (
+    CustomerEvidence,
+    ObjectionStatus,
+    ObjectionType,
     SalesMove,
+    SalesObjection,
     SalesPlaybookStatus,
     SalesPlaybookVersion,
     SalesShadowJob,
@@ -49,6 +53,21 @@ class FixedAnalyzer:
     def analyze(self, **kwargs):
         return AnalyzedSalesTurn(
             SalesTurnAnalysis(observed_stage=SalesStage.GREETING, confidence=0.9),
+            _metadata(),
+        )
+
+
+class ObjectionAnalyzer:
+    def analyze(self, **kwargs):
+        return AnalyzedSalesTurn(
+            SalesTurnAnalysis(
+                observed_stage=SalesStage.OBJECTION_HANDLING,
+                confidence=0.92,
+                objections=(SalesObjection(
+                    ObjectionType.PRICE, ObjectionStatus.ACTIVE,
+                    CustomerEvidence("msg-in", "That is more than I expected"),
+                ),),
+            ),
             _metadata(),
         )
 
@@ -161,3 +180,29 @@ def test_stop_message_records_shadow_error_without_sending_or_changing_state(uow
     assert results[0].proposed_response_text is None
     assert results[0].delivered_response_text == LIVE_REPLY
     assert "contact_not_allowed" in results[0].violations
+
+
+def test_shadow_worker_persists_objections_and_turns_without_changing_process_state(uow_factory) -> None:
+    case_id = _seed_reply_and_job(uow_factory, customer_text="That is more than I expected")
+    service = SalesShadowService(uow_factory)
+    worker = SalesShadowWorker(
+        uow_factory, ObjectionAnalyzer(), SalesShadowOrchestrator(EchoGenerator(), service),
+        worker_id="worker-1",
+    )
+    assert worker.run_one(now=NOW) is True
+
+    with uow_factory() as uow:
+        case = uow.cases.get("biz-1", case_id)
+        objections = uow.sales_objections.list_for_case("biz-1", case_id)
+        turns = uow.sales_turns.list_for_case("biz-1", case_id)
+        profile = uow.sales_profiles.get("biz-1", case_id)
+
+    assert case is not None
+    assert case.current_state is ProcessState.QUALIFYING
+    assert len(objections) == 1
+    assert objections[0].objection.objection_type is ObjectionType.PRICE
+    assert objections[0].objection.evidence.excerpt == "That is more than I expected"
+    assert turns[0].move is SalesMove.DIAGNOSE_OBJECTION
+    assert profile is not None
+    assert profile.stage is SalesStage.OBJECTION_HANDLING
+    assert profile.last_move is SalesMove.DIAGNOSE_OBJECTION

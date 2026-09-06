@@ -11,8 +11,8 @@ from src.ai.sales_response_generator import SalesResponseGenerationInput
 from src.ai.sales_turn_analyzer import AISalesTurnAnalyzer
 from src.domain.conversations import ConversationStatus
 from src.domain.sales import (
-    CustomerSalesProfile, SalesMove, SalesShadowJob, SalesShadowStatus,
-    SalesStage, SalesTurn,
+    CustomerSalesProfile, SalesMove, SalesObjectionRecord, SalesShadowJob,
+    SalesShadowStatus, SalesStage, SalesTurn,
 )
 from src.engine.sales_policy import SalesPolicyEngine
 from src.engine.sales_response_validator import SalesResponseValidationContext
@@ -123,6 +123,18 @@ class SalesShadowWorker:
             else:
                 persisted = replace(persisted, version=current.version)
                 uow.sales_profiles.save(persisted, current.version, now=now)
+            known_sources = {
+                item.objection.evidence.source_message_id
+                for item in uow.sales_objections.list_for_case(job.business_id, job.case_id)
+            }
+            for objection in analysis.objections:
+                source_id = objection.evidence.source_message_id
+                if source_id in known_sources:
+                    continue
+                uow.sales_objections.add(SalesObjectionRecord(
+                    str(uuid4()), job.business_id, job.case_id, objection, now, now,
+                ))
+                known_sources.add(source_id)
             uow.sales_turns.add(SalesTurn(
                 turn_id=str(uuid4()), business_id=job.business_id, case_id=job.case_id,
                 conversation_id=job.conversation_id, source_message_id=job.source_message_id,
