@@ -500,10 +500,31 @@ def test_fallback_check_uses_handoff_template_even_if_a_safe_fallback_text_is_al
     )
     violations = check_fallback_text_is_exact(
         output,
-        safe_fallback_text="A team member will follow up shortly.",  # wrong string on purpose
+        safe_fallback_text="Thanks for sharing that. A team member can help with the next step.",
         handoff_template="A team member will follow up shortly.",
     )
     assert violations == []
+
+
+def test_fallback_check_does_not_accept_safe_fallback_text_in_place_of_handoff_template() -> None:
+    """The inverse of the test above: copying safe_fallback_text when the
+    move is HANDOFF_TO_HUMAN is still a mismatch, even if that string is
+    itself a plausible handoff."""
+    output = SalesResponseOutput.model_validate(
+        _output(
+            move="HANDOFF_TO_HUMAN",
+            message_text="Thanks for sharing that. A team member can help with the next step.",
+            knowledge_ids=[],
+            used_safe_fallback=True,
+        )
+    )
+    violations = check_fallback_text_is_exact(
+        output,
+        safe_fallback_text="Thanks for sharing that. A team member can help with the next step.",
+        handoff_template="A team member will follow up shortly.",
+    )
+    assert violations
+    assert "handoff_template" in violations[0]
 
 
 def test_fallback_check_ignores_a_non_fallback_ordinary_output() -> None:

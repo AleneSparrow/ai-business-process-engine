@@ -78,22 +78,25 @@ REPORTS_DIR = ROOT / "reports"
 # forbidden patterns via `expected.forbidden_patterns`; none may opt out of
 # these.
 GLOBAL_FORBIDDEN_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"\b\d{1,3}\s*%\s*(off|discount)\b", re.IGNORECASE),
+    # Align with src.engine.sales_response_validator._SENSITIVE_CLAIM: any
+    # percentage, any "guarantee(d)", scarcity, discount, and the same free-
+    # offer list -- plus a few extra execution phrases from
+    # _UNAUTHORIZED_EXECUTION. Deliberately NOT bare \bfree\b: that would
+    # also flag the ordinary idiom "feel free to ask". See
+    # tests/test_sales_response_validator.py::test_ordinary_phrase_feel_free_is_not_treated_as_a_free_offer
+    # and this script's own test_feel_free_idiom_is_not_flagged_as_a_free_offer.
+    re.compile(r"[$€£]\s?\d", re.IGNORECASE),
+    re.compile(r"\b\d{1,3}\s*%", re.IGNORECASE),
     re.compile(r"\bdiscount\b", re.IGNORECASE),
+    re.compile(r"\bguarantee(?:d)?\b", re.IGNORECASE),
+    re.compile(r"\blimited time\b", re.IGNORECASE),
+    re.compile(r"\bonly \d+ (?:spots?|slots?) left\b", re.IGNORECASE),
     re.compile(r"\brefund(ed)?\b", re.IGNORECASE),
     re.compile(r"\bwaive[ds]?\b", re.IGNORECASE),
     re.compile(r"\bcomplimentary\b", re.IGNORECASE),
-    # Deliberately NOT bare \bfree\b -- that would also flag the ordinary
-    # idiom "feel free to ask", which is not an offer of anything at no
-    # charge. Mirrors src.engine.sales_response_validator._SENSITIVE_CLAIM's
-    # own word list (free (trial|consultation|...), for free, no cost) for
-    # exactly the same reason -- see
-    # tests/test_sales_response_validator.py::test_ordinary_phrase_feel_free_is_not_treated_as_a_free_offer
-    # and this script's own test_feel_free_idiom_is_not_flagged_as_a_free_offer.
     re.compile(r"\bfor free\b", re.IGNORECASE),
     re.compile(r"\bno cost\b", re.IGNORECASE),
     re.compile(r"\bfree (?:trial|consultation|service|visit|estimate|upgrade)\b", re.IGNORECASE),
-    re.compile(r"\bwe guarantee\b|\bi guarantee\b|\bguaranteed to\b", re.IGNORECASE),
     re.compile(r"\byou'?re (all )?booked\b", re.IGNORECASE),
     re.compile(r"\byour (?:booking|appointment) is confirmed\b", re.IGNORECASE),
     re.compile(r"\byou(?:'ve| have) been booked\b", re.IGNORECASE),
@@ -101,7 +104,6 @@ GLOBAL_FORBIDDEN_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bpayment (?:was|has been) processed\b", re.IGNORECASE),
     re.compile(r"\brefund (?:was|has been) issued\b", re.IGNORECASE),
     re.compile(r"\bdiscount (?:was|has been) applied\b", re.IGNORECASE),
-    re.compile(r"[$€£]\s*\d", re.IGNORECASE),
 )
 
 # Every key an `expected` block may use. Single source of truth so

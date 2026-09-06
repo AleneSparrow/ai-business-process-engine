@@ -51,13 +51,15 @@ services:
     # 2026-08-24: a rewritten test kept failing under its OLD name because the
     # container still had the old file. Mounting the source directories (not
     # the whole repo -- that would drag the host .venv and .git in) makes a
-    # local edit visible immediately, with no rebuild.
+    # local edit visible immediately, with no rebuild. evals/ is mounted
+    # because pytest and the eval scripts read fixture JSON at runtime.
     volumes:
       - ./src:/app/src
       - ./tests:/app/tests
       - ./migrations:/app/migrations
       - ./config:/app/config
       - ./scripts:/app/scripts
+      - ./evals:/app/evals
       - ./pytest.ini:/app/pytest.ini
       - ./alembic.ini:/app/alembic.ini
 

@@ -187,7 +187,7 @@ def test_the_real_fixtures_file_is_itself_valid() -> None:
     path = Path(__file__).resolve().parents[1] / "evals" / "sales_response_generation" / "fixtures.json"
     data = json.loads(path.read_text(encoding="utf-8"))
     fixtures = validate_fixtures(data)
-    assert len(fixtures) >= 40
+    assert len(fixtures) == 45
 
 
 def test_the_real_fixtures_file_covers_every_required_category() -> None:
@@ -473,6 +473,11 @@ def test_feel_free_idiom_is_not_flagged_as_a_free_offer() -> None:
         "You'd get a free consultation with that.",
         "That includes a complimentary upgrade.",
         "We can waive that fee for you.",
+        "This is guaranteed.",
+        "It's a limited time offer.",
+        "Only 3 spots left.",
+        "Only 2 slots left.",
+        "You'd save 50% on the first month.",
     ],
 )
 def test_global_patterns_still_catch_actual_free_service_offers(message: str) -> None:
