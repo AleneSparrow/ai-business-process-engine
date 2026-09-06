@@ -14,7 +14,7 @@ import {
 function Field({ label, children }: { label: string; children: string | null | undefined }) {
   return (
     <div>
-      <div className="text-[11px] font-medium text-[#9C9488] mb-0.5">{label}</div>
+      <div className="text-[11px] font-medium text-clay mb-0.5">{label}</div>
       <div className="text-sm">{children?.trim() ? children : "Not captured yet"}</div>
     </div>
   );
@@ -79,15 +79,15 @@ export function ConversationSalesPanel({
   const latest = latestSalesTurnForConversation(turns, conversationId);
 
   return (
-    <div className="rounded-xl border border-[#E7E5DE] bg-white p-4">
+    <div className="rounded-xl border border-line bg-white p-4">
       <div className="text-xs font-semibold mb-1">Sales conversation</div>
-      <p className="text-[11px] text-[#9C9488] mb-3 leading-relaxed">
+      <p className="text-[11px] text-clay mb-3 leading-relaxed">
         Sales stage is conversation progress. Case status on the right is the business commitment
         (qualification, booking, won) and is decided separately.
       </p>
 
       {loading && (
-        <div className="flex items-center gap-2 text-sm text-[#6B6459] py-2">
+        <div className="flex items-center gap-2 text-sm text-mute py-2">
           <Loader2 size={14} className="animate-spin" /> Loading sales context…
         </div>
       )}
@@ -105,7 +105,7 @@ export function ConversationSalesPanel({
       )}
 
       {!loading && !denied && !error && empty && (
-        <p className="text-sm text-[#6B6459]">
+        <p className="text-sm text-mute">
           {caseId
             ? "No sales conversation profile yet for this case."
             : "This conversation isn’t linked to a case, so there is no sales profile."}
@@ -122,19 +122,19 @@ export function ConversationSalesPanel({
               : null}
           </Field>
           {objection?.evidence_excerpt && (
-            <p className="text-xs text-[#6B6459] -mt-2">“{objection.evidence_excerpt}”</p>
+            <p className="text-xs text-mute -mt-2">“{objection.evidence_excerpt}”</p>
           )}
           <Field label="Last approved move">{context.last_move ? salesMoveLabel(context.last_move) : null}</Field>
           <div>
-            <div className="text-[11px] font-medium text-[#9C9488] mb-0.5">Next approved action</div>
+            <div className="text-[11px] font-medium text-clay mb-0.5">Next approved action</div>
             <div className="text-sm font-medium">{salesMoveLabel(context.next_approved_action)}</div>
-            <p className="text-xs text-[#6B6459] mt-0.5">{reasonCodeLabel(context.next_action_reason)}</p>
-            <p className="text-[11px] text-[#9C9488] mt-1">
+            <p className="text-xs text-mute mt-0.5">{reasonCodeLabel(context.next_action_reason)}</p>
+            <p className="text-[11px] text-clay mt-1">
               Chosen by sales policy, not by the model. This does not change price, discount, or booking rules.
             </p>
           </div>
           {context.requires_human && (
-            <div className="px-3 py-2 rounded-lg" style={{ backgroundColor: "#FFF8EE", color: "#8A561B" }}>
+            <div className="px-3 py-2 rounded-lg" style={{ backgroundColor: "#FFE8E1", color: "#C73618" }}>
               <div className="text-[11px] font-semibold">Needs human review</div>
               <p className="text-xs mt-0.5">
                 {context.human_review_reason
@@ -145,21 +145,21 @@ export function ConversationSalesPanel({
           )}
 
           <div className="pt-3 border-t border-[#F0EFE9]">
-            <div className="text-[11px] font-medium text-[#9C9488] mb-2">Provenance of the latest conversation turn</div>
+            <div className="text-[11px] font-medium text-clay mb-2">Provenance of the latest conversation turn</div>
             {!latest ? (
-              <p className="text-xs text-[#9C9488]">No sales turns recorded for this conversation yet.</p>
+              <p className="text-xs text-clay">No sales turns recorded for this conversation yet.</p>
             ) : (
-              <div className="flex flex-col gap-2 text-xs text-[#6B6459]">
+              <div className="flex flex-col gap-2 text-xs text-mute">
                 <div>
-                  <span className="font-medium text-[#151515]">Knowledge IDs: </span>
+                  <span className="font-medium text-ink">Knowledge IDs: </span>
                   {latest.knowledge_ids.length > 0 ? latest.knowledge_ids.join(", ") : "None"}
                 </div>
                 <div>
-                  <span className="font-medium text-[#151515]">Business facts: </span>
+                  <span className="font-medium text-ink">Business facts: </span>
                   {latest.business_fact_ids.length > 0 ? latest.business_fact_ids.join(", ") : "None"}
                 </div>
                 <div>
-                  <span className="font-medium text-[#151515]">Customer evidence: </span>
+                  <span className="font-medium text-ink">Customer evidence: </span>
                   {latest.customer_evidence.length === 0
                     ? "None"
                     : latest.customer_evidence.map((item) => item.excerpt).join(" · ")}
