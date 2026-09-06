@@ -21,6 +21,7 @@ from src.persistence.sqlalchemy_models import (
     ConversationRow,
     LeadRow,
     ProcessCaseRow,
+    SalesShadowJobRow,
 )
 from src.persistence.sqlalchemy_uow import SQLAlchemyUnitOfWork, create_database_engine
 
@@ -509,6 +510,9 @@ def test_duplicate_browser_retry_skips_ai_and_duplicate_messages(conversation_en
         assert uow.session.scalar(
             select(func.count()).select_from(ConversationMessageRow)
         ) == 2
+        assert uow.session.scalar(
+            select(func.count()).select_from(SalesShadowJobRow)
+        ) == 1
 
 
 def test_retried_initial_create_with_client_token_has_one_effect(conversation_environment) -> None:
@@ -555,6 +559,7 @@ def test_failed_conversation_create_rolls_back_and_can_retry(conversation_enviro
     with factory() as uow:
         assert uow.session.scalar(select(func.count()).select_from(ConversationRow)) == 0
         assert uow.session.scalar(select(func.count()).select_from(ConversationMessageRow)) == 0
+        assert uow.session.scalar(select(func.count()).select_from(SalesShadowJobRow)) == 0
 
     retry_app = create_app(
         settings=Settings(database_url=database_url, app_env="test"),
@@ -567,6 +572,44 @@ def test_failed_conversation_create_rolls_back_and_can_retry(conversation_enviro
 
     assert failed.status_code == 500
     assert retried.status_code == 200
+
+
+def test_shadow_job_lease_prevents_second_worker_claim(conversation_environment) -> None:
+    client, factory, _ = conversation_environment
+    assert create_conversation(client, "I need AC help", "lease-1").status_code == 200
+    now = datetime.now(timezone.utc)
+    with factory() as uow:
+        first = uow.sales_shadow_jobs.claim_next(
+            now=now, lease_owner="worker-1", lease_expires_at=now + timedelta(minutes=5))
+        uow.commit()
+    with factory() as uow:
+        second = uow.sales_shadow_jobs.claim_next(
+            now=now, lease_owner="worker-2", lease_expires_at=now + timedelta(minutes=5))
+    assert first is not None
+    assert second is None
+
+
+def test_shadow_job_failure_retries_then_exhausts(conversation_environment) -> None:
+    client, factory, _ = conversation_environment
+    assert create_conversation(client, "I need AC help", "retry-job-1").status_code == 200
+    now = datetime.now(timezone.utc)
+    for attempt in range(3):
+        with factory() as uow:
+            job = uow.sales_shadow_jobs.claim_next(
+                now=now, lease_owner="worker", lease_expires_at=now + timedelta(minutes=5))
+            assert job is not None
+            assert uow.sales_shadow_jobs.fail(
+                job.business_id, job.job_id, lease_owner="worker",
+                category="provider_error", retry_at=now, now=now)
+            uow.commit()
+    with factory() as uow:
+        row = uow.session.scalar(select(SalesShadowJobRow))
+        assert row is not None
+        assert row.status == "FAILED"
+        assert row.retry_count == 3
+        assert row.last_error_category == "provider_error"
+        assert uow.sales_shadow_jobs.claim_next(
+            now=now, lease_owner="worker-2", lease_expires_at=now + timedelta(minutes=5)) is None
 
 
 def test_duplicate_message_id_with_different_text_is_collision(conversation_environment) -> None:

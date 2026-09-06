@@ -24,6 +24,7 @@ from src.domain.models import DecisionType, ProcessEvent, utc_now
 from src.domain.commercial import BookingStatus, PaymentStatus, PaymentType, QuoteStatus
 from src.domain.qualification import IncomingMessage, LeadIntakeResult, QualificationReasonCode
 from src.domain.states import ProcessState
+from src.domain.sales import SalesShadowJob, SalesShadowJobStatus
 from src.engine.customer_response_generator import CustomerResponseGenerator
 from src.engine.decision_router import DecisionRequest
 from src.engine.intent_extractor import IntentExtractor
@@ -439,8 +440,9 @@ class ConversationService:
             conversation.conversation_id,
             limit=self.CONTEXT_MESSAGE_LIMIT,
         )
+        source_message_id = str(uuid4())
         uow.conversation_messages.add(ConversationMessage(
-            message_id=str(uuid4()),
+            message_id=source_message_id,
             business_id=conversation.business_id,
             conversation_id=conversation.conversation_id,
             sequence_number=sequence,
@@ -531,8 +533,9 @@ class ConversationService:
             current_state = self._stored_state(conversation)
 
         outbound_time = utc_now()
+        response_message_id = str(uuid4())
         uow.conversation_messages.add(ConversationMessage(
-            message_id=str(uuid4()),
+            message_id=response_message_id,
             business_id=conversation.business_id,
             conversation_id=conversation.conversation_id,
             sequence_number=sequence + 1,
@@ -549,6 +552,15 @@ class ConversationService:
                 },
                 "resulting_state": current_state.value if current_state else None,
             },
+        ))
+        if conversation.case_id is None:
+            raise RuntimeError("conversation response cannot enqueue shadow work without a case")
+        uow.sales_shadow_jobs.add(SalesShadowJob(
+            job_id=str(uuid4()), business_id=conversation.business_id,
+            case_id=conversation.case_id, conversation_id=conversation.conversation_id,
+            source_message_id=source_message_id, response_message_id=response_message_id,
+            status=SalesShadowJobStatus.PENDING, retry_count=0, max_retries=3,
+            next_attempt_at=outbound_time, created_at=outbound_time, updated_at=outbound_time,
         ))
         conversation.touch(outbound_time)
         if save_conversation:

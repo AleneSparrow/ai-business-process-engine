@@ -1,10 +1,11 @@
 from dataclasses import replace
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
 from sqlalchemy.exc import IntegrityError
 
+from src.domain.conversations import Conversation, ConversationStatus
 from src.domain.models import Lead, ProcessCase
 from src.domain.sales import (
     CommitmentLevel,
@@ -19,6 +20,9 @@ from src.domain.sales import (
     ObjectionType,
     SalesPlaybookStatus,
     SalesPlaybookVersion,
+    SalesShadowEvaluation,
+    SalesShadowResult,
+    SalesShadowStatus,
     SalesStage,
     SalesTurn,
 )
@@ -202,3 +206,33 @@ def test_objection_lifecycle_is_persisted_and_tenant_scoped(uow_factory) -> None
     with uow_factory() as uow:
         with pytest.raises(StaleSalesObjectionError):
             uow.sales_objections.save(record, expected_version=0)
+
+
+def test_sales_shadow_result_is_tenant_scoped_and_evaluated_once(uow_factory) -> None:
+    _seed_case(uow_factory, "biz-1", "case-1")
+    with uow_factory() as uow:
+        uow.conversations.add(Conversation(
+            "conversation-1", "biz-1", "0" * 64, "web",
+            ConversationStatus.AI_ACTIVE, NOW, NOW, NOW, NOW + timedelta(days=1),
+            lead_id="lead-biz-1", case_id="case-1",
+        ))
+        uow.sales_shadow_results.add(SalesShadowResult(
+            "shadow-1", "biz-1", "case-1", "conversation-1", "message-1",
+            SalesMove.ASK_DISCOVERY_QUESTION, SalesShadowStatus.VALID,
+            "What matters most?", "How can I help?", (), (), (), (), "v1", "model", NOW,
+        ))
+        uow.commit()
+
+    with uow_factory() as uow:
+        assert uow.sales_shadow_results.get("other", "case-1", "shadow-1") is None
+        evaluated = uow.sales_shadow_results.evaluate(
+            "biz-1", "case-1", "shadow-1", evaluation=SalesShadowEvaluation.APPROVED,
+            evaluated_by="user-1", evaluated_at=NOW,
+        )
+        assert evaluated is not None
+        assert evaluated.status is SalesShadowStatus.EVALUATED
+        assert uow.sales_shadow_results.evaluate(
+            "biz-1", "case-1", "shadow-1", evaluation=SalesShadowEvaluation.WRONG_TONE,
+            evaluated_by="user-2", evaluated_at=NOW,
+        ) is None
+        uow.commit()

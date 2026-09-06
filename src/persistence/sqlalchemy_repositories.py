@@ -43,6 +43,11 @@ from src.domain.sales import (
     SalesObjectionRecord,
     SalesPlaybookStatus,
     SalesPlaybookVersion,
+    SalesShadowEvaluation,
+    SalesShadowJob,
+    SalesShadowJobStatus,
+    SalesShadowResult,
+    SalesShadowStatus,
     SalesStage,
     SalesTurn,
 )
@@ -84,6 +89,8 @@ from .sqlalchemy_models import (
     SalesObjectionRow,
     SalesPlaybookVersionRow,
     SalesProfileRow,
+    SalesShadowJobRow,
+    SalesShadowResultRow,
     SalesTurnRow,
     StaffSessionRow,
     StaffSecurityCredentialRow,
@@ -1220,6 +1227,165 @@ class SQLAlchemySalesTurnRepository:
         )
 
 
+class SQLAlchemySalesShadowJobRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def add(self, job: SalesShadowJob) -> None:
+        self.session.add(SalesShadowJobRow(
+            id=job.job_id, business_id=job.business_id, case_id=job.case_id,
+            conversation_id=job.conversation_id, source_message_id=job.source_message_id,
+            response_message_id=job.response_message_id, status=job.status.value,
+            retry_count=job.retry_count, max_retries=job.max_retries,
+            next_attempt_at=job.next_attempt_at, lease_owner=job.lease_owner,
+            lease_expires_at=job.lease_expires_at,
+            last_error_category=job.last_error_category, created_at=job.created_at,
+            updated_at=job.updated_at,
+        ))
+
+    def get(self, business_id: str, job_id: str) -> SalesShadowJob | None:
+        row = self.session.scalar(select(SalesShadowJobRow).where(
+            SalesShadowJobRow.business_id == business_id, SalesShadowJobRow.id == job_id))
+        return self._to_domain(row) if row else None
+
+    def claim_next(self, *, now: datetime, lease_owner: str,
+                   lease_expires_at: datetime) -> SalesShadowJob | None:
+        candidate = self.session.scalar(
+            select(SalesShadowJobRow.id).where(
+                SalesShadowJobRow.next_attempt_at <= now,
+                SalesShadowJobRow.retry_count < SalesShadowJobRow.max_retries,
+                (SalesShadowJobRow.status == SalesShadowJobStatus.PENDING.value) |
+                ((SalesShadowJobRow.status == SalesShadowJobStatus.RUNNING.value) &
+                 (SalesShadowJobRow.lease_expires_at <= now)),
+            ).order_by(SalesShadowJobRow.next_attempt_at, SalesShadowJobRow.created_at).limit(1)
+        )
+        if candidate is None:
+            return None
+        changed = self.session.execute(update(SalesShadowJobRow).where(
+            SalesShadowJobRow.id == candidate,
+            SalesShadowJobRow.next_attempt_at <= now,
+            (SalesShadowJobRow.status == SalesShadowJobStatus.PENDING.value) |
+            ((SalesShadowJobRow.status == SalesShadowJobStatus.RUNNING.value) &
+             (SalesShadowJobRow.lease_expires_at <= now)),
+        ).values(status=SalesShadowJobStatus.RUNNING.value, lease_owner=lease_owner,
+                 lease_expires_at=lease_expires_at, updated_at=now))
+        if changed.rowcount != 1:
+            return None
+        row = self.session.get(SalesShadowJobRow, candidate)
+        return self._to_domain(row) if row else None
+
+    def complete(self, business_id: str, job_id: str, *, lease_owner: str,
+                 now: datetime) -> bool:
+        result = self.session.execute(update(SalesShadowJobRow).where(
+            SalesShadowJobRow.business_id == business_id, SalesShadowJobRow.id == job_id,
+            SalesShadowJobRow.status == SalesShadowJobStatus.RUNNING.value,
+            SalesShadowJobRow.lease_owner == lease_owner,
+        ).values(status=SalesShadowJobStatus.COMPLETED.value, lease_owner=None,
+                 lease_expires_at=None, last_error_category=None, updated_at=now))
+        return result.rowcount == 1
+
+    def fail(self, business_id: str, job_id: str, *, lease_owner: str,
+             category: str, retry_at: datetime, now: datetime) -> bool:
+        row = self.session.scalar(select(SalesShadowJobRow).where(
+            SalesShadowJobRow.business_id == business_id, SalesShadowJobRow.id == job_id,
+            SalesShadowJobRow.status == SalesShadowJobStatus.RUNNING.value,
+            SalesShadowJobRow.lease_owner == lease_owner))
+        if row is None:
+            return False
+        retry_count = row.retry_count + 1
+        row.retry_count = retry_count
+        row.status = (SalesShadowJobStatus.FAILED.value if retry_count >= row.max_retries
+                      else SalesShadowJobStatus.PENDING.value)
+        row.next_attempt_at = retry_at
+        row.lease_owner = None
+        row.lease_expires_at = None
+        row.last_error_category = category[:64]
+        row.updated_at = now
+        return True
+
+    def delete_completed_before(self, *, before: datetime) -> int:
+        result = self.session.execute(delete(SalesShadowJobRow).where(
+            SalesShadowJobRow.status == SalesShadowJobStatus.COMPLETED.value,
+            SalesShadowJobRow.updated_at < before))
+        return int(result.rowcount or 0)
+
+    @staticmethod
+    def _to_domain(row: SalesShadowJobRow) -> SalesShadowJob:
+        return SalesShadowJob(
+            job_id=row.id, business_id=row.business_id, case_id=row.case_id,
+            conversation_id=row.conversation_id, source_message_id=row.source_message_id,
+            response_message_id=row.response_message_id, status=SalesShadowJobStatus(row.status),
+            retry_count=row.retry_count, max_retries=row.max_retries,
+            next_attempt_at=_aware(row.next_attempt_at), lease_owner=row.lease_owner,
+            lease_expires_at=_aware(row.lease_expires_at) if row.lease_expires_at else None,
+            last_error_category=row.last_error_category, created_at=_aware(row.created_at),
+            updated_at=_aware(row.updated_at))
+
+
+class SQLAlchemySalesShadowRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def add(self, result: SalesShadowResult) -> None:
+        self.session.add(SalesShadowResultRow(
+            id=result.shadow_id, business_id=result.business_id, case_id=result.case_id,
+            conversation_id=result.conversation_id, source_message_id=result.source_message_id,
+            approved_move=result.approved_move.value, status=result.status.value,
+            proposed_response_text=result.proposed_response_text,
+            delivered_response_text=result.delivered_response_text,
+            knowledge_ids=list(result.knowledge_ids), business_fact_ids=list(result.business_fact_ids),
+            customer_evidence_ids=list(result.customer_evidence_ids), violations=list(result.violations),
+            prompt_version=result.prompt_version, model_name=result.model_name,
+            created_at=result.created_at, evaluation=result.evaluation.value if result.evaluation else None,
+            evaluated_by=result.evaluated_by, evaluated_at=result.evaluated_at,
+        ))
+
+    def get(self, business_id: str, case_id: str, shadow_id: str) -> SalesShadowResult | None:
+        row = self.session.scalar(select(SalesShadowResultRow).where(
+            SalesShadowResultRow.business_id == business_id,
+            SalesShadowResultRow.case_id == case_id,
+            SalesShadowResultRow.id == shadow_id,
+        ))
+        return self._to_domain(row) if row else None
+
+    def list_for_case(self, business_id: str, case_id: str) -> tuple[SalesShadowResult, ...]:
+        rows = self.session.scalars(select(SalesShadowResultRow).where(
+            SalesShadowResultRow.business_id == business_id,
+            SalesShadowResultRow.case_id == case_id,
+        ).order_by(SalesShadowResultRow.created_at, SalesShadowResultRow.id))
+        return tuple(self._to_domain(row) for row in rows)
+
+    def evaluate(self, business_id: str, case_id: str, shadow_id: str, *,
+                 evaluation: SalesShadowEvaluation, evaluated_by: str,
+                 evaluated_at: datetime) -> SalesShadowResult | None:
+        changed = self.session.execute(update(SalesShadowResultRow).where(
+            SalesShadowResultRow.business_id == business_id,
+            SalesShadowResultRow.case_id == case_id,
+            SalesShadowResultRow.id == shadow_id,
+            SalesShadowResultRow.status != SalesShadowStatus.EVALUATED.value,
+        ).values(status=SalesShadowStatus.EVALUATED.value, evaluation=evaluation.value,
+                 evaluated_by=evaluated_by, evaluated_at=evaluated_at))
+        if changed.rowcount != 1:
+            return None
+        return self.get(business_id, case_id, shadow_id)
+
+    @staticmethod
+    def _to_domain(row: SalesShadowResultRow) -> SalesShadowResult:
+        return SalesShadowResult(
+            shadow_id=row.id, business_id=row.business_id, case_id=row.case_id,
+            conversation_id=row.conversation_id, source_message_id=row.source_message_id,
+            approved_move=SalesMove(row.approved_move), status=SalesShadowStatus(row.status),
+            proposed_response_text=row.proposed_response_text,
+            delivered_response_text=row.delivered_response_text,
+            knowledge_ids=tuple(row.knowledge_ids), business_fact_ids=tuple(row.business_fact_ids),
+            customer_evidence_ids=tuple(row.customer_evidence_ids), violations=tuple(row.violations),
+            prompt_version=row.prompt_version, model_name=row.model_name, created_at=_aware(row.created_at),
+            evaluation=SalesShadowEvaluation(row.evaluation) if row.evaluation else None,
+            evaluated_by=row.evaluated_by,
+            evaluated_at=_aware(row.evaluated_at) if row.evaluated_at else None,
+        )
+
+
 class SQLAlchemySalesKnowledgeRepository:
     def __init__(self, session: Session) -> None:
         self.session = session
@@ -1707,6 +1873,15 @@ class SQLAlchemyConversationMessageRepository:
             correlation_id=message.correlation_id,
             metadata_json=_json_value(message.metadata),
         ))
+
+    def get(self, business_id: str, conversation_id: str,
+            message_id: str) -> ConversationMessage | None:
+        row = self.session.scalar(select(ConversationMessageRow).where(
+            ConversationMessageRow.business_id == business_id,
+            ConversationMessageRow.conversation_id == conversation_id,
+            ConversationMessageRow.id == message_id,
+        ))
+        return self._to_domain(row) if row is not None else None
 
     def get_by_external_id(
         self,

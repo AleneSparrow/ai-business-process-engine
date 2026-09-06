@@ -33,6 +33,8 @@ from .fallback import (
 )
 from .openai_provider import OpenAIProvider
 from .provider import RetryingAIProvider
+from .sales_response_generator import AISalesResponseGenerator
+from .sales_turn_analyzer import AISalesTurnAnalyzer
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +46,8 @@ class AIRuntimeComponents:
     universal_reassurance_response_generator: UniversalReassuranceResponseGenerator
     provider_name: str
     model_name: str
+    sales_response_generator: AISalesResponseGenerator | None = None
+    sales_turn_analyzer: AISalesTurnAnalyzer | None = None
 
 
 
@@ -55,6 +59,8 @@ def _with_deterministic_fallback(
     customer_response_generator: CustomerResponseGenerator,
     reassurance_response_generator: ReassuranceResponseGenerator,
     universal_reassurance_response_generator: UniversalReassuranceResponseGenerator,
+    sales_response_generator: AISalesResponseGenerator,
+    sales_turn_analyzer: AISalesTurnAnalyzer,
 ) -> AIRuntimeComponents:
     """Wrap every AI component so a provider outage degrades instead of failing.
 
@@ -80,6 +86,8 @@ def _with_deterministic_fallback(
         ),
         provider_name,
         model_name,
+        sales_response_generator,
+        sales_turn_analyzer,
     )
 
 
@@ -93,6 +101,8 @@ def build_ai_runtime(settings: Settings) -> AIRuntimeComponents:
             DeterministicUniversalReassuranceResponseGenerator(),
             "deterministic",
             "deterministic-v1",
+            None,
+            None,
         )
     if settings.ai_provider == "anthropic":
         if settings.anthropic_api_key is None or settings.anthropic_model is None:
@@ -113,6 +123,8 @@ def build_ai_runtime(settings: Settings) -> AIRuntimeComponents:
             AICustomerResponseGenerator(provider),
             AIReassuranceResponseGenerator(provider),
             AIUniversalReassuranceResponseGenerator(provider),
+            AISalesResponseGenerator(provider),
+            AISalesTurnAnalyzer(provider),
         )
     if settings.ai_provider != "openai":
         raise RuntimeError(f"unsupported AI_PROVIDER: {settings.ai_provider}")
@@ -134,4 +146,6 @@ def build_ai_runtime(settings: Settings) -> AIRuntimeComponents:
         AICustomerResponseGenerator(provider),
         AIReassuranceResponseGenerator(provider),
         AIUniversalReassuranceResponseGenerator(provider),
+        AISalesResponseGenerator(provider),
+        AISalesTurnAnalyzer(provider),
     )

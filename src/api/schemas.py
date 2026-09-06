@@ -29,10 +29,17 @@ from src.domain.sales import (
     SalesObjectionRecord,
     SalesPlaybookStatus,
     SalesPlaybookVersion,
+    SalesShadowEvaluation,
+    SalesShadowResult,
+    SalesShadowStatus,
     SalesStage,
     SalesTurn,
 )
 from src.persistence.conversation_service import PublicCommercialSnapshot, PublicConversation
+from src.persistence.sales_knowledge_import_service import (
+    SalesKnowledgeImportItem,
+    SalesKnowledgeImportResult,
+)
 
 
 class ApiModel(BaseModel):
@@ -1060,6 +1067,80 @@ class SalesKnowledgeCardListResponse(ApiModel):
     cards: tuple[SalesKnowledgeCardSchema, ...]
 
 
+class SalesKnowledgeSourceImport(ApiModel):
+    title: Annotated[str, Field(min_length=1, max_length=500)]
+    location: Annotated[str, Field(min_length=1, max_length=500)]
+    author: Annotated[str | None, Field(min_length=1, max_length=300)] = None
+    edition: Annotated[str | None, Field(min_length=1, max_length=200)] = None
+    url: Annotated[str | None, Field(min_length=1, max_length=2000)] = None
+
+
+class SalesKnowledgeCardImport(ApiModel):
+    knowledge_id: Annotated[
+        str, Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+    ]
+    version: Annotated[int, Field(ge=1)]
+    source: SalesKnowledgeSourceImport
+    principle: Annotated[str, Field(min_length=1, max_length=5000)]
+    applicable_when: Annotated[tuple[Annotated[str, Field(min_length=1, max_length=1000)], ...], Field(min_length=1, max_length=50)]
+    prohibited_when: Annotated[tuple[Annotated[str, Field(min_length=1, max_length=1000)], ...], Field(max_length=50)] = ()
+    required_sequence: Annotated[tuple[Annotated[str, Field(min_length=1, max_length=1000)], ...], Field(max_length=50)] = ()
+    forbidden_actions: Annotated[tuple[Annotated[str, Field(min_length=1, max_length=1000)], ...], Field(max_length=50)] = ()
+    approved_examples: Annotated[tuple[Annotated[str, Field(min_length=1, max_length=2000)], ...], Field(max_length=50)] = ()
+
+    def to_service_item(self) -> SalesKnowledgeImportItem:
+        return SalesKnowledgeImportItem(
+            knowledge_id=self.knowledge_id,
+            version=self.version,
+            source=self.source.model_dump(exclude_none=True),
+            principle=self.principle,
+            applicable_when=self.applicable_when,
+            prohibited_when=self.prohibited_when,
+            required_sequence=self.required_sequence,
+            forbidden_actions=self.forbidden_actions,
+            approved_examples=self.approved_examples,
+        )
+
+
+class SalesKnowledgeImportRequest(ApiModel):
+    cards: Annotated[tuple[SalesKnowledgeCardImport, ...], Field(min_length=1, max_length=100)]
+
+    @model_validator(mode="after")
+    def unique_versions(self) -> "SalesKnowledgeImportRequest":
+        identities = [(card.knowledge_id, card.version) for card in self.cards]
+        if len(set(identities)) != len(identities):
+            raise ValueError("knowledge_id and version must be unique within an import")
+        return self
+
+
+class SalesKnowledgeImportCheckSchema(ApiModel):
+    knowledge_id: str
+    version: int
+    status: Literal["READY", "DUPLICATE_VERSION"]
+
+
+class SalesKnowledgeImportResponse(ApiModel):
+    valid: bool
+    imported: bool
+    cards_are_candidates: Literal[True] = True
+    checks: tuple[SalesKnowledgeImportCheckSchema, ...]
+
+    @classmethod
+    def from_result(cls, value: SalesKnowledgeImportResult) -> "SalesKnowledgeImportResponse":
+        return cls(
+            valid=value.valid,
+            imported=value.imported,
+            checks=tuple(
+                SalesKnowledgeImportCheckSchema(
+                    knowledge_id=check.knowledge_id,
+                    version=check.version,
+                    status=check.status,
+                )
+                for check in value.checks
+            ),
+        )
+
+
 class SalesObjectionRecordSchema(ApiModel):
     objection_id: str
     objection_type: str
@@ -1151,6 +1232,41 @@ class SalesTurnSchema(ApiModel):
 
 class SalesTurnListResponse(ApiModel):
     turns: tuple[SalesTurnSchema, ...]
+
+
+class SalesShadowEvaluationRequest(ApiModel):
+    evaluation: SalesShadowEvaluation
+
+
+class SalesShadowResultSchema(ApiModel):
+    shadow_id: str
+    conversation_id: str
+    source_message_id: str
+    approved_move: SalesMove
+    status: SalesShadowStatus
+    proposed_response_text: str | None
+    delivered_response_text: str | None
+    knowledge_ids: tuple[str, ...]
+    business_fact_ids: tuple[str, ...]
+    customer_evidence_ids: tuple[str, ...]
+    violations: tuple[str, ...]
+    prompt_version: str | None
+    model_name: str | None
+    created_at: datetime
+    evaluation: SalesShadowEvaluation | None
+    evaluated_by: str | None
+    evaluated_at: datetime | None
+
+    @classmethod
+    def from_domain(cls, value: SalesShadowResult) -> "SalesShadowResultSchema":
+        return cls(**{
+            field: getattr(value, field)
+            for field in cls.model_fields
+        })
+
+
+class SalesShadowResultListResponse(ApiModel):
+    results: tuple[SalesShadowResultSchema, ...]
 
 
 # fulfillment_type (Business DNA) <-> commercial_path (Settings) -- see

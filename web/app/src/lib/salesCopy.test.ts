@@ -3,17 +3,37 @@ import test from "node:test";
 import type { SalesKnowledgeCard, SalesTurn } from "../api/client.ts";
 import {
   NONE_SPECIFIED,
+  KNOWLEDGE_CARD_FILTER_GROUP_NAME,
+  KNOWLEDGE_CARD_FILTER_OPTIONS,
   KNOWLEDGE_CARD_POLICY_LABELS,
+  KNOWLEDGE_REVIEW_CONFIRMATION_ROLE,
   activeObjection,
   beginKnowledgeReview,
   canConfirmKnowledgeReview,
   canReviewKnowledgeCard,
   classifySalesError,
+  filterKnowledgeCards,
+  isKnowledgeCardFilter,
+  isKnowledgeCardVisibleInFilter,
+  isSafeDomId,
   knowledgeCardDetailFields,
+  knowledgeCardDomId,
+  knowledgeCardFilterAccessibleLabel,
+  knowledgeCardFilterCounts,
+  knowledgeCardFilterInputId,
+  knowledgeCardKey,
   knowledgeReviewConfirmation,
+  knowledgeReviewConfirmationCancelsOnKey,
+  knowledgeReviewFallbackFocusTarget,
+  knowledgeReviewFocusTargetAfter,
+  knowledgeReviewLiveMessage,
+  knowledgeReviewPendingLabel,
   knowledgeSourceLabel,
   latestSalesTurnForConversation,
+  partitionKnowledgeCardDetails,
   reasonCodeLabel,
+  resolveKnowledgeReviewRestoreFocus,
+  retainOpenCardDetails,
   salesMoveLabel,
   salesStageLabel,
 } from "./salesCopy.ts";
@@ -145,6 +165,305 @@ test("review confirmation names the card, version, action, and one-time warning"
   assert.equal(copy.action, "reject");
   assert.equal(copy.actionLabel, "rejection");
   assert.match(copy.warning, /only once/i);
+});
+
+test("filterKnowledgeCards is local and does not mutate the source list", () => {
+  const candidate = sampleCard({ knowledge_id: "c1", status: "CANDIDATE" });
+  const approved = sampleCard({ knowledge_id: "a1", status: "APPROVED" });
+  const rejected = sampleCard({ knowledge_id: "r1", status: "REJECTED" });
+  const cards = [candidate, approved, rejected];
+  assert.deepEqual(filterKnowledgeCards(cards, "ALL").map((card) => card.knowledge_id), ["c1", "a1", "r1"]);
+  assert.deepEqual(filterKnowledgeCards(cards, "CANDIDATE").map((card) => card.knowledge_id), ["c1"]);
+  assert.deepEqual(filterKnowledgeCards(cards, "APPROVED").map((card) => card.knowledge_id), ["a1"]);
+  assert.deepEqual(filterKnowledgeCards(cards, "REJECTED").map((card) => card.knowledge_id), ["r1"]);
+  assert.equal(cards.length, 3);
+  assert.deepEqual(knowledgeCardFilterCounts(cards), {
+    ALL: 3,
+    CANDIDATE: 1,
+    APPROVED: 1,
+    REJECTED: 1,
+  });
+});
+
+test("retainOpenCardDetails keeps open cards that still exist after a refresh", () => {
+  const kept = sampleCard({ knowledge_id: "keep-me", version: 2 });
+  const gone = sampleCard({ knowledge_id: "gone", version: 1 });
+  const open = {
+    [knowledgeCardKey(kept)]: true,
+    [knowledgeCardKey(gone)]: true,
+    "stale:9": true,
+    [knowledgeCardKey(sampleCard({ knowledge_id: "closed", version: 1 }))]: false,
+  };
+  assert.deepEqual(retainOpenCardDetails(open, [kept, sampleCard({ knowledge_id: "other", version: 1 })]), {
+    [knowledgeCardKey(kept)]: true,
+  });
+});
+
+test("knowledgeCardDomId stays unique, deterministic, and CSS-safe", () => {
+  const dotted = sampleCard({ knowledge_id: "price.v1", version: 1 });
+  const dashed = sampleCard({ knowledge_id: "price-v1", version: 1 });
+  const dottedId = knowledgeCardDomId("knowledge-details", dotted);
+  const dashedId = knowledgeCardDomId("knowledge-details", dashed);
+  assert.notEqual(dottedId, dashedId);
+  assert.equal(dottedId, knowledgeCardDomId("knowledge-details", dotted));
+  assert.equal(dashedId, knowledgeCardDomId("knowledge-details", { ...dashed }));
+  assert.ok(isSafeDomId(dottedId));
+  assert.ok(isSafeDomId(dashedId));
+  for (const id of [dottedId, dashedId]) {
+    assert.doesNotMatch(id, /[ \/?#.]/);
+    assert.equal(id.includes("price.v1"), false);
+    assert.equal(id.includes("price-v1"), false);
+  }
+  assert.notEqual(
+    knowledgeCardDomId("knowledge-details", sampleCard({ knowledge_id: "price.v1", version: 1 })),
+    knowledgeCardDomId("knowledge-details", sampleCard({ knowledge_id: "price.v1", version: 2 })),
+  );
+});
+
+test("knowledgeCardDomId encodes empty and unusual knowledge IDs safely", () => {
+  const unusual = [
+    sampleCard({ knowledge_id: "", version: 1 }),
+    sampleCard({ knowledge_id: "  /?#.", version: 1 }),
+    sampleCard({ knowledge_id: "sales.discovery/ask one?", version: 3 }),
+    sampleCard({ knowledge_id: "цена v1", version: 1 }),
+    sampleCard({ knowledge_id: "../id", version: 0 }),
+  ];
+  const ids = unusual.map((card) => knowledgeCardDomId("knowledge-details", card));
+  assert.equal(new Set(ids).size, ids.length);
+  for (const [index, card] of unusual.entries()) {
+    const id = ids[index];
+    assert.ok(isSafeDomId(id), id);
+    assert.doesNotMatch(id, /[ \/?#]/);
+    if (card.knowledge_id.length > 0) {
+      assert.equal(id.includes(card.knowledge_id), false);
+    }
+    assert.equal(id, knowledgeCardDomId("knowledge-details", card));
+  }
+});
+
+test("aria target ids for one card stay unique across prefixes", () => {
+  const card = sampleCard({ knowledge_id: "price.v1", version: 1 });
+  const ids = [
+    knowledgeCardDomId("knowledge-details", card),
+    knowledgeCardDomId("knowledge-details-toggle", card),
+    knowledgeCardDomId("knowledge-review-title", card),
+    knowledgeCardDomId("knowledge-review-warning", card),
+  ];
+  assert.equal(new Set(ids).size, ids.length);
+  for (const id of ids) assert.ok(isSafeDomId(id));
+});
+
+test("full-card details split identity from wrapping policy rules", () => {
+  const { identity, policy } = partitionKnowledgeCardDetails(knowledgeCardDetailFields(sampleCard()));
+  assert.deepEqual(identity.map((field) => field.label), [
+    "Principle",
+    "Source title",
+    "Source location",
+    "Knowledge ID",
+    "Version",
+    "Status",
+  ]);
+  assert.deepEqual(policy.map((field) => field.label), [...KNOWLEDGE_CARD_POLICY_LABELS]);
+});
+
+test("review pending and live messages stay specific to the action", () => {
+  assert.equal(knowledgeReviewPendingLabel("approve", false), "Confirm approval");
+  assert.equal(knowledgeReviewPendingLabel("reject", true), "Rejecting…");
+  assert.match(knowledgeReviewLiveMessage("success", "approve"), /approved/i);
+  assert.match(knowledgeReviewLiveMessage("success", "reject"), /rejected/i);
+  assert.equal(
+    knowledgeReviewLiveMessage("error", "approve", "Only a candidate can be reviewed"),
+    "Only a candidate can be reviewed",
+  );
+});
+
+test("inline confirmation is a group and Escape cancels only when not reviewing", () => {
+  assert.equal(KNOWLEDGE_REVIEW_CONFIRMATION_ROLE, "group");
+  assert.equal(knowledgeReviewConfirmationCancelsOnKey("Escape", false), true);
+  assert.equal(knowledgeReviewConfirmationCancelsOnKey("Escape", true), false);
+  assert.equal(knowledgeReviewConfirmationCancelsOnKey("Enter", false), false);
+  assert.equal(knowledgeReviewConfirmationCancelsOnKey("Tab", false), false);
+  assert.equal(knowledgeReviewFocusTargetAfter("opened"), "confirm");
+  assert.equal(knowledgeReviewFocusTargetAfter("cancelled"), "trigger");
+  assert.equal(knowledgeReviewFocusTargetAfter("succeeded"), "details-toggle");
+});
+
+test("review restore focus uses the details toggle when the card stays visible", () => {
+  const approved = sampleCard({ knowledge_id: "stay", status: "APPROVED" });
+  const restore = knowledgeReviewFallbackFocusTarget({
+    event: "succeeded",
+    cardVisibleInCurrentFilter: isKnowledgeCardVisibleInFilter([approved], "ALL", approved),
+    activeFilter: "ALL",
+  });
+  assert.equal(restore.target, "details-toggle");
+  assert.equal(restore.filter, "ALL");
+});
+
+test("review restore focus uses the active filter input when a card leaves CANDIDATE", () => {
+  const approved = sampleCard({ knowledge_id: "left", status: "APPROVED" });
+  const restore = knowledgeReviewFallbackFocusTarget({
+    event: "succeeded",
+    cardVisibleInCurrentFilter: isKnowledgeCardVisibleInFilter([approved], "CANDIDATE", approved),
+    activeFilter: "CANDIDATE",
+  });
+  assert.equal(restore.target, "filter-input");
+  assert.equal(restore.filter, "CANDIDATE");
+});
+
+test("conflict refresh restore focus uses the active filter input when the card is gone", () => {
+  const gone = sampleCard({ knowledge_id: "gone", version: 1 });
+  const remaining = [sampleCard({ knowledge_id: "other", version: 1 })];
+  const restore = knowledgeReviewFallbackFocusTarget({
+    event: "conflict-refresh",
+    cardVisibleInCurrentFilter: isKnowledgeCardVisibleInFilter(remaining, "CANDIDATE", gone),
+    activeFilter: "CANDIDATE",
+  });
+  assert.equal(restore.target, "filter-input");
+  assert.equal(restore.filter, "CANDIDATE");
+});
+
+test("cancel restore focus stays on the original Approve/Reject trigger", () => {
+  const restore = knowledgeReviewFallbackFocusTarget({
+    event: "cancelled",
+    cardVisibleInCurrentFilter: true,
+    activeFilter: "CANDIDATE",
+  });
+  assert.equal(restore.target, "trigger");
+  assert.equal(knowledgeReviewFocusTargetAfter("cancelled"), "trigger");
+  assert.equal(restore.filter, "CANDIDATE");
+  assert.equal(
+    knowledgeReviewFallbackFocusTarget({
+      event: "cancelled",
+      cardVisibleInCurrentFilter: false,
+      activeFilter: "CANDIDATE",
+    }).target,
+    "trigger",
+  );
+});
+
+test("successful review restore focus does not switch the selected filter", () => {
+  for (const filter of ["ALL", "CANDIDATE", "APPROVED", "REJECTED"] as const) {
+    const visible = knowledgeReviewFallbackFocusTarget({
+      event: "succeeded",
+      cardVisibleInCurrentFilter: true,
+      activeFilter: filter,
+    });
+    const hidden = knowledgeReviewFallbackFocusTarget({
+      event: "succeeded",
+      cardVisibleInCurrentFilter: false,
+      activeFilter: filter,
+    });
+    assert.equal(visible.filter, filter);
+    assert.equal(hidden.filter, filter);
+    assert.equal(visible.target, "details-toggle");
+    assert.equal(hidden.target, "filter-input");
+  }
+});
+
+test("restore focus falls back to the active filter radio when the details toggle is gone from the DOM", () => {
+  const restore = knowledgeReviewFallbackFocusTarget({
+    event: "succeeded",
+    cardVisibleInCurrentFilter: false,
+    activeFilter: "CANDIDATE",
+  });
+  assert.equal(
+    resolveKnowledgeReviewRestoreFocus({
+      restore,
+      detailsToggle: { isConnected: false },
+      trigger: { isConnected: false },
+    }),
+    "filter-input",
+  );
+  assert.equal(
+    resolveKnowledgeReviewRestoreFocus({
+      restore,
+      detailsToggle: null,
+      trigger: null,
+    }),
+    "filter-input",
+  );
+});
+
+test("restore focus uses the details toggle only when that node is still in the document", () => {
+  const restore = knowledgeReviewFallbackFocusTarget({
+    event: "succeeded",
+    cardVisibleInCurrentFilter: true,
+    activeFilter: "ALL",
+  });
+  assert.equal(
+    resolveKnowledgeReviewRestoreFocus({
+      restore,
+      detailsToggle: { isConnected: true },
+      trigger: null,
+    }),
+    "details-toggle",
+  );
+  assert.equal(
+    resolveKnowledgeReviewRestoreFocus({
+      restore,
+      detailsToggle: { isConnected: false },
+      trigger: { isConnected: true },
+    }),
+    "filter-input",
+  );
+});
+
+test("conflict refresh restore focus falls back when the reviewed card is no longer in the list", () => {
+  const gone = sampleCard({ knowledge_id: "gone", version: 1 });
+  const remaining = [sampleCard({ knowledge_id: "other", version: 1 })];
+  const restore = knowledgeReviewFallbackFocusTarget({
+    event: "conflict-refresh",
+    cardVisibleInCurrentFilter: isKnowledgeCardVisibleInFilter(remaining, "CANDIDATE", gone),
+    activeFilter: "CANDIDATE",
+  });
+  assert.equal(
+    resolveKnowledgeReviewRestoreFocus({
+      restore,
+      detailsToggle: { isConnected: false },
+      trigger: null,
+    }),
+    "filter-input",
+  );
+  assert.equal(restore.filter, "CANDIDATE");
+});
+
+test("cancel restore focus returns to Approve/Reject when that button remounts", () => {
+  const restore = knowledgeReviewFallbackFocusTarget({
+    event: "cancelled",
+    cardVisibleInCurrentFilter: true,
+    activeFilter: "CANDIDATE",
+  });
+  assert.equal(
+    resolveKnowledgeReviewRestoreFocus({
+      restore,
+      detailsToggle: { isConnected: true },
+      trigger: { isConnected: true },
+    }),
+    "trigger",
+  );
+  assert.equal(
+    resolveKnowledgeReviewRestoreFocus({
+      restore,
+      detailsToggle: { isConnected: true },
+      trigger: { isConnected: false },
+    }),
+    "filter-input",
+  );
+});
+
+test("knowledge card filter options share one name and unique input ids", () => {
+  const ids = KNOWLEDGE_CARD_FILTER_OPTIONS.map((option) => knowledgeCardFilterInputId(option.key));
+  assert.equal(new Set(ids).size, ids.length);
+  for (const option of KNOWLEDGE_CARD_FILTER_OPTIONS) {
+    const id = knowledgeCardFilterInputId(option.key);
+    assert.ok(id.startsWith(`${KNOWLEDGE_CARD_FILTER_GROUP_NAME}-`));
+    assert.ok(isSafeDomId(id));
+    assert.equal(isKnowledgeCardFilter(option.key), true);
+  }
+  assert.equal(isKnowledgeCardFilter("DRAFT"), false);
+  assert.equal(knowledgeCardFilterAccessibleLabel("Candidates", null), "Candidates");
+  assert.equal(knowledgeCardFilterAccessibleLabel("Candidates", 2), "Candidates (2)");
+  assert.equal(knowledgeCardFilterAccessibleLabel("All", 0), "All (0)");
 });
 
 test("activeObjection ignores resolved and deferred rows", () => {

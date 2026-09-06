@@ -144,6 +144,8 @@ def create_app(
             universal_reassurance_response_generator=configured_universal_reassurance_generator,
             ai_provider_name=ai_runtime.provider_name,
             ai_model_name=ai_runtime.model_name,
+            sales_response_generator=ai_runtime.sales_response_generator,
+            sales_turn_analyzer=ai_runtime.sales_turn_analyzer,
             public_chat_rate_limiter=SqlSlidingWindowRateLimiter(
                 engine,
                 runtime_settings.public_chat_rate_limit_requests,

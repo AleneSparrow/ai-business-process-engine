@@ -12,7 +12,7 @@ from src.domain.commercial import Booking, PaymentRequest, PaymentType, Quote
 from src.domain.states import ProcessState
 from src.domain.sales import (
     CustomerSalesProfile, SalesKnowledgeCard, SalesKnowledgeStatus, SalesObjectionRecord,
-    SalesPlaybookVersion, SalesTurn,
+    SalesPlaybookVersion, SalesShadowEvaluation, SalesShadowJob, SalesShadowResult, SalesTurn,
 )
 from src.domain.tenancy import Business, BusinessDNAVersion
 
@@ -174,6 +174,28 @@ class SalesTurnRepository(Protocol):
     def list_for_case(self, business_id: str, case_id: str) -> tuple[SalesTurn, ...]: ...
 
 
+class SalesShadowRepository(Protocol):
+    def add(self, result: SalesShadowResult) -> None: ...
+    def get(self, business_id: str, case_id: str, shadow_id: str) -> SalesShadowResult | None: ...
+    def list_for_case(self, business_id: str, case_id: str) -> tuple[SalesShadowResult, ...]: ...
+    def evaluate(
+        self, business_id: str, case_id: str, shadow_id: str, *,
+        evaluation: SalesShadowEvaluation, evaluated_by: str, evaluated_at: datetime,
+    ) -> SalesShadowResult | None: ...
+
+
+class SalesShadowJobRepository(Protocol):
+    def add(self, job: SalesShadowJob) -> None: ...
+    def get(self, business_id: str, job_id: str) -> SalesShadowJob | None: ...
+    def claim_next(self, *, now: datetime, lease_owner: str,
+                   lease_expires_at: datetime) -> SalesShadowJob | None: ...
+    def complete(self, business_id: str, job_id: str, *, lease_owner: str,
+                 now: datetime) -> bool: ...
+    def fail(self, business_id: str, job_id: str, *, lease_owner: str,
+             category: str, retry_at: datetime, now: datetime) -> bool: ...
+    def delete_completed_before(self, *, before: datetime) -> int: ...
+
+
 class SalesKnowledgeRepository(Protocol):
     def add(self, card: SalesKnowledgeCard, *, now: datetime) -> None: ...
     def get(
@@ -251,6 +273,8 @@ class ConversationRepository(Protocol):
 
 class ConversationMessageRepository(Protocol):
     def add(self, message: ConversationMessage) -> None: ...
+    def get(self, business_id: str, conversation_id: str,
+            message_id: str) -> ConversationMessage | None: ...
     def get_by_external_id(
         self, business_id: str, conversation_id: str, external_message_id: str
     ) -> ConversationMessage | None: ...
@@ -479,6 +503,8 @@ class UnitOfWork(Protocol):
     follow_up_deliveries: FollowUpDeliveryRepository
     sales_profiles: SalesProfileRepository
     sales_turns: SalesTurnRepository
+    sales_shadow_results: SalesShadowRepository
+    sales_shadow_jobs: SalesShadowJobRepository
     sales_knowledge: SalesKnowledgeRepository
     sales_playbooks: SalesPlaybookRepository
     sales_objections: SalesObjectionRepository
