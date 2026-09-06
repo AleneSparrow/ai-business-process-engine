@@ -5,7 +5,7 @@ import {
   CalendarCheck, UserCheck, FileWarning, Clock,
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
-import { FlywheelMark } from "../components/Shared";
+import { EvoroveMark } from "../components/Shared";
 
 /**
  * Wave 1 GTM landing page -- solo & small family-law / general-practice
@@ -31,7 +31,7 @@ import { FlywheelMark } from "../components/Shared";
 function StatChip({ n, label }: { n: string; label: string }) {
   return (
     <div className="bg-white rounded-xl border border-[#E7E5DE] p-4">
-      <div style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600, color: "#B87333" }} className="text-2xl mb-1">
+      <div style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600, color: "#FF5A36" }} className="text-2xl mb-1">
         {n}
       </div>
       <div className="text-xs text-[#6B6459] leading-snug">{label}</div>
@@ -68,10 +68,10 @@ export default function LawyersLanding() {
       <header className="sticky top-0 z-20 backdrop-blur-sm" style={{ backgroundColor: "#F5F1EAEE", borderBottom: "1px solid #E7E5DE" }}>
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <button onClick={() => navigate("/lawyers")} className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: "#B87333" }}>
-              <FlywheelMark size={16} />
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: "#FF5A36" }}>
+              <EvoroveMark size={16} />
             </div>
-            <span className="font-semibold text-sm" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif" }}>Flywheel</span>
+            <span className="font-semibold text-sm" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif" }}>Evorove</span>
           </button>
           <nav className="hidden md:flex items-center gap-8 text-xs font-medium uppercase tracking-wider text-[#6B6459]">
             <a href="#different" className="hover:text-[#151515] transition-colors">How it's different</a>
@@ -85,7 +85,7 @@ export default function LawyersLanding() {
             <button
               onClick={() => navigate(primaryCtaTarget)}
               className="text-xs font-bold uppercase tracking-wide px-4 py-2 rounded flex items-center gap-1.5"
-              style={{ backgroundColor: "#D97B29", color: "#1C1206" }}
+              style={{ backgroundColor: "#C6FF00", color: "#1C1206" }}
             >
               Start free trial <ArrowRight size={14} />
             </button>
@@ -100,7 +100,7 @@ export default function LawyersLanding() {
             <a href="#pricing">Pricing</a>
             <a href="#faq">FAQ</a>
             {!user && <button onClick={() => navigate("/login")} className="text-left">Sign in</button>}
-            <button onClick={() => navigate(primaryCtaTarget)} className="font-bold px-4 py-2 rounded mt-1" style={{ backgroundColor: "#D97B29", color: "#1C1206" }}>
+            <button onClick={() => navigate(primaryCtaTarget)} className="font-bold px-4 py-2 rounded mt-1" style={{ backgroundColor: "#C6FF00", color: "#1C1206" }}>
               Start free trial
             </button>
           </div>
@@ -109,21 +109,21 @@ export default function LawyersLanding() {
 
       {/* ============ HERO ============ */}
       <section className="max-w-4xl mx-auto px-6 pt-16 md:pt-24 pb-14 text-center">
-        <div className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full mb-6" style={{ backgroundColor: "#F5E7D6", color: "#B87333" }}>
+        <div className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full mb-6" style={{ backgroundColor: "#F5E7D6", color: "#FF5A36" }}>
           <Scale size={12} /> Built for solo & small practices — California &amp; New York
         </div>
         <h1 className="text-4xl md:text-5xl leading-[1.1] mb-5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
           The AI intake assistant that legally can't overstep.
         </h1>
         <p className="text-base md:text-lg text-[#6B6459] leading-relaxed mb-8 max-w-2xl mx-auto">
-          Flywheel answers and qualifies every lead for your practice, 24/7 — built so the AI can only
+          Evorove answers and qualifies every lead for your practice, 24/7 — built so the AI can only
           follow the script you approve. Not a policy. An architecture.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-3">
           <button
             onClick={() => navigate(primaryCtaTarget)}
             className="text-sm font-bold uppercase tracking-wide px-5 py-3 rounded flex items-center gap-2"
-            style={{ backgroundColor: "#D97B29", color: "#1C1206" }}
+            style={{ backgroundColor: "#C6FF00", color: "#1C1206" }}
           >
             Start your 7-day free trial <ArrowRight size={15} />
           </button>
@@ -142,7 +142,7 @@ export default function LawyersLanding() {
 
       {/* ============ THE PROBLEM ============ */}
       <section className="max-w-4xl mx-auto px-6 py-16 md:py-20">
-        <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "#B87333" }}>The problem</span>
+        <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "#FF5A36" }}>The problem</span>
         <h2 className="text-2xl md:text-3xl mt-2 mb-5" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
           Every missed call is a lead you already paid for.
         </h2>
@@ -162,7 +162,7 @@ export default function LawyersLanding() {
       {/* ============ HOW IT'S DIFFERENT ============ */}
       <section id="different" className="bg-white border-y border-[#E7E5DE]">
         <div className="max-w-4xl mx-auto px-6 py-16 md:py-20">
-          <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "#B87333" }}>How Flywheel is different</span>
+          <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "#FF5A36" }}>How Evorove is different</span>
           <h2 className="text-2xl md:text-3xl mt-2 mb-6" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
             An architecture, not a prompt.
           </h2>
@@ -172,7 +172,7 @@ export default function LawyersLanding() {
             — and for a law firm, that's not a UX risk, it's a bar-complaint risk.
           </p>
           <p className="text-base text-[#6B6459] leading-relaxed mb-8 max-w-2xl">
-            Flywheel works differently. The AI never decides what to tell your client — it only rewrites
+            Evorove works differently. The AI never decides what to tell your client — it only rewrites
             the wording of a script you control (your "Business DNA"). Case qualification, escalation
             rules, and what the assistant is and isn't allowed to say all live in the underlying engine,
             not in a prompt the AI could talk itself out of.
@@ -188,7 +188,7 @@ export default function LawyersLanding() {
               </ul>
             </div>
             <div className="rounded-xl p-6" style={{ backgroundColor: "#151515" }}>
-              <div className="text-xs font-semibold uppercase tracking-wide mb-4" style={{ color: "#D89456" }}>Flywheel</div>
+              <div className="text-xs font-semibold uppercase tracking-wide mb-4" style={{ color: "#D89456" }}>Evorove</div>
               <ul className="flex flex-col gap-3 text-sm" style={{ color: "#E7E2D5" }}>
                 <li className="pt-3 border-t first:pt-0 first:border-0" style={{ borderColor: "#33302B" }}>The AI only rewrites the wording of a script you approve</li>
                 <li className="pt-3 border-t" style={{ borderColor: "#33302B" }}>Has no path to invent legal analysis or promise a result</li>
@@ -199,17 +199,17 @@ export default function LawyersLanding() {
           </div>
           <div className="grid sm:grid-cols-3 gap-4">
             <div className="rounded-xl border border-[#E7E5DE] p-5">
-              <FileWarning size={18} color="#B87333" className="mb-3" />
+              <FileWarning size={18} color="#FF5A36" className="mb-3" />
               <div className="text-sm font-semibold mb-1">Can't estimate outcomes</div>
               <div className="text-xs text-[#6B6459] leading-relaxed">No path in the message pipeline to invent legal analysis or promise a result.</div>
             </div>
             <div className="rounded-xl border border-[#E7E5DE] p-5">
-              <UserCheck size={18} color="#B87333" className="mb-3" />
+              <UserCheck size={18} color="#FF5A36" className="mb-3" />
               <div className="text-sm font-semibold mb-1">Always identifies as AI</div>
               <div className="text-xs text-[#6B6459] leading-relaxed">A visible disclosure badge stays on screen for the whole conversation, not buried in a footer.</div>
             </div>
             <div className="rounded-xl border border-[#E7E5DE] p-5">
-              <Clock size={18} color="#B87333" className="mb-3" />
+              <Clock size={18} color="#FF5A36" className="mb-3" />
               <div className="text-sm font-semibold mb-1">Same guarantee, every plan</div>
               <div className="text-xs text-[#6B6459] leading-relaxed">The compliance architecture isn't a premium feature — it's how every message gets built, always.</div>
             </div>
@@ -219,14 +219,14 @@ export default function LawyersLanding() {
 
       {/* ============ WHAT IT DOES ============ */}
       <section className="max-w-4xl mx-auto px-6 py-16 md:py-20">
-        <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "#B87333" }}>What it does</span>
+        <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "#FF5A36" }}>What it does</span>
         <h2 className="text-2xl md:text-3xl mt-2 mb-7" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
           One script, applied the same way every time.
         </h2>
         <ul className="flex flex-col gap-3.5 max-w-lg">
           <DoesItem text="Answers inbound leads on your website, day or night" />
           <DoesItem text="Qualifies the case against the criteria you set — practice area, urgency, location" />
-          <DoesItem text="Books a consultation on Flywheel's calendar so you can take the meeting prepared" />
+          <DoesItem text="Books a consultation on Evorove's calendar so you can take the meeting prepared" />
           <DoesItem text="Escalates to you exactly when your rules say to" />
           <DoesItem text="Never estimates case outcomes, gives legal advice, or promises a result — by design, not by request" />
         </ul>
@@ -238,11 +238,11 @@ export default function LawyersLanding() {
           <div>
             <h2 className="text-xl mb-2" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Built for solo practices</h2>
             <p className="text-sm text-[#6B6459] leading-relaxed max-w-lg">
-              Flywheel Starter is built for exactly one attorney, one jurisdiction — set up in about
+              Evorove Starter is built for exactly one attorney, one jurisdiction — set up in about
               20 minutes, no developer or IT help needed.
             </p>
           </div>
-          <div className="flex items-center gap-2 text-sm font-medium shrink-0 px-4 py-2.5 rounded-lg" style={{ backgroundColor: "#F5E7D6", color: "#B87333" }}>
+          <div className="flex items-center gap-2 text-sm font-medium shrink-0 px-4 py-2.5 rounded-lg" style={{ backgroundColor: "#F5E7D6", color: "#FF5A36" }}>
             <CalendarCheck size={16} /> ~20 minutes to go live
           </div>
         </div>
@@ -250,7 +250,7 @@ export default function LawyersLanding() {
 
       {/* ============ PRICING ============ */}
       <section id="pricing" className="max-w-2xl mx-auto px-6 py-16 md:py-20 text-center">
-        <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "#B87333" }}>Pricing</span>
+        <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "#FF5A36" }}>Pricing</span>
         <h2 className="text-2xl md:text-3xl mt-2 mb-8" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
           One plan, built for one attorney.
         </h2>
@@ -269,7 +269,7 @@ export default function LawyersLanding() {
           <button
             onClick={() => navigate(primaryCtaTarget)}
             className="w-full text-sm font-bold uppercase tracking-wide px-5 py-3 rounded flex items-center justify-center gap-2"
-            style={{ backgroundColor: "#D97B29", color: "#1C1206" }}
+            style={{ backgroundColor: "#C6FF00", color: "#1C1206" }}
           >
             Start your 7-day free trial <ArrowRight size={15} />
           </button>
@@ -282,12 +282,12 @@ export default function LawyersLanding() {
       {/* ============ FAQ ============ */}
       <section id="faq" className="bg-white border-t border-[#E7E5DE]">
         <div className="max-w-2xl mx-auto px-6 py-16 md:py-20">
-          <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "#B87333" }}>FAQ</span>
+          <span className="text-xs font-medium uppercase tracking-wide" style={{ color: "#FF5A36" }}>FAQ</span>
           <h2 className="text-2xl md:text-3xl mt-2 mb-6" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Questions attorneys ask first</h2>
           <div>
             <FaqItem
               q="Is this actually compliant with my state's bar rules?"
-              a={`Flywheel is built to support the disclosure requirements already in effect in states like California (SB 243) and New York (Article 47) — the AI identifies itself clearly, includes a "not legal advice" notice, and always offers a path to a human. That said, bar rules vary by state, and we'd always recommend a quick read of your own state's guidance before launch — we're not your compliance counsel.`}
+              a={`Evorove is built to support the disclosure requirements already in effect in states like California (SB 243) and New York (Article 47) — the AI identifies itself clearly, includes a "not legal advice" notice, and always offers a path to a human. That said, bar rules vary by state, and we'd always recommend a quick read of your own state's guidance before launch — we're not your compliance counsel.`}
             />
             <FaqItem
               q="Can the AI give legal advice by accident?"
@@ -304,7 +304,7 @@ export default function LawyersLanding() {
 
       {/* ============ FINAL CTA ============ */}
       <section className="max-w-4xl mx-auto px-6 py-20 md:py-28 text-center">
-        <MessageSquare size={28} color="#B87333" className="mx-auto mb-5" />
+        <MessageSquare size={28} color="#FF5A36" className="mx-auto mb-5" />
         <h2 className="text-3xl md:text-4xl mb-4" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>
           Someone is calling your firm right now.
         </h2>
@@ -312,7 +312,7 @@ export default function LawyersLanding() {
         <button
           onClick={() => navigate(primaryCtaTarget)}
           className="text-sm font-bold uppercase tracking-wide px-6 py-3.5 rounded inline-flex items-center gap-2"
-          style={{ backgroundColor: "#D97B29", color: "#1C1206" }}
+          style={{ backgroundColor: "#C6FF00", color: "#1C1206" }}
         >
           Start your 7-day free trial <ArrowRight size={15} />
         </button>
@@ -320,7 +320,7 @@ export default function LawyersLanding() {
 
       <footer className="border-t border-[#E7E5DE] py-8">
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between text-xs text-[#9C9488]">
-          <span>© 2026 Flywheel</span>
+          <span>© 2026 Evorove</span>
           <span>Deterministic by design</span>
         </div>
       </footer>

@@ -59,7 +59,7 @@ function BusinessSwitcher({
                   onAddBusiness();
                 }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-[#F5F1EA]"
-                style={{ color: "#B87333" }}
+                style={{ color: "#FF5A36" }}
               >
                 <Plus size={13} className="shrink-0" /> Add another business
               </button>
@@ -73,8 +73,8 @@ function BusinessSwitcher({
 
 function navVisual(active: boolean) {
   return {
-    color: active ? "#151515" : "#6B6459",
-    backgroundColor: active ? "#F5E7D6" : "transparent",
+    color: active ? "#0B0B0D" : "#6B6459",
+    backgroundColor: active ? "#C6FF00" : "transparent",
     fontWeight: active ? 600 : 500,
   };
 }
@@ -157,7 +157,7 @@ function MobileNav({
         <button onClick={() => go("/app")} className="flex items-center gap-2 min-w-0">
           <div
             className="w-7 h-7 rounded-lg flex items-center justify-center text-white shrink-0"
-            style={{ backgroundColor: "#B87333" }}
+            style={{ backgroundColor: "#FF5A36" }}
           >
             <FlywheelMark size={16} />
           </div>
@@ -199,7 +199,7 @@ function MobileNav({
                     to="/app/account"
                     aria-label="Open personal account"
                     onClick={() => setOpen(false)}
-                    className="block max-w-full text-[11px] text-[#6B6459] leading-tight truncate rounded-sm hover:text-[#B87333] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B87333] focus-visible:ring-offset-2 transition-colors"
+                    className="block max-w-full text-[11px] text-[#6B6459] leading-tight truncate rounded-sm hover:text-[#FF5A36] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5A36] focus-visible:ring-offset-2 transition-colors"
                   >
                     {email}
                   </NavLink>
@@ -285,7 +285,7 @@ export function Sidebar() {
             <button
               onClick={() => navigate("/app")}
               className="w-7 h-7 rounded-lg flex items-center justify-center text-white shrink-0"
-              style={{ backgroundColor: "#B87333" }}
+              style={{ backgroundColor: "#FF5A36" }}
             >
               <FlywheelMark size={16} />
             </button>
@@ -305,7 +305,7 @@ export function Sidebar() {
               <NavLink
                 to="/app/account"
                 aria-label="Open personal account"
-                className="block max-w-full text-[11px] text-[#6B6459] leading-tight truncate rounded-sm hover:text-[#B87333] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B87333] focus-visible:ring-offset-2 transition-colors"
+                className="block max-w-full text-[11px] text-[#6B6459] leading-tight truncate rounded-sm hover:text-[#FF5A36] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FF5A36] focus-visible:ring-offset-2 transition-colors"
               >
                 {user?.email}
               </NavLink>

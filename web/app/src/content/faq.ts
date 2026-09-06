@@ -4,7 +4,7 @@
 export const FAQ_ITEMS: { q: string; a: string }[] = [
   {
     q: "Does this bring me new customers?",
-    a: "No. Flywheel works the inquiries you already get — from your website, your ads, your referrals. Finding new leads is a different problem and we don't claim to solve it.",
+    a: "No. Evorove works the inquiries you already get — from your website, your ads, your referrals. Finding new leads is a different problem and we don't claim to solve it.",
   },
   {
     q: "Does it take payment from my customer?",

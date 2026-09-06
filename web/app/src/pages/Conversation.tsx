@@ -217,7 +217,7 @@ export default function Conversation() {
     : null;
 
   return (
-    <div className="min-h-screen w-full flex" style={{ backgroundColor: "#F5F1EA", fontFamily: "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif", color: "#151515" }}>
+    <div className="min-h-screen w-full flex" style={{ backgroundColor: "#F7F1E4", fontFamily: "Inter, system-ui, sans-serif", color: "#0B0B0D" }}>
       <Sidebar />
       <main className="flex-1 min-w-0 flex flex-col pt-14 md:pt-0">
         <div className="flex-1 min-w-0 flex">
@@ -327,7 +327,7 @@ export default function Conversation() {
                     <div key={m.message_id} className={`flex flex-col ${m.direction === "inbound" ? "items-start" : "items-end"}`}>
                       <div
                         className={`text-sm max-w-md px-3.5 py-2.5 rounded-2xl ${m.direction === "inbound" ? "rounded-bl-sm" : "rounded-br-sm"}`}
-                        style={m.direction === "inbound" ? { backgroundColor: "#F1F1EF" } : { backgroundColor: "#B87333", color: "#fff" }}
+                        style={m.direction === "inbound" ? { backgroundColor: "#F1F1EF" } : { backgroundColor: "#FF5A36", color: "#fff" }}
                       >
                         {m.text}
                       </div>
@@ -433,7 +433,7 @@ export default function Conversation() {
                 <p className="text-[11px] text-[#9C9488] mb-2 leading-relaxed">
                   Process state for this deal — not the sales conversation stage.
                 </p>
-                <Stepper stage={stateInfo.stage} color="#B87333" labels />
+                <Stepper stage={stateInfo.stage} color="#FF5A36" labels />
               </div>
             )}
             <div className="flex items-center gap-4 text-xs text-[#6B6459]">

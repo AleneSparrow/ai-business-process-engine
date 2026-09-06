@@ -17,9 +17,9 @@ export default function Account() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    document.title = "Account · Flywheel";
+    document.title = "Account · Evorove";
     return () => {
-      document.title = "Flywheel — every lead answered, every step logged";
+      document.title = "Evorove — every lead. no dead air.";
     };
   }, []);
 
@@ -60,7 +60,7 @@ export default function Account() {
       <main className="flex-1 min-w-0 pt-14 md:pt-0">
         <div className="max-w-3xl mx-auto px-5 sm:px-8 py-10 md:py-12">
           <div className="mb-9">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#B87333]">Personal account</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#FF5A36]">Personal account</p>
             <h1 className="text-3xl font-semibold tracking-tight mt-2">Your account</h1>
             <p className="text-sm text-[#6B6459] mt-2">Manage your personal details and account security.</p>
           </div>
@@ -85,7 +85,7 @@ export default function Account() {
 
           <section className="max-w-2xl border-t border-[#E7E5DE] mt-10 pt-8">
             <h2 className="text-lg font-semibold">Sign out</h2>
-            <p className="text-sm text-[#6B6459] mt-1 mb-4">End your current Flywheel session on this device.</p>
+            <p className="text-sm text-[#6B6459] mt-1 mb-4">End your current Evorove session on this device.</p>
             <button onClick={() => void signOut()} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm border border-[#E7C6C1] text-[#B4483A] hover:bg-[#FBEBE9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B4483A] transition-colors">
               <LogOut size={16} /> Sign out
             </button>

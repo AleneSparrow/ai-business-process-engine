@@ -529,7 +529,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="min-h-screen w-full flex" style={{ backgroundColor: "#F5F1EA", fontFamily: "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif", color: "#151515" }}>
+    <div className="min-h-screen w-full flex" style={{ backgroundColor: "#F7F1E4", fontFamily: "Inter, system-ui, sans-serif", color: "#0B0B0D" }}>
       <Sidebar />
       <main className="flex-1 min-w-0 flex flex-col pt-14 md:pt-0">
         <header className="flex items-center justify-between px-6 md:px-8 py-4 border-b border-[#E7E5DE]">
@@ -617,7 +617,7 @@ export default function Settings() {
                         <MessageSquare size={18} />
                       </span>
                       <div>
-                        <h2 className="text-lg font-semibold">Put Flywheel on your website</h2>
+                        <h2 className="text-lg font-semibold">Put Evorove on your website</h2>
                         <p className="text-sm text-[#6B6459] mt-1 leading-relaxed">
                           Copy this code and paste it into your website just before <code>&lt;/body&gt;</code>. Once published, customers can start a conversation from any page.
                         </p>

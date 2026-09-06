@@ -188,13 +188,13 @@ export default function Onboarding() {
   }
 
   return (
-    <div style={{ backgroundColor: "#F5F1EA", fontFamily: "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif", color: "#151515" }} className="min-h-screen w-full">
+    <div style={{ backgroundColor: "#F7F1E4", fontFamily: "Inter, system-ui, sans-serif", color: "#0B0B0D" }} className="min-h-screen w-full">
       <header className="border-b border-[#E7E5DE] bg-white">
         <div className="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div
               className="w-7 h-7 rounded-lg flex items-center justify-center text-white"
-              style={{ backgroundColor: "#B87333" }}
+            style={{ backgroundColor: "#FF5A36" }}
             >
               <FlywheelMark size={16} />
             </div>
