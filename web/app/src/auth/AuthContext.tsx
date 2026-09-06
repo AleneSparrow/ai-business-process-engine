@@ -171,6 +171,16 @@ export function describeError(err: unknown): string {
         return "Start a subscription first — there's nothing to manage yet.";
       case "subscription_inactive":
         return "This business's subscription needs attention before the dashboard is available.";
+      case "forbidden":
+        return "You don't have access to this business.";
+      case "sales_playbook_not_found":
+        return "No published sales playbook was found.";
+      case "sales_profile_not_found":
+        return "No sales conversation profile yet for this case.";
+      case "sales_knowledge_not_found":
+        return "That knowledge card could not be found.";
+      case "sales_knowledge_already_reviewed":
+        return "This knowledge card has already been reviewed.";
       case "network_error":
         return err.message;
       default:

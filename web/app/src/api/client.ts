@@ -18,6 +18,13 @@
  *   GET  /api/v1/businesses/{id}/billing                        (subscription status)
  *   POST /api/v1/businesses/{id}/billing/checkout-session       (self-serve Stripe Checkout)
  *   POST /api/v1/businesses/{id}/billing/portal-session          (self-serve Stripe Billing Portal)
+ *   GET  /api/v1/businesses/{id}/sales/playbook                 (active published playbook)
+ *   GET  /api/v1/businesses/{id}/sales/playbooks                (playbook version list)
+ *   GET  /api/v1/businesses/{id}/sales/knowledge-cards          (optional ?status=)
+ *   POST /api/v1/businesses/{id}/sales/knowledge-cards/{id}/versions/{v}/approve
+ *   POST /api/v1/businesses/{id}/sales/knowledge-cards/{id}/versions/{v}/reject
+ *   GET  /api/v1/businesses/{id}/sales/cases/{case_id}          (sales conversation context)
+ *   GET  /api/v1/businesses/{id}/sales/cases/{case_id}/turns    (provenance / sales turns)
  *
  * reply/resolve only work while the case is actually NEEDS_HUMAN with a pending
  * transition (see StaffActionService) — resolve approves that exact pending
@@ -306,6 +313,133 @@ export interface DashboardConversationDetail {
 export interface StaffActionResponse {
   conversation: DashboardConversationSummary;
   case: DashboardCaseSummary | null;
+}
+
+/** Conversational sales progress. Distinct from ProcessState, which is the case commitment. */
+export type SalesStage =
+  | "GREETING"
+  | "DISCOVERY"
+  | "NEEDS_CONFIRMED"
+  | "PRESENTATION"
+  | "OBJECTION_HANDLING"
+  | "COMMITMENT"
+  | "BOOKING"
+  | "NURTURE"
+  | "FOLLOW_UP"
+  | "WON"
+  | "LOST"
+  | "HUMAN_REVIEW";
+
+export type SalesMove =
+  | "GREET_AND_SET_CONTEXT"
+  | "ASK_DISCOVERY_QUESTION"
+  | "REFLECT_CUSTOMER_NEED"
+  | "CONFIRM_CUSTOMER_NEED"
+  | "PRESENT_RELEVANT_VALUE"
+  | "PROVIDE_APPROVED_PROOF"
+  | "DIAGNOSE_OBJECTION"
+  | "ANSWER_OBJECTION"
+  | "CHECK_OBJECTION_RESOLUTION"
+  | "ASK_FOR_COMMITMENT"
+  | "OFFER_BOOKING_SLOTS"
+  | "SCHEDULE_CALLBACK"
+  | "SEND_CONTEXTUAL_FOLLOW_UP"
+  | "NURTURE_WITHOUT_PRESSURE"
+  | "HANDOFF_TO_HUMAN"
+  | "END_CONTACT";
+
+export type SalesPlaybookStatus = "DRAFT" | "PUBLISHED" | "ARCHIVED";
+export type SalesKnowledgeStatus = "CANDIDATE" | "APPROVED" | "REJECTED";
+
+export interface SalesPlaybook {
+  business_id: string;
+  version: number;
+  status: SalesPlaybookStatus;
+  configuration: Record<string, unknown>;
+  created_at: string;
+  published_at: string | null;
+}
+
+export interface SalesPlaybookListResponse {
+  playbooks: SalesPlaybook[];
+}
+
+export interface SalesKnowledgeCard {
+  knowledge_id: string;
+  business_id: string;
+  version: number;
+  status: SalesKnowledgeStatus;
+  source: Record<string, unknown>;
+  principle: string;
+  applicable_when: string[];
+  prohibited_when: string[];
+  required_sequence: string[];
+  forbidden_actions: string[];
+  approved_examples: string[];
+  created_at: string | null;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+}
+
+export interface SalesKnowledgeCardListResponse {
+  cards: SalesKnowledgeCard[];
+}
+
+export interface SalesObjectionRecord {
+  objection_id: string;
+  objection_type: string;
+  status: string;
+  cause: string | null;
+  source_message_id: string;
+  evidence_excerpt: string;
+  created_at: string;
+  updated_at: string;
+  version: number;
+}
+
+export interface SalesCaseContext {
+  case_id: string;
+  stage: SalesStage;
+  customer_goal: string | null;
+  current_problem: string | null;
+  desired_outcome: string | null;
+  decision_criteria: string[];
+  commitment_level: string;
+  preferred_channel: string | null;
+  preferred_contact_at: string | null;
+  last_move: SalesMove | null;
+  next_approved_action: SalesMove;
+  next_action_reason: string;
+  requires_human: boolean;
+  human_review_reason: string | null;
+  version: number;
+  objections: SalesObjectionRecord[];
+}
+
+export interface SalesEvidence {
+  source_message_id: string;
+  excerpt: string;
+}
+
+export interface SalesTurn {
+  turn_id: string;
+  conversation_id: string | null;
+  source_message_id: string;
+  playbook_version: number | null;
+  stage_before: SalesStage;
+  stage_after: SalesStage;
+  move: SalesMove;
+  reason_code: string;
+  knowledge_ids: string[];
+  business_fact_ids: string[];
+  customer_evidence: SalesEvidence[];
+  analysis: Record<string, unknown>;
+  validation: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface SalesTurnListResponse {
+  turns: SalesTurn[];
 }
 
 // What a service does once a lead qualifies for it -- see
@@ -618,6 +752,53 @@ export const api = {
     request<CrmWebhookStatus>(
       `/api/v1/businesses/${businessId}/integrations/crm-webhook`,
       { method: "DELETE" },
+      token,
+    ),
+
+  getActiveSalesPlaybook: (token: string, businessId: string) =>
+    request<SalesPlaybook>(`/api/v1/businesses/${businessId}/sales/playbook`, { method: "GET" }, token),
+
+  listSalesPlaybooks: (token: string, businessId: string) =>
+    request<SalesPlaybookListResponse>(
+      `/api/v1/businesses/${businessId}/sales/playbooks`,
+      { method: "GET" },
+      token,
+    ),
+
+  listSalesKnowledgeCards: (token: string, businessId: string, status?: SalesKnowledgeStatus) => {
+    const query = status ? `?status=${encodeURIComponent(status)}` : "";
+    return request<SalesKnowledgeCardListResponse>(
+      `/api/v1/businesses/${businessId}/sales/knowledge-cards${query}`,
+      { method: "GET" },
+      token,
+    );
+  },
+
+  approveSalesKnowledgeCard: (token: string, businessId: string, knowledgeId: string, version: number) =>
+    request<SalesKnowledgeCard>(
+      `/api/v1/businesses/${businessId}/sales/knowledge-cards/${encodeURIComponent(knowledgeId)}/versions/${version}/approve`,
+      { method: "POST", body: JSON.stringify({}) },
+      token,
+    ),
+
+  rejectSalesKnowledgeCard: (token: string, businessId: string, knowledgeId: string, version: number) =>
+    request<SalesKnowledgeCard>(
+      `/api/v1/businesses/${businessId}/sales/knowledge-cards/${encodeURIComponent(knowledgeId)}/versions/${version}/reject`,
+      { method: "POST", body: JSON.stringify({}) },
+      token,
+    ),
+
+  getCaseSalesContext: (token: string, businessId: string, caseId: string) =>
+    request<SalesCaseContext>(
+      `/api/v1/businesses/${businessId}/sales/cases/${encodeURIComponent(caseId)}`,
+      { method: "GET" },
+      token,
+    ),
+
+  listCaseSalesTurns: (token: string, businessId: string, caseId: string) =>
+    request<SalesTurnListResponse>(
+      `/api/v1/businesses/${businessId}/sales/cases/${encodeURIComponent(caseId)}/turns`,
+      { method: "GET" },
       token,
     ),
 };

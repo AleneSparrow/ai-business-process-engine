@@ -364,6 +364,195 @@ class ProcessCaseRow(Base):
     )
 
 
+class SalesProfileRow(Base):
+    __tablename__ = "sales_profiles"
+
+    business_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    case_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    stage: Mapped[str] = mapped_column(String(32), nullable=False)
+    customer_goal: Mapped[str | None] = mapped_column(Text)
+    current_problem: Mapped[str | None] = mapped_column(Text)
+    desired_outcome: Mapped[str | None] = mapped_column(Text)
+    decision_criteria: Mapped[list[str]] = mapped_column(JSON_VALUE, nullable=False, default=list)
+    active_objection: Mapped[dict[str, Any] | None] = mapped_column(JSON_VALUE)
+    commitment_level: Mapped[str] = mapped_column(String(32), nullable=False)
+    preferred_channel: Mapped[str | None] = mapped_column(String(64))
+    preferred_contact_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_move: Mapped[str | None] = mapped_column(String(64))
+    metadata_json: Mapped[dict[str, Any]] = mapped_column("metadata", JSON_VALUE, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["business_id", "case_id"],
+            ["process_cases.business_id", "process_cases.id"],
+            ondelete="CASCADE",
+            name="fk_sales_profiles_tenant_case",
+        ),
+        CheckConstraint("version >= 0", name="ck_sales_profiles_version_nonnegative"),
+        CheckConstraint(
+            "stage IN ('GREETING','DISCOVERY','NEEDS_CONFIRMED','PRESENTATION','OBJECTION_HANDLING','COMMITMENT','BOOKING','NURTURE','FOLLOW_UP','WON','LOST','HUMAN_REVIEW')",
+            name="ck_sales_profiles_known_stage",
+        ),
+        CheckConstraint(
+            "commitment_level IN ('UNKNOWN','CURIOUS','INTERESTED','CONSIDERING','READY_FOR_NEXT_STEP','DECLINED')",
+            name="ck_sales_profiles_known_commitment",
+        ),
+        Index("ix_sales_profiles_business_stage", "business_id", "stage"),
+    )
+
+
+class SalesPlaybookVersionRow(Base):
+    __tablename__ = "sales_playbook_versions"
+
+    business_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("businesses.id", ondelete="CASCADE"), primary_key=True
+    )
+    version: Mapped[int] = mapped_column(Integer, primary_key=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    configuration: Mapped[dict[str, Any]] = mapped_column(JSON_VALUE, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint("version > 0", name="ck_sales_playbook_versions_positive"),
+        CheckConstraint(
+            "status IN ('DRAFT','PUBLISHED','ARCHIVED')",
+            name="ck_sales_playbook_versions_known_status",
+        ),
+        CheckConstraint(
+            "(status = 'PUBLISHED' AND published_at IS NOT NULL) OR status <> 'PUBLISHED'",
+            name="ck_sales_playbook_versions_published_at",
+        ),
+        Index(
+            "uq_sales_playbook_one_published",
+            "business_id",
+            unique=True,
+            postgresql_where=text("status = 'PUBLISHED'"),
+            sqlite_where=text("status = 'PUBLISHED'"),
+        ),
+    )
+
+
+class SalesKnowledgeCardRow(Base):
+    __tablename__ = "sales_knowledge_cards"
+
+    business_id: Mapped[str] = mapped_column(
+        String(128), ForeignKey("businesses.id", ondelete="CASCADE"), primary_key=True
+    )
+    knowledge_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    version: Mapped[int] = mapped_column(Integer, primary_key=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    source: Mapped[dict[str, Any]] = mapped_column(JSON_VALUE, nullable=False)
+    principle: Mapped[str] = mapped_column(Text, nullable=False)
+    applicable_when: Mapped[list[str]] = mapped_column(JSON_VALUE, nullable=False)
+    prohibited_when: Mapped[list[str]] = mapped_column(JSON_VALUE, nullable=False, default=list)
+    required_sequence: Mapped[list[str]] = mapped_column(JSON_VALUE, nullable=False, default=list)
+    forbidden_actions: Mapped[list[str]] = mapped_column(JSON_VALUE, nullable=False, default=list)
+    approved_examples: Mapped[list[str]] = mapped_column(JSON_VALUE, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    reviewed_by: Mapped[str | None] = mapped_column(
+        String(128), ForeignKey("staff_users.id")
+    )
+
+    __table_args__ = (
+        CheckConstraint("version > 0", name="ck_sales_knowledge_cards_version_positive"),
+        CheckConstraint(
+            "status IN ('CANDIDATE','APPROVED','REJECTED')",
+            name="ck_sales_knowledge_cards_known_status",
+        ),
+        Index("ix_sales_knowledge_cards_business_status", "business_id", "status"),
+        CheckConstraint(
+            "(reviewed_at IS NULL AND reviewed_by IS NULL) OR "
+            "(reviewed_at IS NOT NULL AND reviewed_by IS NOT NULL)",
+            name="ck_sales_knowledge_cards_review_audit_complete",
+        ),
+    )
+
+
+class SalesObjectionRow(Base):
+    __tablename__ = "sales_objections"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    business_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    case_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    objection_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    cause: Mapped[str | None] = mapped_column(Text)
+    source_message_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    evidence_excerpt: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["business_id", "case_id"],
+            ["sales_profiles.business_id", "sales_profiles.case_id"],
+            ondelete="CASCADE",
+            name="fk_sales_objections_tenant_profile",
+        ),
+        CheckConstraint(
+            "objection_type IN ('PRICE','TRUST','TIMING','FIT','AUTHORITY','COMPETITOR','NEED_TO_THINK','OTHER')",
+            name="ck_sales_objections_known_type",
+        ),
+        CheckConstraint(
+            "status IN ('ACTIVE','DIAGNOSED','ADDRESSED','RESOLVED','DEFERRED','HUMAN_REVIEW')",
+            name="ck_sales_objections_known_status",
+        ),
+        CheckConstraint("version >= 0", name="ck_sales_objections_version_non_negative"),
+        Index("ix_sales_objections_business_case", "business_id", "case_id", "created_at"),
+    )
+
+
+class SalesTurnRow(Base):
+    __tablename__ = "sales_turns"
+
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    business_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    case_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    conversation_id: Mapped[str | None] = mapped_column(String(128))
+    source_message_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    playbook_version: Mapped[int | None] = mapped_column(Integer)
+    stage_before: Mapped[str] = mapped_column(String(32), nullable=False)
+    stage_after: Mapped[str] = mapped_column(String(32), nullable=False)
+    move: Mapped[str] = mapped_column(String(64), nullable=False)
+    reason_code: Mapped[str] = mapped_column(String(128), nullable=False)
+    knowledge_ids: Mapped[list[str]] = mapped_column(JSON_VALUE, nullable=False, default=list)
+    business_fact_ids: Mapped[list[str]] = mapped_column(JSON_VALUE, nullable=False, default=list)
+    customer_evidence: Mapped[list[dict[str, str]]] = mapped_column(JSON_VALUE, nullable=False, default=list)
+    analysis: Mapped[dict[str, Any]] = mapped_column(JSON_VALUE, nullable=False, default=dict)
+    validation: Mapped[dict[str, Any]] = mapped_column(JSON_VALUE, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["business_id", "case_id"],
+            ["process_cases.business_id", "process_cases.id"],
+            ondelete="CASCADE",
+            name="fk_sales_turns_tenant_case",
+        ),
+        ForeignKeyConstraint(
+            ["business_id", "conversation_id"],
+            ["conversations.business_id", "conversations.id"],
+            name="fk_sales_turns_tenant_conversation",
+        ),
+        ForeignKeyConstraint(
+            ["business_id", "playbook_version"],
+            ["sales_playbook_versions.business_id", "sales_playbook_versions.version"],
+            name="fk_sales_turns_tenant_playbook",
+        ),
+        UniqueConstraint(
+            "business_id", "case_id", "source_message_id",
+            name="uq_sales_turns_source_message",
+        ),
+        Index("ix_sales_turns_business_case_created", "business_id", "case_id", "created_at"),
+    )
+
+
 class ProcessEventRow(Base):
     __tablename__ = "process_events"
 

@@ -33,6 +33,14 @@ class StalePaymentRequestError(PersistenceError):
     """A payment request changed after it was loaded and cannot be overwritten safely."""
 
 
+class StaleSalesProfileError(PersistenceError):
+    """A sales profile changed after it was loaded and cannot be overwritten safely."""
+
+
+class StaleSalesObjectionError(PersistenceError):
+    """A sales objection changed after it was loaded and cannot be overwritten safely."""
+
+
 class ConversationTokenError(PersistenceError):
     """An anonymous conversation token is invalid for the requested tenant."""
 

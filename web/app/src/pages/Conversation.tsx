@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Search, Send, Check, Phone, Mail, Loader2, AlertTriangle } from "lucide-react";
 import { Sidebar } from "../components/Sidebar";
 import { StatePill, Stepper, mapProcessState, describeEvent, formatRelativeTime } from "../components/Shared";
+import { ConversationSalesPanel } from "../components/ConversationSalesPanel";
 import { useAuth, describeError } from "../auth/AuthContext";
 import {
   api,
@@ -311,6 +312,14 @@ export default function Conversation() {
                 </header>
 
                 <div className="flex-1 overflow-y-auto px-6 py-6 flex flex-col gap-3">
+                  {token && businessId && (
+                    <ConversationSalesPanel
+                      token={token}
+                      businessId={businessId}
+                      caseId={detail.conversation.case_id}
+                      conversationId={detail.conversation.conversation_id}
+                    />
+                  )}
                   {detail.messages.length === 0 && (
                     <p className="text-sm text-[#6B6459] text-center mt-8">No messages in this conversation yet.</p>
                   )}
@@ -420,7 +429,10 @@ export default function Conversation() {
           <div className="w-80 shrink-0 border-l border-[#E7E5DE] p-5 hidden lg:flex flex-col gap-6">
             {stateInfo && (
               <div>
-                <div className="text-xs font-medium text-[#9C9488] mb-2">Where this case is</div>
+                <div className="text-xs font-medium text-[#9C9488] mb-2">Case status</div>
+                <p className="text-[11px] text-[#9C9488] mb-2 leading-relaxed">
+                  Process state for this deal — not the sales conversation stage.
+                </p>
                 <Stepper stage={stateInfo.stage} color="#B87333" labels />
               </div>
             )}

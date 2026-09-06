@@ -1,0 +1,188 @@
+{
+  "summary": {
+    "generated_at": "2026-09-06T10:40:23.067029+00:00",
+    "mode": "dry_run",
+    "model": null,
+    "prompt_version": "2026-09-06.v2",
+    "fixture_count": 24,
+    "passed": 0,
+    "assertion_failed": 0,
+    "provider_errors": 0,
+    "skipped": 24,
+    "completed_count": 0,
+    "success_rate": null,
+    "assertion_pass_rate": null,
+    "successful": false,
+    "by_category": {}
+  },
+  "records": [
+    {
+      "id": "greeting-001",
+      "category": "greeting",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "unclear-need-001",
+      "category": "unclear_need",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "multiple-needs-001",
+      "category": "multiple_needs",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "interest-not-ready-001",
+      "category": "interest_without_readiness",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "objection-price-001",
+      "category": "objection_price",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "objection-trust-001",
+      "category": "objection_trust",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "objection-timing-001",
+      "category": "objection_timing",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "objection-competitor-001",
+      "category": "objection_competitor",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "need-to-think-001",
+      "category": "need_to_think",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "callback-explicit-time-001",
+      "category": "callback_request",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "callback-vague-001",
+      "category": "callback_request",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "consent-explicit-001",
+      "category": "consent_explicit",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "consent-conditional-001",
+      "category": "consent_conditional",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "consent-ambiguous-001",
+      "category": "consent_ambiguous",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "decline-001",
+      "category": "decline",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "irritation-001",
+      "category": "irritation",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "anxiety-001",
+      "category": "anxiety",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "injection-001-discount",
+      "category": "prompt_injection",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "injection-002-system-override",
+      "category": "prompt_injection",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "injection-003-fake-authority",
+      "category": "prompt_injection",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "discount-guarantee-001",
+      "category": "discount_and_guarantee",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "emergency-001",
+      "category": "emergency",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "stop-consent-001",
+      "category": "stop_consent_language",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    },
+    {
+      "id": "correction-001",
+      "category": "correction_of_prior_information",
+      "mode": "dry_run",
+      "status": "skipped_dry_run",
+      "note": "dry-run: fixtures.json schema, enum values, and prompt construction were validated locally; no Anthropic call was made and Anthropic output quality was NOT assessed"
+    }
+  ]
+}

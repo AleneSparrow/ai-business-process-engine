@@ -21,6 +21,17 @@ from src.domain.tenancy import Business, BusinessDNAVersion
 from src.engine.lead_intake import LeadIntakeService
 from src.domain.conversations import Conversation, ConversationStatus, MessageDirection, MessageRole
 from src.domain.commercial import BookingStatus, PaymentStatus, PaymentType, QuoteStatus
+from src.domain.sales import (
+    CustomerSalesProfile,
+    SalesKnowledgeCard,
+    SalesKnowledgeStatus,
+    SalesMove,
+    SalesObjectionRecord,
+    SalesPlaybookStatus,
+    SalesPlaybookVersion,
+    SalesStage,
+    SalesTurn,
+)
 from src.persistence.conversation_service import PublicCommercialSnapshot, PublicConversation
 
 
@@ -983,6 +994,163 @@ class EscalationFeedbackRequest(ApiModel):
 class StaffActionResponse(ApiModel):
     conversation: DashboardConversationSchema
     case: DashboardCaseSummarySchema | None
+
+
+class SalesPlaybookSchema(ApiModel):
+    business_id: str
+    version: int
+    status: SalesPlaybookStatus
+    configuration: dict[str, Any]
+    created_at: datetime
+    published_at: datetime | None
+
+    @classmethod
+    def from_domain(cls, value: SalesPlaybookVersion) -> "SalesPlaybookSchema":
+        return cls(
+            business_id=value.business_id,
+            version=value.version,
+            status=value.status,
+            configuration=_jsonable(value.configuration),
+            created_at=value.created_at,
+            published_at=value.published_at,
+        )
+
+
+class SalesPlaybookListResponse(ApiModel):
+    playbooks: tuple[SalesPlaybookSchema, ...]
+
+
+class SalesKnowledgeCardSchema(ApiModel):
+    knowledge_id: str
+    business_id: str
+    version: int
+    status: SalesKnowledgeStatus
+    source: dict[str, Any]
+    principle: str
+    applicable_when: tuple[str, ...]
+    prohibited_when: tuple[str, ...]
+    required_sequence: tuple[str, ...]
+    forbidden_actions: tuple[str, ...]
+    approved_examples: tuple[str, ...]
+    created_at: datetime | None
+    reviewed_at: datetime | None
+    reviewed_by: str | None
+
+    @classmethod
+    def from_domain(cls, value: SalesKnowledgeCard) -> "SalesKnowledgeCardSchema":
+        return cls(
+            knowledge_id=value.knowledge_id,
+            business_id=value.business_id,
+            version=value.version,
+            status=value.status,
+            source=_jsonable(value.source),
+            principle=value.principle,
+            applicable_when=value.applicable_when,
+            prohibited_when=value.prohibited_when,
+            required_sequence=value.required_sequence,
+            forbidden_actions=value.forbidden_actions,
+            approved_examples=value.approved_examples,
+            created_at=value.created_at,
+            reviewed_at=value.reviewed_at,
+            reviewed_by=value.reviewed_by,
+        )
+
+
+class SalesKnowledgeCardListResponse(ApiModel):
+    cards: tuple[SalesKnowledgeCardSchema, ...]
+
+
+class SalesObjectionRecordSchema(ApiModel):
+    objection_id: str
+    objection_type: str
+    status: str
+    cause: str | None
+    source_message_id: str
+    evidence_excerpt: str
+    created_at: datetime
+    updated_at: datetime
+    version: int
+
+    @classmethod
+    def from_domain(cls, value: SalesObjectionRecord) -> "SalesObjectionRecordSchema":
+        return cls(
+            objection_id=value.objection_id,
+            objection_type=value.objection.objection_type.value,
+            status=value.objection.status.value,
+            cause=value.objection.cause,
+            source_message_id=value.objection.evidence.source_message_id,
+            evidence_excerpt=value.objection.evidence.excerpt,
+            created_at=value.created_at,
+            updated_at=value.updated_at,
+            version=value.version,
+        )
+
+
+class SalesCaseContextResponse(ApiModel):
+    case_id: str
+    stage: SalesStage
+    customer_goal: str | None
+    current_problem: str | None
+    desired_outcome: str | None
+    decision_criteria: tuple[str, ...]
+    commitment_level: str
+    preferred_channel: str | None
+    preferred_contact_at: datetime | None
+    last_move: SalesMove | None
+    next_approved_action: SalesMove
+    next_action_reason: str
+    requires_human: bool
+    human_review_reason: str | None
+    version: int
+    objections: tuple[SalesObjectionRecordSchema, ...]
+
+
+class SalesEvidenceSchema(ApiModel):
+    source_message_id: str
+    excerpt: str
+
+
+class SalesTurnSchema(ApiModel):
+    turn_id: str
+    conversation_id: str | None
+    source_message_id: str
+    playbook_version: int | None
+    stage_before: SalesStage
+    stage_after: SalesStage
+    move: SalesMove
+    reason_code: str
+    knowledge_ids: tuple[str, ...]
+    business_fact_ids: tuple[str, ...]
+    customer_evidence: tuple[SalesEvidenceSchema, ...]
+    analysis: dict[str, Any]
+    validation: dict[str, Any]
+    created_at: datetime
+
+    @classmethod
+    def from_domain(cls, value: SalesTurn) -> "SalesTurnSchema":
+        return cls(
+            turn_id=value.turn_id,
+            conversation_id=value.conversation_id,
+            source_message_id=value.source_message_id,
+            playbook_version=value.playbook_version,
+            stage_before=value.stage_before,
+            stage_after=value.stage_after,
+            move=value.move,
+            reason_code=value.reason_code,
+            knowledge_ids=value.knowledge_ids,
+            business_fact_ids=value.business_fact_ids,
+            customer_evidence=tuple(
+                SalesEvidenceSchema(source_message_id=item.source_message_id, excerpt=item.excerpt)
+                for item in value.customer_evidence
+            ),
+            analysis=_jsonable(value.analysis),
+            validation=_jsonable(value.validation),
+            created_at=value.created_at,
+        )
+
+
+class SalesTurnListResponse(ApiModel):
+    turns: tuple[SalesTurnSchema, ...]
 
 
 # fulfillment_type (Business DNA) <-> commercial_path (Settings) -- see

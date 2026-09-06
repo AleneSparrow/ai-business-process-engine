@@ -1,6 +1,7 @@
 """Synchronous SQLAlchemy implementations of repository protocols."""
 
 import hashlib
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Sequence
 
@@ -29,6 +30,22 @@ from src.domain.conversations import (
     MessageRole,
 )
 from src.domain.states import ProcessState
+from src.domain.sales import (
+    CommitmentLevel,
+    CustomerEvidence,
+    CustomerSalesProfile,
+    ObjectionStatus,
+    ObjectionType,
+    SalesKnowledgeCard,
+    SalesKnowledgeStatus,
+    SalesMove,
+    SalesObjection,
+    SalesObjectionRecord,
+    SalesPlaybookStatus,
+    SalesPlaybookVersion,
+    SalesStage,
+    SalesTurn,
+)
 from src.domain.tenancy import Business, BusinessDNAVersion
 
 from .errors import (
@@ -38,6 +55,8 @@ from .errors import (
     StaleCaseError,
     StalePaymentRequestError,
     StaleQuoteError,
+    StaleSalesObjectionError,
+    StaleSalesProfileError,
 )
 from .repositories import ClaimStatus, DeliveryStatus, FollowUpDeliveryAttempt, IdempotencyRecord
 from .repositories import (
@@ -61,6 +80,11 @@ from .sqlalchemy_models import (
     ProcessEventRow,
     QuoteLineRow,
     QuoteRow,
+    SalesKnowledgeCardRow,
+    SalesObjectionRow,
+    SalesPlaybookVersionRow,
+    SalesProfileRow,
+    SalesTurnRow,
     StaffSessionRow,
     StaffSecurityCredentialRow,
     StaffPasswordResetRow,
@@ -1011,6 +1035,413 @@ class SQLAlchemyProcessCaseRepository:
             pending_transition=ProcessState(row.pending_human_target) if row.pending_human_target else None,
             event_history=self.events.list_for_case(row.business_id, row.id),
             is_test=row.is_test,
+        )
+
+
+class SQLAlchemySalesProfileRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def add(self, profile: CustomerSalesProfile, *, now: datetime) -> None:
+        self.session.add(SalesProfileRow(
+            business_id=profile.business_id,
+            case_id=profile.case_id,
+            stage=profile.stage.value,
+            customer_goal=profile.customer_goal,
+            current_problem=profile.current_problem,
+            desired_outcome=profile.desired_outcome,
+            decision_criteria=list(profile.decision_criteria),
+            active_objection=self._objection_value(profile.active_objection),
+            commitment_level=profile.commitment_level.value,
+            preferred_channel=profile.preferred_channel,
+            preferred_contact_at=profile.preferred_contact_at,
+            last_move=profile.last_move.value if profile.last_move else None,
+            metadata_json=_json_value(profile.metadata),
+            created_at=now,
+            updated_at=now,
+            version=profile.version,
+        ))
+
+    def get(
+        self, business_id: str, case_id: str, *, for_update: bool = False
+    ) -> CustomerSalesProfile | None:
+        statement = select(SalesProfileRow).where(
+            SalesProfileRow.business_id == business_id,
+            SalesProfileRow.case_id == case_id,
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        row = self.session.scalar(statement)
+        return self._to_domain(row) if row is not None else None
+
+    def save(
+        self, profile: CustomerSalesProfile, expected_version: int, *, now: datetime
+    ) -> CustomerSalesProfile:
+        new_version = expected_version + 1
+        result = self.session.execute(
+            update(SalesProfileRow)
+            .where(
+                SalesProfileRow.business_id == profile.business_id,
+                SalesProfileRow.case_id == profile.case_id,
+                SalesProfileRow.version == expected_version,
+            )
+            .values(
+                stage=profile.stage.value,
+                customer_goal=profile.customer_goal,
+                current_problem=profile.current_problem,
+                desired_outcome=profile.desired_outcome,
+                decision_criteria=list(profile.decision_criteria),
+                active_objection=self._objection_value(profile.active_objection),
+                commitment_level=profile.commitment_level.value,
+                preferred_channel=profile.preferred_channel,
+                preferred_contact_at=profile.preferred_contact_at,
+                last_move=profile.last_move.value if profile.last_move else None,
+                metadata_json=_json_value(profile.metadata),
+                updated_at=now,
+                version=new_version,
+            )
+        )
+        if result.rowcount != 1:
+            raise StaleSalesProfileError(
+                f"sales profile version conflict: {profile.business_id}/{profile.case_id}"
+            )
+        return replace(profile, version=new_version)
+
+    @staticmethod
+    def _objection_value(objection: SalesObjection | None) -> dict[str, Any] | None:
+        if objection is None:
+            return None
+        return {
+            "type": objection.objection_type.value,
+            "status": objection.status.value,
+            "cause": objection.cause,
+            "evidence": {
+                "source_message_id": objection.evidence.source_message_id,
+                "excerpt": objection.evidence.excerpt,
+            },
+        }
+
+    @staticmethod
+    def _to_domain(row: SalesProfileRow) -> CustomerSalesProfile:
+        objection = None
+        if row.active_objection:
+            evidence = row.active_objection["evidence"]
+            objection = SalesObjection(
+                objection_type=ObjectionType(row.active_objection["type"]),
+                status=ObjectionStatus(row.active_objection["status"]),
+                cause=row.active_objection.get("cause"),
+                evidence=CustomerEvidence(evidence["source_message_id"], evidence["excerpt"]),
+            )
+        return CustomerSalesProfile(
+            business_id=row.business_id,
+            case_id=row.case_id,
+            stage=SalesStage(row.stage),
+            customer_goal=row.customer_goal,
+            current_problem=row.current_problem,
+            desired_outcome=row.desired_outcome,
+            decision_criteria=tuple(row.decision_criteria),
+            active_objection=objection,
+            commitment_level=CommitmentLevel(row.commitment_level),
+            preferred_channel=row.preferred_channel,
+            preferred_contact_at=_aware(row.preferred_contact_at) if row.preferred_contact_at else None,
+            last_move=SalesMove(row.last_move) if row.last_move else None,
+            version=row.version,
+            metadata=row.metadata_json,
+        )
+
+
+class SQLAlchemySalesTurnRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def add(self, turn: SalesTurn) -> None:
+        self.session.add(SalesTurnRow(
+            id=turn.turn_id,
+            business_id=turn.business_id,
+            case_id=turn.case_id,
+            conversation_id=turn.conversation_id,
+            source_message_id=turn.source_message_id,
+            playbook_version=turn.playbook_version,
+            stage_before=turn.stage_before.value,
+            stage_after=turn.stage_after.value,
+            move=turn.move.value,
+            reason_code=turn.reason_code,
+            knowledge_ids=list(turn.knowledge_ids),
+            business_fact_ids=list(turn.business_fact_ids),
+            customer_evidence=[
+                {"source_message_id": item.source_message_id, "excerpt": item.excerpt}
+                for item in turn.customer_evidence
+            ],
+            analysis=_json_value(turn.analysis),
+            validation=_json_value(turn.validation),
+            created_at=turn.created_at,
+        ))
+
+    def get_by_source_message(
+        self, business_id: str, case_id: str, source_message_id: str
+    ) -> SalesTurn | None:
+        row = self.session.scalar(select(SalesTurnRow).where(
+            SalesTurnRow.business_id == business_id,
+            SalesTurnRow.case_id == case_id,
+            SalesTurnRow.source_message_id == source_message_id,
+        ))
+        return self._to_domain(row) if row is not None else None
+
+    def list_for_case(self, business_id: str, case_id: str) -> tuple[SalesTurn, ...]:
+        rows = self.session.scalars(
+            select(SalesTurnRow)
+            .where(SalesTurnRow.business_id == business_id, SalesTurnRow.case_id == case_id)
+            .order_by(SalesTurnRow.created_at, SalesTurnRow.id)
+        )
+        return tuple(self._to_domain(row) for row in rows)
+
+    @staticmethod
+    def _to_domain(row: SalesTurnRow) -> SalesTurn:
+        return SalesTurn(
+            turn_id=row.id,
+            business_id=row.business_id,
+            case_id=row.case_id,
+            conversation_id=row.conversation_id,
+            source_message_id=row.source_message_id,
+            playbook_version=row.playbook_version,
+            stage_before=SalesStage(row.stage_before),
+            stage_after=SalesStage(row.stage_after),
+            move=SalesMove(row.move),
+            reason_code=row.reason_code,
+            knowledge_ids=tuple(row.knowledge_ids),
+            business_fact_ids=tuple(row.business_fact_ids),
+            customer_evidence=tuple(
+                CustomerEvidence(item["source_message_id"], item["excerpt"])
+                for item in row.customer_evidence
+            ),
+            analysis=row.analysis,
+            validation=row.validation,
+            created_at=_aware(row.created_at),
+        )
+
+
+class SQLAlchemySalesKnowledgeRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def add(self, card: SalesKnowledgeCard, *, now: datetime) -> None:
+        self.session.add(SalesKnowledgeCardRow(
+            business_id=card.business_id,
+            knowledge_id=card.knowledge_id,
+            version=card.version,
+            status=card.status.value,
+            source=_json_value(card.source),
+            principle=card.principle,
+            applicable_when=list(card.applicable_when),
+            prohibited_when=list(card.prohibited_when),
+            required_sequence=list(card.required_sequence),
+            forbidden_actions=list(card.forbidden_actions),
+            approved_examples=list(card.approved_examples),
+            created_at=card.created_at or now,
+            reviewed_at=card.reviewed_at,
+            reviewed_by=card.reviewed_by,
+        ))
+
+    def get(
+        self, business_id: str, knowledge_id: str, version: int
+    ) -> SalesKnowledgeCard | None:
+        row = self.session.get(SalesKnowledgeCardRow, (business_id, knowledge_id, version))
+        return self._to_domain(row) if row is not None else None
+
+    def list_approved(self, business_id: str) -> tuple[SalesKnowledgeCard, ...]:
+        rows = self.session.scalars(
+            select(SalesKnowledgeCardRow)
+            .where(
+                SalesKnowledgeCardRow.business_id == business_id,
+                SalesKnowledgeCardRow.status == SalesKnowledgeStatus.APPROVED.value,
+            )
+            .order_by(SalesKnowledgeCardRow.knowledge_id, SalesKnowledgeCardRow.version.desc())
+        )
+        return tuple(self._to_domain(row) for row in rows)
+
+    def list_for_business(
+        self, business_id: str, *, status: SalesKnowledgeStatus | None = None
+    ) -> tuple[SalesKnowledgeCard, ...]:
+        statement = select(SalesKnowledgeCardRow).where(
+            SalesKnowledgeCardRow.business_id == business_id
+        )
+        if status is not None:
+            statement = statement.where(SalesKnowledgeCardRow.status == status.value)
+        rows = self.session.scalars(
+            statement.order_by(
+                SalesKnowledgeCardRow.knowledge_id,
+                SalesKnowledgeCardRow.version.desc(),
+            )
+        )
+        return tuple(self._to_domain(row) for row in rows)
+
+    def set_status(
+        self,
+        business_id: str,
+        knowledge_id: str,
+        version: int,
+        *,
+        status: SalesKnowledgeStatus,
+        reviewed_at: datetime,
+        reviewed_by: str,
+    ) -> SalesKnowledgeCard | None:
+        if status not in {SalesKnowledgeStatus.APPROVED, SalesKnowledgeStatus.REJECTED}:
+            raise ValueError("knowledge review can only approve or reject a candidate")
+        result = self.session.execute(
+            update(SalesKnowledgeCardRow)
+            .where(
+                SalesKnowledgeCardRow.business_id == business_id,
+                SalesKnowledgeCardRow.knowledge_id == knowledge_id,
+                SalesKnowledgeCardRow.version == version,
+                SalesKnowledgeCardRow.status == SalesKnowledgeStatus.CANDIDATE.value,
+            )
+            .values(status=status.value, reviewed_at=reviewed_at, reviewed_by=reviewed_by)
+        )
+        if result.rowcount != 1:
+            return None
+        row = self.session.get(SalesKnowledgeCardRow, (business_id, knowledge_id, version))
+        if row is None:
+            return None
+        self.session.refresh(row)
+        return self._to_domain(row)
+
+    @staticmethod
+    def _to_domain(row: SalesKnowledgeCardRow) -> SalesKnowledgeCard:
+        return SalesKnowledgeCard(
+            knowledge_id=row.knowledge_id,
+            business_id=row.business_id,
+            version=row.version,
+            status=SalesKnowledgeStatus(row.status),
+            source=row.source,
+            principle=row.principle,
+            applicable_when=tuple(row.applicable_when),
+            prohibited_when=tuple(row.prohibited_when),
+            required_sequence=tuple(row.required_sequence),
+            forbidden_actions=tuple(row.forbidden_actions),
+            approved_examples=tuple(row.approved_examples),
+            created_at=_aware(row.created_at),
+            reviewed_at=_aware(row.reviewed_at) if row.reviewed_at else None,
+            reviewed_by=row.reviewed_by,
+        )
+
+
+class SQLAlchemySalesPlaybookRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def add(self, playbook: SalesPlaybookVersion) -> None:
+        self.session.add(SalesPlaybookVersionRow(
+            business_id=playbook.business_id,
+            version=playbook.version,
+            status=playbook.status.value,
+            configuration=_json_value(playbook.configuration),
+            created_at=playbook.created_at,
+            published_at=playbook.published_at,
+        ))
+
+    def get_active(self, business_id: str) -> SalesPlaybookVersion | None:
+        row = self.session.scalar(select(SalesPlaybookVersionRow).where(
+            SalesPlaybookVersionRow.business_id == business_id,
+            SalesPlaybookVersionRow.status == SalesPlaybookStatus.PUBLISHED.value,
+        ))
+        return self._to_domain(row) if row is not None else None
+
+    def list_versions(self, business_id: str) -> tuple[SalesPlaybookVersion, ...]:
+        rows = self.session.scalars(
+            select(SalesPlaybookVersionRow)
+            .where(SalesPlaybookVersionRow.business_id == business_id)
+            .order_by(SalesPlaybookVersionRow.version.desc())
+        )
+        return tuple(self._to_domain(row) for row in rows)
+
+    @staticmethod
+    def _to_domain(row: SalesPlaybookVersionRow) -> SalesPlaybookVersion:
+        return SalesPlaybookVersion(
+            business_id=row.business_id,
+            version=row.version,
+            status=SalesPlaybookStatus(row.status),
+            configuration=row.configuration,
+            created_at=_aware(row.created_at),
+            published_at=_aware(row.published_at) if row.published_at else None,
+        )
+
+
+class SQLAlchemySalesObjectionRepository:
+    def __init__(self, session: Session) -> None:
+        self.session = session
+
+    def add(self, record: SalesObjectionRecord) -> None:
+        self.session.add(SalesObjectionRow(
+            id=record.objection_id,
+            business_id=record.business_id,
+            case_id=record.case_id,
+            objection_type=record.objection.objection_type.value,
+            status=record.objection.status.value,
+            cause=record.objection.cause,
+            source_message_id=record.objection.evidence.source_message_id,
+            evidence_excerpt=record.objection.evidence.excerpt,
+            created_at=record.created_at,
+            updated_at=record.updated_at,
+            version=record.version,
+        ))
+
+    def save(
+        self, record: SalesObjectionRecord, expected_version: int
+    ) -> SalesObjectionRecord:
+        new_version = expected_version + 1
+        result = self.session.execute(
+            update(SalesObjectionRow)
+            .where(
+                SalesObjectionRow.id == record.objection_id,
+                SalesObjectionRow.business_id == record.business_id,
+                SalesObjectionRow.case_id == record.case_id,
+                SalesObjectionRow.version == expected_version,
+            )
+            .values(
+                objection_type=record.objection.objection_type.value,
+                status=record.objection.status.value,
+                cause=record.objection.cause,
+                source_message_id=record.objection.evidence.source_message_id,
+                evidence_excerpt=record.objection.evidence.excerpt,
+                updated_at=record.updated_at,
+                version=new_version,
+            )
+        )
+        if result.rowcount != 1:
+            raise StaleSalesObjectionError(
+                "sales objection version conflict or record not found: "
+                f"{record.business_id}/{record.case_id}/{record.objection_id}"
+            )
+        return replace(record, version=new_version)
+
+    def list_for_case(
+        self, business_id: str, case_id: str
+    ) -> tuple[SalesObjectionRecord, ...]:
+        rows = self.session.scalars(
+            select(SalesObjectionRow)
+            .where(
+                SalesObjectionRow.business_id == business_id,
+                SalesObjectionRow.case_id == case_id,
+            )
+            .order_by(SalesObjectionRow.created_at, SalesObjectionRow.id)
+        )
+        return tuple(self._to_domain(row) for row in rows)
+
+    @staticmethod
+    def _to_domain(row: SalesObjectionRow) -> SalesObjectionRecord:
+        return SalesObjectionRecord(
+            objection_id=row.id,
+            business_id=row.business_id,
+            case_id=row.case_id,
+            objection=SalesObjection(
+                objection_type=ObjectionType(row.objection_type),
+                status=ObjectionStatus(row.status),
+                cause=row.cause,
+                evidence=CustomerEvidence(row.source_message_id, row.evidence_excerpt),
+            ),
+            created_at=_aware(row.created_at),
+            updated_at=_aware(row.updated_at),
+            version=row.version,
         )
 
 

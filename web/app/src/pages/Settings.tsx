@@ -6,6 +6,7 @@ import { AreaOption, Field, formatRelativeTime, inputCls, ToneOption } from "../
 import { useAuth, describeError } from "../auth/AuthContext";
 import { API_BASE, api, type BusinessDNASettings, type CommercialPath, type CrmWebhookStatus, type ReportingSettings, type SmsStatus } from "../api/client";
 import { StatisticsPanel } from "../components/StatisticsPanel";
+import { SalesPlaybookSettings } from "../components/SalesPlaybookSettings";
 
 // Grouped by the task a business owner actually has, not by which Business
 // DNA schema section a field happens to live in -- "Services" and "Booking"
@@ -19,6 +20,7 @@ const SETTINGS_TABS = [
   { key: "basics", label: "Basics" },
   { key: "services", label: "Services & booking" },
   { key: "conversation", label: "Conversation" },
+  { key: "playbook", label: "Sales Playbook" },
   // The key stays "reporting" so existing ?tab=reporting links keep working;
   // only what the owner reads changes. The tab holds actions on the numbers,
   // and "Statistics" says that where "Reporting" did not.
@@ -1084,6 +1086,10 @@ export default function Settings() {
                     ))}
                   </div>
                 </div>
+              )}
+
+              {tab === "playbook" && token && businessId && (
+                <SalesPlaybookSettings token={token} businessId={businessId} />
               )}
 
               {tab === "reporting" && (

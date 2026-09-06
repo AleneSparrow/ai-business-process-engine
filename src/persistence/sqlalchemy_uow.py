@@ -20,6 +20,11 @@ from .sqlalchemy_repositories import (
     SQLAlchemyProcessCaseRepository,
     SQLAlchemyProcessEventRepository,
     SQLAlchemyQuoteRepository,
+    SQLAlchemySalesKnowledgeRepository,
+    SQLAlchemySalesObjectionRepository,
+    SQLAlchemySalesPlaybookRepository,
+    SQLAlchemySalesProfileRepository,
+    SQLAlchemySalesTurnRepository,
     SQLAlchemySmsConnectionRepository,
     SQLAlchemyStaffSessionRepository,
     SQLAlchemyStaffSecurityRepository,
@@ -74,6 +79,11 @@ class SQLAlchemyUnitOfWork:
         self.sms_connections = SQLAlchemySmsConnectionRepository(self.session)
         self.billing_webhook_events = SQLAlchemyBillingWebhookEventRepository(self.session)
         self.follow_up_deliveries = SQLAlchemyFollowUpDeliveryRepository(self.session)
+        self.sales_profiles = SQLAlchemySalesProfileRepository(self.session)
+        self.sales_turns = SQLAlchemySalesTurnRepository(self.session)
+        self.sales_knowledge = SQLAlchemySalesKnowledgeRepository(self.session)
+        self.sales_playbooks = SQLAlchemySalesPlaybookRepository(self.session)
+        self.sales_objections = SQLAlchemySalesObjectionRepository(self.session)
         return self
 
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None:

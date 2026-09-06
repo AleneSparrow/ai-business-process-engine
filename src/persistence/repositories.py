@@ -10,6 +10,10 @@ from src.domain.models import Lead, ProcessCase, ProcessEvent
 from src.domain.conversations import Conversation, ConversationMessage
 from src.domain.commercial import Booking, PaymentRequest, PaymentType, Quote
 from src.domain.states import ProcessState
+from src.domain.sales import (
+    CustomerSalesProfile, SalesKnowledgeCard, SalesKnowledgeStatus, SalesObjectionRecord,
+    SalesPlaybookVersion, SalesTurn,
+)
 from src.domain.tenancy import Business, BusinessDNAVersion
 
 
@@ -150,6 +154,61 @@ class ProcessEventRepository(Protocol):
     def add(self, business_id: str, case_id: str, event: ProcessEvent) -> None: ...
     def add_many(self, business_id: str, case_id: str, events: tuple[ProcessEvent, ...]) -> None: ...
     def list_for_case(self, business_id: str, case_id: str) -> tuple[ProcessEvent, ...]: ...
+
+
+class SalesProfileRepository(Protocol):
+    def add(self, profile: CustomerSalesProfile, *, now: datetime) -> None: ...
+    def get(
+        self, business_id: str, case_id: str, *, for_update: bool = False
+    ) -> CustomerSalesProfile | None: ...
+    def save(
+        self, profile: CustomerSalesProfile, expected_version: int, *, now: datetime
+    ) -> CustomerSalesProfile: ...
+
+
+class SalesTurnRepository(Protocol):
+    def add(self, turn: SalesTurn) -> None: ...
+    def get_by_source_message(
+        self, business_id: str, case_id: str, source_message_id: str
+    ) -> SalesTurn | None: ...
+    def list_for_case(self, business_id: str, case_id: str) -> tuple[SalesTurn, ...]: ...
+
+
+class SalesKnowledgeRepository(Protocol):
+    def add(self, card: SalesKnowledgeCard, *, now: datetime) -> None: ...
+    def get(
+        self, business_id: str, knowledge_id: str, version: int
+    ) -> SalesKnowledgeCard | None: ...
+    def list_approved(self, business_id: str) -> tuple[SalesKnowledgeCard, ...]: ...
+    def list_for_business(
+        self, business_id: str, *, status: SalesKnowledgeStatus | None = None
+    ) -> tuple[SalesKnowledgeCard, ...]: ...
+    def set_status(
+        self,
+        business_id: str,
+        knowledge_id: str,
+        version: int,
+        *,
+        status: SalesKnowledgeStatus,
+        reviewed_at: datetime,
+        reviewed_by: str,
+    ) -> SalesKnowledgeCard | None: ...
+
+
+class SalesPlaybookRepository(Protocol):
+    def add(self, playbook: SalesPlaybookVersion) -> None: ...
+    def get_active(self, business_id: str) -> SalesPlaybookVersion | None: ...
+    def list_versions(self, business_id: str) -> tuple[SalesPlaybookVersion, ...]: ...
+
+
+class SalesObjectionRepository(Protocol):
+    def add(self, record: SalesObjectionRecord) -> None: ...
+    def save(
+        self, record: SalesObjectionRecord, expected_version: int
+    ) -> SalesObjectionRecord: ...
+    def list_for_case(
+        self, business_id: str, case_id: str
+    ) -> tuple[SalesObjectionRecord, ...]: ...
 
 
 class IdempotencyRepository(Protocol):
@@ -418,6 +477,11 @@ class UnitOfWork(Protocol):
     sms_connections: SmsConnectionRepository
     billing_webhook_events: BillingWebhookEventRepository
     follow_up_deliveries: FollowUpDeliveryRepository
+    sales_profiles: SalesProfileRepository
+    sales_turns: SalesTurnRepository
+    sales_knowledge: SalesKnowledgeRepository
+    sales_playbooks: SalesPlaybookRepository
+    sales_objections: SalesObjectionRepository
 
     def __enter__(self) -> "UnitOfWork": ...
     def __exit__(self, exc_type: object, exc: object, traceback: object) -> None: ...
