@@ -24,52 +24,18 @@ export const STAGES = ["New", "Contacted", "Qualified", "Booked", "Completed"];
 
 export type CaseState = "NEW" | "QUALIFYING" | "NEEDS_HUMAN" | "BOOKED" | "LOST" | "COMPLETED";
 
-// QUALIFYING deliberately uses the brand's functional accent (amber, not the
-// bronze brand accent) -- per the brand book, amber is reserved for
-// "active, in motion" product states, and a case being actively qualified
-// is exactly that. Every other state here is a resting/terminal state.
+// QUALIFYING uses Pulse coral: the lead is in motion. Lime is reserved for
+// "needs you" and other human/CTA states. Resting states stay mute or ink.
 export const STATE_META: Record<CaseState, { label: string; color: string; bg: string }> = {
   NEW: { label: "New", color: "#6B6459", bg: "#F1F1EF" },
-  QUALIFYING: { label: "Qualifying", color: "#D97B29", bg: "#FBF0E2" },
-  NEEDS_HUMAN: { label: "Needs you", color: "#C97A1F", bg: "#FBF0E2" },
+  QUALIFYING: { label: "Qualifying", color: "#FF5A36", bg: "#FFE8E1" },
+  NEEDS_HUMAN: { label: "Needs you", color: "#4A4A00", bg: "#EEFF99" },
   BOOKED: { label: "Booked", color: "#1E7B52", bg: "#E9F5EF" },
   LOST: { label: "Lost", color: "#B4483A", bg: "#FBEBE9" },
   COMPLETED: { label: "Completed", color: "#151515", bg: "#F1F1EF" },
 };
 
-/**
- * The Flywheel emblem, simplified for UI use -- a rim, five spokes, a small
- * hub node, and a short motion-trail arc (per the brand-book revision: five
- * spokes, not three or four -- three in a ring reads instantly as a
- * well-known automotive badge, a collision the book deliberately designs
- * away from; five keeps the silhouette unmistakably a wheel while staying
- * clear of that association at every size, "legible at 16x16px"). Renders
- * in `currentColor` so it inherits whatever text color its container sets.
- */
-export function FlywheelMark({ size = 16, className }: { size?: number; className?: string }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      aria-hidden="true"
-      className={className}
-    >
-      <circle cx="12" cy="12" r="8" />
-      <circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none" />
-      <path d="M12 12 L13.9 4.8" />
-      <path d="M12 12 L19.5 11.6" />
-      <path d="M12 12 L14.7 19" />
-      <path d="M12 12 L6.2 16.7" />
-      <path d="M12 12 L5.7 7.9" />
-      <path d="M20.3 9.3 A9 9 0 0 1 21.2 12.6" strokeWidth="1.2" opacity="0.55" />
-    </svg>
-  );
-}
+export { EvoroveMark, EvoroveMark as FlywheelMark } from "../brand/BrandLockup";
 
 /**
  * The real engine has more states than the UI's simplified five-bucket view
@@ -161,7 +127,7 @@ export function formatRelativeTime(iso: string): string {
  *
  * Pass `labels` on the detail panels; the list rows want the dots alone.
  */
-export function Stepper({ stage, color = "#B87333", labels = false }: {
+export function Stepper({ stage, color = "#FF5A36", labels = false }: {
   stage: number;
   color?: string;
   labels?: boolean;
@@ -228,7 +194,7 @@ export function Field({
 }
 
 export const inputCls =
-  "w-full px-3.5 py-2.5 rounded-lg border border-[#E7E5DE] bg-white text-sm outline-none focus:ring-2 focus:ring-[#B8733333] focus:border-[#B87333] transition-shadow";
+  "w-full px-3.5 py-2.5 rounded-lg border border-[#E4DCCB] bg-white text-sm outline-none focus:ring-2 focus:ring-[#FF5A3633] focus:border-[#FF5A36] transition-shadow";
 
 /** Used on both Onboarding's "Who can you serve?" step and Settings' "Service
  * area" tab, so a remote/local choice looks and behaves identically wherever
@@ -255,11 +221,11 @@ export function AreaOption({
       type="button"
       onClick={onClick}
       className="text-left p-4 rounded-xl border transition-colors flex flex-col gap-2.5"
-      style={{ borderColor: active ? "#B87333" : "#E7E5DE", backgroundColor: active ? "#F5E7D6" : "#fff" }}
+      style={{ borderColor: active ? "#FF5A36" : "#E4DCCB", backgroundColor: active ? "#FFE8E1" : "#fff" }}
     >
       <div
         className="w-8 h-8 rounded-lg flex items-center justify-center"
-        style={{ backgroundColor: active ? "#B87333" : "#F1F1EF", color: active ? "#fff" : "#6B6459" }}
+        style={{ backgroundColor: active ? "#FF5A36" : "#F1F1EF", color: active ? "#fff" : "#6B6459" }}
       >
         <Icon size={15} />
       </div>
@@ -287,7 +253,7 @@ export function ToneOption({
       type="button"
       onClick={onClick}
       className="text-left px-4 py-3 rounded-xl border transition-colors"
-      style={{ borderColor: active ? "#B87333" : "#E7E5DE", backgroundColor: active ? "#F5E7D6" : "#fff" }}
+      style={{ borderColor: active ? "#FF5A36" : "#E4DCCB", backgroundColor: active ? "#FFE8E1" : "#fff" }}
     >
       <div className="text-sm font-medium mb-0.5">{label}</div>
       <div className="text-xs text-[#6B6459]">{desc}</div>

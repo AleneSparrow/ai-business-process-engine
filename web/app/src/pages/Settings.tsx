@@ -529,7 +529,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="min-h-screen w-full flex" style={{ backgroundColor: "#F5F1EA", fontFamily: "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif", color: "#151515" }}>
+    <div className="min-h-screen w-full flex" style={{ backgroundColor: "#F7F1E4", fontFamily: "Inter, system-ui, sans-serif", color: "#0B0B0D" }}>
       <Sidebar />
       <main className="flex-1 min-w-0 flex flex-col pt-14 md:pt-0">
         <header className="flex items-center justify-between px-6 md:px-8 py-4 border-b border-[#E7E5DE]">
@@ -543,7 +543,7 @@ export default function Settings() {
               <ArrowLeft size={18} />
             </button>
             <div>
-              <h1 className="text-xl" style={{ fontFamily: "'Century Gothic', 'Futura', 'Trebuchet MS', sans-serif", fontWeight: 600 }}>Settings</h1>
+              <h1 className="text-xl font-semibold">Settings</h1>
               <p className="text-sm text-[#6B6459] mt-0.5" style={{ fontFamily: dirty ? "-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" : "'IBM Plex Mono', monospace" }}>
                 {dirty
                   ? "Unsaved changes"
@@ -611,13 +611,13 @@ export default function Settings() {
 
               {tab === "widget" && (
                 <div>
-                  <div className="rounded-2xl border p-5 md:p-6" style={{ borderColor: "#D9B48F", backgroundColor: "#FFF9F2" }}>
+                  <div className="rounded-2xl border p-5 md:p-6" style={{ borderColor: "#FF5A36", backgroundColor: "#FFE8E1" }}>
                     <div className="flex items-start gap-3 mb-5">
-                      <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 text-white" style={{ backgroundColor: "#B87333" }}>
+                      <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: "#FF5A36", color: "#0B0B0D" }}>
                         <MessageSquare size={18} />
                       </span>
                       <div>
-                        <h2 className="text-lg font-semibold">Put Flywheel on your website</h2>
+                        <h2 className="text-lg font-semibold">Put Evorove on your website</h2>
                         <p className="text-sm text-[#6B6459] mt-1 leading-relaxed">
                           Copy this code and paste it into your website just before <code>&lt;/body&gt;</code>. Once published, customers can start a conversation from any page.
                         </p>
@@ -668,7 +668,7 @@ export default function Settings() {
                         checked={reporting?.test_mode_enabled ?? false}
                         disabled={!reporting || reportingSaving}
                         onChange={(event) => updateReporting({ test_mode_enabled: event.target.checked })}
-                        className="mt-0.5 accent-[#B87333]"
+                        className="mt-0.5 accent-[#FF5A36]"
                       />
                       <span>
                         {/* The label used to read "Test mode is on" as a fixed
@@ -773,12 +773,12 @@ export default function Settings() {
                     Only services set to "Book online" below are offered a slot; this needs to be on
                     for that to actually happen.
                   </p>
-                  <label className="flex items-start gap-3 p-4 rounded-xl border cursor-pointer mb-6" style={{ borderColor: state.bookingEnabled ? "#B87333" : "#E7E5DE", backgroundColor: state.bookingEnabled ? "#F5E7D6" : "#fff" }}>
+                  <label className="flex items-start gap-3 p-4 rounded-xl border cursor-pointer mb-6" style={{ borderColor: state.bookingEnabled ? "#FF5A36" : "#E7E5DE", backgroundColor: state.bookingEnabled ? "#FFE8E1" : "#fff" }}>
                     <input
                       type="checkbox"
                       checked={state.bookingEnabled}
                       onChange={() => setState({ ...state, bookingEnabled: !state.bookingEnabled })}
-                      className="mt-0.5 accent-[#B87333]"
+                      className="mt-0.5 accent-[#FF5A36]"
                     />
                     <div>
                       <div className="text-sm font-medium">Turn on online booking</div>
@@ -919,7 +919,7 @@ export default function Settings() {
                                 type="checkbox"
                                 checked={d.open}
                                 onChange={() => setState({ ...state, hours: { ...state.hours, [day]: { ...d, open: !d.open } } })}
-                                className="accent-[#B87333]"
+                                className="accent-[#FF5A36]"
                               />
                               {WEEKDAY_LABELS[day]}
                             </label>
@@ -999,7 +999,7 @@ export default function Settings() {
                           </div>
                         ))}
                         <button
-                          className="text-xs font-medium text-[#B87333] flex items-center gap-1 mt-0.5 ml-7"
+                          className="text-xs font-medium text-[#FF5A36] flex items-center gap-1 mt-0.5 ml-7"
                           onClick={() => {
                             const services = state.services.map((s) => (s.key === svc.key ? { ...s, questions: [...s.questions, ""] } : s));
                             setState({ ...state, services });
@@ -1057,7 +1057,7 @@ export default function Settings() {
                     </div>
                   ))}
                   <button
-                    className="text-xs font-medium text-[#B87333] flex items-center gap-1"
+                    className="text-xs font-medium text-[#FF5A36] flex items-center gap-1"
                     onClick={addObjection}
                   >
                     <Plus size={12} /> Add objection
@@ -1070,13 +1070,13 @@ export default function Settings() {
                       <label
                         key={key}
                         className="flex items-start gap-3 p-4 rounded-xl border cursor-pointer"
-                        style={{ borderColor: state.escalation[key] ? "#B87333" : "#E7E5DE", backgroundColor: state.escalation[key] ? "#F5E7D6" : "#fff" }}
+                        style={{ borderColor: state.escalation[key] ? "#FF5A36" : "#E7E5DE", backgroundColor: state.escalation[key] ? "#FFE8E1" : "#fff" }}
                       >
                         <input
                           type="checkbox"
                           checked={state.escalation[key]}
                           onChange={() => setState({ ...state, escalation: { ...state.escalation, [key]: !state.escalation[key] } })}
-                          className="mt-0.5 accent-[#B87333]"
+                          className="mt-0.5 accent-[#FF5A36]"
                         />
                         <div>
                           <div className="text-sm font-medium">{title}</div>
